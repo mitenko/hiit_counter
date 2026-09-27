@@ -7,6 +7,8 @@ import com.mitenko.hiitcounter.domain.model.TimerState
 enum class PhaseTone { WORK, REST, NEUTRAL }
 
 data class TimerUiState(
+    /** Frozen in the run's snapshot at Start (spec §7.6). */
+    val entryName: String,
     val setsText: String,
     val elapsedText: String,
     val label: String?,
@@ -22,7 +24,7 @@ data class TimerUiState(
 )
 
 object TimerUiMapper {
-    fun map(s: TimerState): TimerUiState {
+    fun map(s: TimerState, entryName: String): TimerUiState {
         val inner = if (s.phaseDurationSec > 0) s.phaseSecondsLeft.toFloat() / s.phaseDurationSec else 0f
         val workFraction = if (s.phase == Phase.WORK && s.phaseDurationSec > 0) {
             (s.phaseDurationSec - s.phaseSecondsLeft).toFloat() / s.phaseDurationSec
@@ -30,6 +32,7 @@ object TimerUiMapper {
             0f
         }
         val base = TimerUiState(
+            entryName = entryName,
             setsText = "${s.set}/${s.sets}",
             elapsedText = TimerText.formatHms(s.elapsedSec),
             label = null,

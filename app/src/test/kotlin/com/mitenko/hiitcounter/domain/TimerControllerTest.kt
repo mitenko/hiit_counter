@@ -19,7 +19,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimerControllerTest {
-    private val snapshot = WorkoutSnapshot(TimingConfig(), CueConfig())
+    private val snapshot = WorkoutSnapshot(entryId = 1L, entryName = "Burpees", timing = TimingConfig(), cues = CueConfig())
     private val reps = List(8) { 8 }
 
     private fun TestScope.controller() = TimerController(backgroundScope) { testScheduler.currentTime }
@@ -190,5 +190,52 @@ class TimerControllerTest {
         runCurrent()
         assertEquals(RunStatus.RUNNING, c.status.value)
         assertTrue(c.state.value!!.paused)
+    }
+
+    @Test
+    fun `lastEntryId is set by prepare and survives the end of the run`() = runTest {
+        val c = controller()
+        assertNull(c.lastEntryId)
+        c.prepare(snapshot)
+        assertEquals(1L, c.lastEntryId)
+        c.cancelPrepare()
+        assertEquals(1L, c.lastEntryId)
+        c.prepare(snapshot.copy(entryId = 2L))
+        c.onServiceStarted()
+        c.start(reps)
+        runCurrent()
+        c.stop()
+        assertNull(c.snapshot)
+        assertEquals(2L, c.lastEntryId)
+    }
+
+    @Test
+    fun `isBusy follows the run's own entry through its lifecycle`() = runTest {
+        val c = controller()
+        assertFalse(c.isBusy(1L))
+        c.prepare(snapshot)
+        assertTrue(c.isBusy(1L))
+        c.onServiceStarted()
+        c.start(reps)
+        runCurrent()
+        assertTrue(c.isBusy(1L))
+        advanceTimeBy(240_000)
+        runCurrent()
+        assertEquals(RunStatus.DONE, c.status.value)
+        // A leftover DONE is inert; deleting its entry is safe (exitTimer falls back to the list).
+        assertFalse(c.isBusy(1L))
+        c.dismissDone()
+        assertFalse(c.isBusy(1L))
+    }
+
+    @Test
+    fun `other entries and a stopped run are never busy`() = runTest {
+        val c = controller()
+        c.prepare(snapshot)
+        assertFalse(c.isBusy(2L))
+        c.onServiceStarted()
+        c.start(reps)
+        c.stop()
+        assertFalse(c.isBusy(1L))
     }
 }

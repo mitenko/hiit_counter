@@ -26,6 +26,7 @@ class TimerScreenTest {
     private fun ui(phase: Phase) = TimerUiMapper.map(
         TimerState(phase, set = 2, sets = 8, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = 50,
             totalDurationSec = 240, repsThisSet = 8, totalReps = 65, paused = false),
+        entryName = "Kettlebell Lunges",
     )
 
     @Test
@@ -67,5 +68,11 @@ class TimerScreenTest {
         compose.onNodeWithTag("center_number", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("countdown", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `shows the frozen entry name above the stats`() {
+        compose.setContent { HiitTheme { TimerScreen(ui(Phase.WORK), onTogglePause = {}, onClose = {}) } }
+        compose.onNodeWithTag("entry_name").assertTextEquals("Kettlebell Lunges")
     }
 }

@@ -17,7 +17,6 @@
     <string name="stop_workout_title">Stop workout?</string>
     <string name="stop_workout_body">Today\'s check-in has already been recorded.</string>
     <string name="notification_channel_name">Workout timer</string>
-    <string name="notification_starting">Starting workout…</string>
     <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="settings_timing">Timing</string>
@@ -44,7 +43,6 @@
     <string name="best_streak_field">Best streak</string>
     <string name="current_streak_field">Current streak</string>
     <string name="last_check_in_field">Last check-in</string>
-    <string name="set">Set</string>
     <string name="clear">Clear</string>
     <string name="none">—</string>
     <string name="reset_progress">Reset progress</string>
@@ -55,4 +53,23 @@
     <string name="ok">OK</string>
     <string name="sound">Sound</string>
     <string name="vibration">Vibration</string>
+
+    <!-- Multi-entry (spec §7, §8) -->
+    <string name="no_workouts">No workouts yet</string>
+    <string name="add_first_workout">Add your first workout</string>
+    <string name="add_workout">Add workout</string>
+    <string name="new_workout">New workout</string>
+    <string name="name_label">Name</string>
+    <string name="reorder">Reorder</string>
+    <string name="done">Done</string>
+    <string name="reps_n">Reps %1$d</string>
+    <string name="move_up">Move %1$s up</string>
+    <string name="move_down">Move %1$s down</string>
+    <string name="rename">Rename</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="delete">Delete</string>
+    <string name="delete_title">Delete %1$s?</string>
+    <string name="delete_body">Its rep total, streaks and settings will be lost.</string>
+    <string name="stop_workout_first">Stop the workout first</string>
+    <string name="edit_value">Edit %1$s</string>
 </resources>

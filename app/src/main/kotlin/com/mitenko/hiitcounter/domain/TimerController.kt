@@ -15,7 +15,16 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class WorkoutSnapshot(val timing: TimingConfig, val cues: CueConfig)
+/**
+ * Frozen at Start (spec §7.1): the service, timer screen and notification read only this, so
+ * renaming, editing or deleting the source entry never changes an active run.
+ */
+data class WorkoutSnapshot(
+    val entryId: Long,
+    val entryName: String,
+    val timing: TimingConfig,
+    val cues: CueConfig,
+)
 
 enum class RunStatus { IDLE, PREPARING, RUNNING, DONE }
 
@@ -26,7 +35,7 @@ sealed interface ServiceStatus {
 }
 
 /**
- * Owns the single running workout (spec §4, §8). Commands are idempotent. Must be used
+ * Owns the single running workout (v1 spec §4, §8). Commands are idempotent. Must be used
  * from the thread [scope] dispatches on (Main in production).
  */
 class TimerController(
@@ -48,14 +57,27 @@ class TimerController(
     var snapshot: WorkoutSnapshot? = null
         private set
 
+    /** The entry of the most recent prepare(); kept after the run ends so leaving the timer returns to it (spec §7.2). */
+    var lastEntryId: Long? = null
+        private set
+
     private var engine: TabataEngine? = null
     private var runJob: Job? = null
     private var pauseTimeoutJob: Job? = null
+
+    /**
+     * Spec §7.1 busy rule, read at the moment of each destructive action. After process
+     * recreation the controller starts IDLE, so nothing is busy. A leftover DONE is inert:
+     * deleting its entry is safe because exitTimer falls back to the list.
+     */
+    fun isBusy(entryId: Long): Boolean =
+        (_status.value == RunStatus.PREPARING || _status.value == RunStatus.RUNNING) && snapshot?.entryId == entryId
 
     fun prepare(snapshot: WorkoutSnapshot): Boolean {
         if (_status.value == RunStatus.PREPARING || _status.value == RunStatus.RUNNING) return false
         clearRun() // clears the previous snapshot; assign the new one after
         this.snapshot = snapshot
+        lastEntryId = snapshot.entryId
         _serviceStatus.value = ServiceStatus.Pending
         _status.value = RunStatus.PREPARING
         return true
@@ -77,7 +99,7 @@ class TimerController(
 
     fun start(repsPerSet: List<Int>): Boolean {
         val snap = snapshot ?: return false
-        // The timer only runs under a foreground service (spec §4).
+        // The timer only runs under a foreground service (v1 spec §4).
         if (_status.value != RunStatus.PREPARING || _serviceStatus.value != ServiceStatus.Started) return false
         val e = TabataEngine(
             timing = snap.timing,
@@ -131,6 +153,7 @@ class TimerController(
         _status.value = RunStatus.IDLE
     }
 
+    /** Clears the run but deliberately not [lastEntryId]. */
     private fun clearRun() {
         runJob?.cancel()
         runJob = null

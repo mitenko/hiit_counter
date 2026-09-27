@@ -22,7 +22,12 @@ object TimerText {
         Phase.DONE -> "Done"
     }
 
-    fun notificationTitle(s: TimerState): String = "${phaseName(s.phase)} · Set ${s.set}/${s.sets}"
+    /** `"<entryName> · <Phase> · Set n/N"` with the name frozen in the run's snapshot (spec §7.6). */
+    fun notificationTitle(entryName: String?, s: TimerState): String =
+        listOfNotNull(entryName, phaseName(s.phase), "Set ${s.set}/${s.sets}").joinToString(" · ")
+
+    /** The first notification, before any timer state: `"<entryName> · Starting…"`. */
+    fun startingTitle(entryName: String?): String = if (entryName != null) "$entryName · Starting…" else "Starting workout…"
 
     fun notificationBody(s: TimerState): String = when {
         s.phase == Phase.DONE -> "Workout complete"

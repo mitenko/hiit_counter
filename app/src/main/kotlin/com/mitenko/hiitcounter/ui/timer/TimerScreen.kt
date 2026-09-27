@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.ui.theme.HiitColors
@@ -49,9 +50,20 @@ fun TimerScreen(ui: TimerUiState, onTogglePause: () -> Unit, onClose: () -> Unit
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-                Stat(R.string.sets_label, ui.setsText)
-                Stat(R.string.elapsed_label, ui.elapsedText)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // The name frozen at Start (spec §7.6), above the Sets/Elapsed row.
+                Text(
+                    ui.entryName,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 8.dp).testTag("entry_name"),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+                    Stat(R.string.sets_label, ui.setsText)
+                    Stat(R.string.elapsed_label, ui.elapsedText)
+                }
             }
             BoxWithConstraints(Modifier.fillMaxWidth(0.85f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                 // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.

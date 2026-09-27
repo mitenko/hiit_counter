@@ -16,7 +16,7 @@ class TimerUiMapperTest {
 
     @Test
     fun `work shows bright reps without a label`() {
-        val ui = TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20))
+        val ui = TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Burpees")
         assertNull(ui.label)
         assertEquals(8, ui.centerNumber)
         assertFalse(ui.centerDimmed)
@@ -31,7 +31,7 @@ class TimerUiMapperTest {
 
     @Test
     fun `rest shows label and dimmed upcoming reps`() {
-        val ui = TimerUiMapper.map(state(Phase.REST, set = 3, left = 10, duration = 10, reps = 9))
+        val ui = TimerUiMapper.map(state(Phase.REST, set = 3, left = 10, duration = 10, reps = 9), "Burpees")
         assertEquals("REST", ui.label)
         assertEquals(9, ui.centerNumber)
         assertTrue(ui.centerDimmed)
@@ -41,21 +41,28 @@ class TimerUiMapperTest {
 
     @Test
     fun `prepare cooldown and done`() {
-        val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10, reps = 9))
+        val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10, reps = 9), "Burpees")
         assertEquals("GET READY", prep.label)
         assertEquals(9, prep.centerNumber)
         assertTrue(prep.centerDimmed)
         assertEquals(0f, prep.outerProgress, 1e-6f)
 
-        val cool = TimerUiMapper.map(state(Phase.COOLDOWN, set = 8, left = 5, duration = 30, reps = 0))
+        val cool = TimerUiMapper.map(state(Phase.COOLDOWN, set = 8, left = 5, duration = 30, reps = 0), "Burpees")
         assertEquals("COOLDOWN", cool.label)
         assertNull(cool.centerNumber)
         assertEquals(1f, cool.outerProgress, 1e-6f)
 
-        val done = TimerUiMapper.map(state(Phase.DONE, set = 8, left = 0, duration = 0, reps = 0))
+        val done = TimerUiMapper.map(state(Phase.DONE, set = 8, left = 0, duration = 0, reps = 0), "Burpees")
         assertEquals("DONE", done.label)
         assertEquals(65, done.centerNumber)
         assertTrue(done.done)
         assertEquals("", done.countdownText)
+    }
+
+    @Test
+    fun `the frozen entry name is carried through every phase`() {
+        Phase.entries.forEach { phase ->
+            assertEquals("Kettlebell Lunges", TimerUiMapper.map(state(phase, set = 1, left = 5, duration = 10), "Kettlebell Lunges").entryName)
+        }
     }
 }

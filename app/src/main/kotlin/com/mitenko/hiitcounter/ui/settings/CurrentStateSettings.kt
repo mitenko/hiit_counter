@@ -1,5 +1,6 @@
 package com.mitenko.hiitcounter.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,37 +17,43 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mitenko.hiitcounter.R
-import com.mitenko.hiitcounter.data.CounterRepository
-import com.mitenko.hiitcounter.data.SettingsRepository
+import com.mitenko.hiitcounter.data.EntryRepository
 import com.mitenko.hiitcounter.domain.Clock
 import com.mitenko.hiitcounter.domain.Field
+import com.mitenko.hiitcounter.domain.FieldRanges
 import com.mitenko.hiitcounter.domain.SettingsValidator
 import com.mitenko.hiitcounter.domain.ValidationResult
+import com.mitenko.hiitcounter.domain.model.EntryNotFound
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.ui.common.DateFormats
-import com.mitenko.hiitcounter.ui.common.NumberField
+import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
+import com.mitenko.hiitcounter.ui.common.IntStepperField
 import com.mitenko.hiitcounter.ui.common.SettingsScaffold
+import com.mitenko.hiitcounter.ui.common.ValueInput
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -57,27 +64,30 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
-    private val counter: CounterRepository,
-    private val settings: SettingsRepository,
+    savedStateHandle: SavedStateHandle,
+    repo: EntryRepository,
     private val clock: Clock,
-) : ViewModel() {
-    data class Draft(val total: String, val best: String, val current: String, val lastCheckIn: Instant?)
+) : EntryScopedViewModel(savedStateHandle, repo) {
+    /** Typed draft (spec §8.1). */
+    data class Draft(val total: Int, val best: Int, val current: Int, val lastCheckIn: Instant?)
 
-    private var config = ProgressionConfig()
+    /** The entry's own progression, used only for the "outside floor–cap" hint. */
+    private val config = MutableStateFlow(ProgressionConfig())
     private val _draft = MutableStateFlow<Draft?>(null)
     val draft: StateFlow<Draft?> = _draft.asStateFlow()
-    val validation: StateFlow<ValidationResult> = _draft
-        .map { it?.let(::validate) ?: ValidationResult() }
+    val validation: StateFlow<ValidationResult> = combine(_draft, config) { d, c -> d?.let { validate(it, c) } ?: ValidationResult() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ValidationResult())
 
     val zone: ZoneId get() = clock.zone()
+
     fun now(): Instant = clock.now()
 
     init {
         viewModelScope.launch {
-            config = settings.progression.first()
-            val s = counter.state.first()
-            _draft.value = Draft(s.total.toString(), s.bestStreak.toString(), s.currentStreak.toString(), s.lastCheckIn)
+            repo.entry(entryId).first()?.let { e ->
+                config.value = e.progression
+                _draft.value = Draft(e.counter.total, e.counter.bestStreak, e.counter.currentStreak, e.counter.lastCheckIn)
+            }
         }
     }
 
@@ -85,65 +95,81 @@ class CurrentStateViewModel @Inject constructor(
         _draft.update { it?.let(transform) }
     }
 
-    private fun parsed(d: Draft): Triple<Int, Int, Int>? {
-        val t = d.total.trim().toIntOrNull() ?: return null
-        val b = d.best.trim().toIntOrNull() ?: return null
-        val c = d.current.trim().toIntOrNull() ?: return null
-        return Triple(t, b, c)
-    }
-
-    private fun validate(d: Draft): ValidationResult {
-        val numbers = parsed(d)
-        if (numbers == null) {
-            val errors = mutableMapOf<Field, String>()
-            if (d.total.trim().toIntOrNull() == null) errors[Field.TOTAL] = SettingsValidator.NOT_A_NUMBER
-            if (d.best.trim().toIntOrNull() == null) errors[Field.BEST_STREAK] = SettingsValidator.NOT_A_NUMBER
-            if (d.current.trim().toIntOrNull() == null) errors[Field.CURRENT_STREAK] = SettingsValidator.NOT_A_NUMBER
-            return ValidationResult(errors)
-        }
-        val (t, b, c) = numbers
-        return SettingsValidator.currentState(t, b, c, d.lastCheckIn, clock.now(), config)
-    }
-
-    /** Overwrites the counter and resets holdCount (spec §6). */
+    /** Overwrites the counter; the same UPDATE resets holdCount (spec §5.3). */
     fun save(onSaved: () -> Unit) {
         val d = _draft.value ?: return
-        if (!validate(d).isValid) return
-        val (t, b, c) = parsed(d) ?: return
+        if (!validate(d, config.value).isValid) return
         viewModelScope.launch {
-            counter.overwrite(t, b, c, d.lastCheckIn)
-            onSaved()
+            try {
+                repo.overwriteCounter(entryId, d.total, d.best, d.current, d.lastCheckIn)
+                onSaved()
+            } catch (e: EntryNotFound) {
+                markMissing()
+            }
         }
     }
 
     fun resetProgress(onDone: () -> Unit) {
         viewModelScope.launch {
-            counter.resetProgress()
-            onDone()
+            try {
+                repo.resetProgress(entryId)
+                onDone()
+            } catch (e: EntryNotFound) {
+                markMissing()
+            }
         }
     }
+
+    private fun validate(d: Draft, c: ProgressionConfig): ValidationResult =
+        SettingsValidator.currentState(d.total, d.best, d.current, d.lastCheckIn, clock.now(), c)
 }
 
 @Composable
-fun CurrentStateRoute(onBack: () -> Unit, vm: CurrentStateViewModel = hiltViewModel()) {
+fun CurrentStateRoute(onBack: () -> Unit, onEntryGone: () -> Unit, vm: CurrentStateViewModel = hiltViewModel()) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
+    val missing by vm.missing.collectAsStateWithLifecycle()
+    LaunchedEffect(missing) { if (missing) onEntryGone() }
     val d = draft ?: return
-    var picking by remember { mutableStateOf(false) }
-    var confirmReset by remember { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    var confirmReset by rememberSaveable { mutableStateOf(false) }
+    val lastLabel = stringResource(R.string.last_check_in_field)
 
     SettingsScaffold(
         title = stringResource(R.string.settings_current_state),
         onBack = onBack,
-        actions = { TextButton(onClick = { vm.save(onBack) }, enabled = validation.isValid) { Text(stringResource(R.string.save)) } },
+        actions = {
+            TextButton(onClick = { vm.save(onBack) }, enabled = validation.isValid, modifier = Modifier.testTag("save")) {
+                Text(stringResource(R.string.save))
+            }
+        },
     ) {
-        NumberField(stringResource(R.string.current_total), d.total, { v -> vm.update { it.copy(total = v) } }, validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL])
-        NumberField(stringResource(R.string.best_streak_field), d.best, { v -> vm.update { it.copy(best = v) } }, validation.errors[Field.BEST_STREAK])
-        NumberField(stringResource(R.string.current_streak_field), d.current, { v -> vm.update { it.copy(current = v) } }, validation.errors[Field.CURRENT_STREAK])
-        Text(stringResource(R.string.last_check_in_field), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+        IntStepperField(
+            stringResource(R.string.current_total), d.total, FieldRanges.TOTAL, ValueInput.WHOLE,
+            onUpdate = { f -> vm.update { it.copy(total = f(it.total)) } },
+            error = validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL],
+        )
+        IntStepperField(
+            stringResource(R.string.best_streak_field), d.best, FieldRanges.STREAK, ValueInput.WHOLE,
+            onUpdate = { f -> vm.update { it.copy(best = f(it.best)) } }, error = validation.errors[Field.BEST_STREAK],
+        )
+        IntStepperField(
+            stringResource(R.string.current_streak_field), d.current, FieldRanges.STREAK, ValueInput.WHOLE,
+            onUpdate = { f -> vm.update { it.copy(current = f(it.current)) } }, error = validation.errors[Field.CURRENT_STREAK],
+        )
+        Text(lastLabel, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(d.lastCheckIn?.let { DateFormats.dateTime(it, vm.zone) } ?: stringResource(R.string.none), modifier = Modifier.weight(1f))
-            TextButton(onClick = { picking = true }) { Text(stringResource(R.string.set)) }
+            // Tapping the date text opens the date and time pickers (spec §8.1).
+            Text(
+                d.lastCheckIn?.let { DateFormats.dateTime(it, vm.zone) } ?: stringResource(R.string.none),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClickLabel = stringResource(R.string.edit_value, lastLabel)) { picking = true }
+                    .padding(vertical = 12.dp)
+                    .testTag("last_check_in"),
+            )
             TextButton(onClick = { vm.update { it.copy(lastCheckIn = null) } }, enabled = d.lastCheckIn != null) {
                 Text(stringResource(R.string.clear))
             }
@@ -162,7 +188,10 @@ fun CurrentStateRoute(onBack: () -> Unit, vm: CurrentStateViewModel = hiltViewMo
         DateTimePickerDialog(
             initial = d.lastCheckIn ?: vm.now(),
             zone = vm.zone,
-            onPicked = { t -> picking = false; vm.update { it.copy(lastCheckIn = t) } },
+            onPicked = { t ->
+                picking = false
+                vm.update { it.copy(lastCheckIn = t) }
+            },
             onDismiss = { picking = false },
         )
     }
@@ -171,7 +200,12 @@ fun CurrentStateRoute(onBack: () -> Unit, vm: CurrentStateViewModel = hiltViewMo
             onDismissRequest = { confirmReset = false },
             title = { Text(stringResource(R.string.reset_progress_title)) },
             text = { Text(stringResource(R.string.reset_progress_body)) },
-            confirmButton = { TextButton(onClick = { confirmReset = false; vm.resetProgress(onBack) }) { Text(stringResource(R.string.reset)) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    vm.resetProgress(onBack)
+                }) { Text(stringResource(R.string.reset)) }
+            },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
