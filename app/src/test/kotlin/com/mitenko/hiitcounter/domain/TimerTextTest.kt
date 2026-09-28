@@ -21,10 +21,17 @@ class TimerTextTest {
 
     @Test
     fun `notification text`() {
-        assertEquals("Work · Set 2/8", TimerText.notificationTitle(work))
+        assertEquals("Burpees · Work · Set 2/8", TimerText.notificationTitle("Burpees", work))
+        assertEquals("Work · Set 2/8", TimerText.notificationTitle(null, work))
         assertEquals("00:15 left", TimerText.notificationBody(work))
         assertEquals("Paused · 00:15 left", TimerText.notificationBody(work.copy(paused = true)))
         assertEquals("Workout complete", TimerText.notificationBody(work.copy(phase = Phase.DONE)))
         assertEquals("Get ready", TimerText.phaseName(Phase.PREPARE))
+    }
+
+    @Test
+    fun `starting title uses the frozen entry name`() {
+        assertEquals("Burpees · Starting…", TimerText.startingTitle("Burpees"))
+        assertEquals("Starting workout…", TimerText.startingTitle(null))
     }
 }

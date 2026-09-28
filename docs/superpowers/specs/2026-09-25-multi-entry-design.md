@@ -44,7 +44,7 @@ It also brings every settings screen onto one **stepper row** pattern with a **t
 | Item | Change |
 |---|---|
 | Persistence | **Room 2.8.1**: `room-runtime`, `room-ktx` and `room-compiler` (via KSP), plus `room-testing` for tests. This is the version already building in `D:\Claude\apps\storyteller` with the same Kotlin and KSP. |
-| Room Gradle plugin | The `androidx.room` plugin 2.8.1 goes in the catalog and is applied in `:app` with `room { schemaDirectory("$projectDir/schemas") }`. `app/schemas/` is committed and added to the unit-test assets, so `MigrationTestHelper` works under Robolectric for future versions. |
+| Room Gradle plugin | The `androidx.room` plugin 2.8.1 goes in the catalog and is applied in `:app` with `room { schemaDirectory("$projectDir/schemas") }`. `app/schemas/` is committed and served as **debug** assets (which Robolectric reads), so `MigrationTestHelper` works under Robolectric for future versions. |
 | DataStore | Kept only for `app.preferences_pb` (§5.4). The v1 `@SettingsStore` and `@CounterStore` Hilt providers are **removed**, so `app.preferences_pb` is the only DataStore Hilt provides. |
 | Backup | `allowBackup="true"` stays. Android Auto Backup includes `databases/` and `datastore/` by default. Restored data is treated as ordinary data; restore is not a migration trigger unless v1 files are present. |
 
@@ -181,7 +181,7 @@ A `@Singleton V1Migrator` exposes `ready: Deferred<Unit>`. It is started from `H
 
 The workout **snapshot is frozen at Start**: `WorkoutSnapshot(entryId, entryName, timing, cues)`. The service, the timer screen and the notification read only the snapshot, so renaming, editing or deleting the source entry never changes an active run. Once the run has started, it is no longer tied to the database.
 
-**Busy rule:** `TimerController.isBusy(entryId): Boolean` returns `status != IDLE && snapshot?.entryId == entryId`, so the definition lives in the controller. The entry-settings ViewModel calls it at the moment of every destructive action:
+**Busy rule:** `TimerController.isBusy(entryId): Boolean` returns true while the entry's snapshot is PREPARING or RUNNING (a DONE snapshot is inert, so a leftover DONE never blocks a delete), so the definition lives in the controller. The entry-settings ViewModel calls it at the moment of every destructive action:
 - **Delete** of a busy entry throws `EntryBusy` and is disabled in the UI, with the hint "Stop the workout first". The check reads the singleton controller at the moment of the call, so a stale screen can't bypass it.
 - **Rename and settings edits** on a busy entry are allowed. They affect future runs only, because the snapshot is frozen.
 - **After process recreation:** the controller starts IDLE and v1's `START_NOT_STICKY` service has ended, so nothing is busy and deletes are allowed.

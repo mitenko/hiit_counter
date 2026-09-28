@@ -28,7 +28,8 @@ class WorkoutNotifications(private val context: Context) {
         )
     }
 
-    fun build(state: TimerState?): Notification {
+    /** [entryName] is the run snapshot's frozen name (spec §7.6); null only if no run is prepared. */
+    fun build(state: TimerState?, entryName: String?): Notification {
         val open = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -41,7 +42,7 @@ class WorkoutNotifications(private val context: Context) {
         )
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_play)
-            .setContentTitle(state?.let(TimerText::notificationTitle) ?: context.getString(R.string.notification_starting))
+            .setContentTitle(state?.let { TimerText.notificationTitle(entryName, it) } ?: TimerText.startingTitle(entryName))
             .setContentText(state?.let(TimerText::notificationBody))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -52,11 +53,11 @@ class WorkoutNotifications(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun update(state: TimerState) {
+    fun update(state: TimerState, entryName: String?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
-        manager.notify(NOTIFICATION_ID, build(state))
+        manager.notify(NOTIFICATION_ID, build(state, entryName))
     }
 
     companion object {
