@@ -29,7 +29,9 @@ import javax.inject.Singleton
 object StorageModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): HiitDatabase =
-        Room.databaseBuilder(context, HiitDatabase::class.java, HiitDatabase.NAME).build()
+        Room.databaseBuilder(context, HiitDatabase::class.java, HiitDatabase.NAME)
+            .addMigrations(*HiitDatabase.MIGRATIONS)
+            .build()
 
     @Provides @Singleton
     fun appPreferences(@ApplicationContext context: Context): AppPreferences = AppPreferences(

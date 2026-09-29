@@ -78,9 +78,14 @@ internal fun Preferences.readV1Progression(): ProgressionConfig {
         windowHours = valid(V1Keys.WINDOW_HOURS, d.windowHours) { it >= 1 },
         penaltyHoursPerRep = valid(V1Keys.PENALTY_HOURS_PER_REP, d.penaltyHoursPerRep) { it > 0.0 && it.isFinite() },
     )
-    if (SettingsValidator.progression(c).isValid) return c
-    Log.w(TAG, "v1 progression inconsistent ($c); using defaults")
-    return d
+    val valid = if (SettingsValidator.progression(c).isValid) {
+        c
+    } else {
+        Log.w(TAG, "v1 progression inconsistent ($c); using defaults")
+        d
+    }
+    // Spec R3 §5.2: v1's hold_for = 0 meant "hold off"; it imports as the switch off with hold_for back at 4.
+    return if (valid.holdFor == 0) valid.copy(hold = false, holdFor = d.holdFor) else valid
 }
 
 internal fun Preferences.readV1Cues(): CueConfig =

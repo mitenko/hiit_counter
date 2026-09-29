@@ -28,9 +28,9 @@ import com.mitenko.hiitcounter.domain.StepRange
 import com.mitenko.hiitcounter.domain.ValueFormat
 
 /**
- * The shared stepper row (spec §8.1): the label on top, then 48 dp −/+ buttons (tap = one step,
- * hold = repeat) around a large value that opens the edit dialog when tapped, and an inline
- * error or hint beneath.
+ * The shared stepper row (spec R2 §8.1): the label on top, with its ⓘ tag when [info] is given
+ * (R3 §7.1). Below it, 48 dp −/+ buttons (tap = one step, hold = repeat) sit around a large value
+ * that opens the edit dialog when tapped, and an inline error or hint goes beneath.
  */
 @Composable
 fun StepperRow(
@@ -41,9 +41,14 @@ fun StepperRow(
     onValueTap: () -> Unit,
     error: String? = null,
     hint: String? = null,
+    info: String? = null,
 ) {
     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
+        // The ⓘ is its own 48 dp target, separate from the value's tap-to-edit (spec R3 §7.1).
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            info?.let { InfoTag(title = label, text = it) }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             RepeatingIconButton(onMinus, R.drawable.ic_remove, stringResource(R.string.decrease, label))
             Text(
@@ -72,10 +77,12 @@ fun StepperRow(
 }
 
 /**
- * An integer field on a [StepRange] (spec §8.1). ± clamps at the hard edges and a dialog value
+ * An integer field on a [StepRange] (spec R2 §8.1). ± clamps at the hard edges and a dialog value
  * is clamped into the range. Cross-field rules are the screen's validation and are not clamped
- * here. [input] is [ValueInput.TIME] (shown as mm:ss) or [ValueInput.WHOLE]. [onUpdate] receives
- * a transform, so repeated steps always apply to the latest draft.
+ * here. [input] is [ValueInput.TIME] (shown as mm:ss) or [ValueInput.WHOLE]. Updates are
+ * transforms, so repeated steps always apply to the latest draft. Steps go to [onUpdate] (the
+ * pages debounce them), and a dialog OK goes to [onDialogUpdate] (the pages save it at once,
+ * spec R3 §6.2).
  */
 @Composable
 fun IntStepperField(
@@ -84,8 +91,10 @@ fun IntStepperField(
     range: StepRange,
     input: ValueInput,
     onUpdate: ((Int) -> Int) -> Unit,
+    onDialogUpdate: ((Int) -> Int) -> Unit = onUpdate,
     error: String? = null,
     hint: String? = null,
+    info: String? = null,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     val time = input == ValueInput.TIME
@@ -98,6 +107,7 @@ fun IntStepperField(
         onValueTap = { editing = true },
         error = error,
         hint = hint,
+        info = info,
     )
     if (editing) {
         EditValueDialog<Int>(
@@ -107,7 +117,7 @@ fun IntStepperField(
             parse = if (time) ValueFormat::parseSeconds else ValueFormat::parseInt,
             onConfirm = { parsed ->
                 editing = false
-                onUpdate { range.clamp(parsed) }
+                onDialogUpdate { range.clamp(parsed) }
             },
             onDismiss = { editing = false },
         )
@@ -115,16 +125,18 @@ fun IntStepperField(
 }
 
 /**
- * The penalty rate (spec §8.1): ± steps of 0.5 on integer half-hours within 0.5 – 999.5. A dialog
- * value is clamped to that range and kept exactly, even if it isn't a multiple of 0.5; the next
- * ± press snaps it (see [PenaltyDraft]).
+ * The penalty rate (spec R2 §8.1): ± steps of 0.5 on integer half-hours within 0.5 – 999.5. A
+ * dialog value is clamped to that range and kept exactly, even if it isn't a multiple of 0.5; the
+ * next ± press snaps it (see [PenaltyDraft]). Steps go to [onUpdate], a dialog OK to [onDialogUpdate].
  */
 @Composable
 fun PenaltyStepperField(
     label: String,
     value: PenaltyDraft,
     onUpdate: ((PenaltyDraft) -> PenaltyDraft) -> Unit,
+    onDialogUpdate: ((PenaltyDraft) -> PenaltyDraft) -> Unit = onUpdate,
     error: String? = null,
+    info: String? = null,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     val text = ValueFormat.formatDecimal(value.hours)
@@ -135,6 +147,7 @@ fun PenaltyStepperField(
         onPlus = { onUpdate(PenaltyDraft::plus) },
         onValueTap = { editing = true },
         error = error,
+        info = info,
     )
     if (editing) {
         EditValueDialog(
@@ -144,7 +157,7 @@ fun PenaltyStepperField(
             parse = ValueFormat::parseDecimal,
             onConfirm = { hours ->
                 editing = false
-                onUpdate { PenaltyDraft.of(hours.coerceIn(PenaltyDraft.MIN_HOURS, PenaltyDraft.MAX_HOURS)) }
+                onDialogUpdate { PenaltyDraft.of(hours.coerceIn(PenaltyDraft.MIN_HOURS, PenaltyDraft.MAX_HOURS)) }
             },
             onDismiss = { editing = false },
         )

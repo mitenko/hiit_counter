@@ -187,3 +187,22 @@ UPDATE entry SET hold_enabled = 0, hold_for = 4 WHERE hold_for = 0;
 ## 9. Project conventions
 
 These are unchanged: the mitenko identity, no AI attribution, squash to one commit and open a PR, ask before pushing, TDD subtasks, and a phone backup before every install.
+
+## 10. Implementation notes (from the plan, confirmed with the user)
+
+The layout and Reset progress bullets below are deliberate divergences from §6.1 and R2. The others resolve gaps.
+
+- **Layout (diverges from §6.1).** §6.1 describes all drafts in the pager ViewModel. Instead, each page keeps its own ViewModel, keyed on the pager's back-stack entry, with its own `SavedStateHandle` draft and `AutoSaver`. `SettingsPagerViewModel` holds only the title.
+- **Reset progress stays on the page (diverges from R2).** Current is a tab now, so Reset progress applies at once and the page stays open, showing the reset counter.
+- **ⓘ icon.** `Icons.Outlined.Info` isn't on the classpath: Material 3 1.4 no longer brings in material-icons. The tag uses `res/drawable/ic_info.xml`, which is the same glyph.
+- **Current draft.** While the pager is open, a Current draft with no unsaved edits follows the stored counter. For example, a NULL total re-resolves after a starting-total change. The floor–cap hint follows the stored progression.
+- **§6.3 switch edits.** The rule is applied literally: a Hold toggle that leaves the effective hold unchanged (e.g. with hold for 0) keeps the count.
+- **§6.3 total.** `overwriteCounter` compares against the resolved total: a stored NULL counts as the starting total.
+- **§7.2 texts.** They are stored without the Markdown emphasis on "hold at".
+- **Tabs.** The Current tab reads "Current", while the Entry Settings row keeps "Current State".
+- **Status line.** It reads "Saved" for any valid draft (a debounce may still be pending; every exit flushes). Cues has no status line.
+- **Flush on clear.** A value stays pending until its write completes, and a started write runs to completion. So a write that is queued when the ViewModel is cleared is re-issued in the `@ApplicationScope`.
+  - Accepted race: a queued write followed by `cancel()` (the draft turned invalid) and then a clear is lost. The stored values stay at the earlier valid state.
+  - A valid draft restored from `SavedStateHandle` is scheduled for saving.
+- **Current draft echo guard.** The draft follows the store only while no save is pending, so an edit back to the stored value can't be overwritten by a store echo.
+- **Title.** "Settings" shows until the entry name has loaded.

@@ -43,12 +43,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** The four per-entry settings pages (spec §7.5). */
-enum class SettingsPage(@StringRes val label: Int) {
-    TIMING(R.string.settings_timing),
-    PROGRESSION(R.string.settings_progression),
-    CURRENT(R.string.settings_current_state),
-    CUES(R.string.settings_cues),
+/**
+ * The four per-entry settings pages (spec R2 §7.5). [label] is the Entry Settings row, and [tab]
+ * is the pager tab (R3 §4: "Timing · Progression · Current · Cues"). The ordinal is the route's
+ * `page` argument.
+ */
+enum class SettingsPage(@StringRes val label: Int, @StringRes val tab: Int) {
+    TIMING(R.string.settings_timing, R.string.settings_timing),
+    PROGRESSION(R.string.settings_progression, R.string.settings_progression),
+    CURRENT(R.string.settings_current_state, R.string.tab_current),
+    CUES(R.string.settings_cues, R.string.settings_cues),
 }
 
 data class EntrySettingsUiState(val name: String = "", val busy: Boolean = false, val error: String? = null)

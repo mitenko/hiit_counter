@@ -67,4 +67,15 @@ class SettingsValidatorTest {
         assertTrue(outside.isValid)
         assertTrue(Field.TOTAL in outside.hints)
     }
+
+    @Test
+    fun `with the hold switched off the hold checks and hint are skipped`() {
+        val off = SettingsValidator.progression(ProgressionConfig(hold = false, holdAt = 0, holdFor = -1))
+        assertTrue(off.isValid)
+        assertTrue(off.hints.isEmpty())
+        assertTrue(SettingsValidator.progression(ProgressionConfig(hold = false, holdFor = 0)).hints.isEmpty())
+        // Switched on, the checks and the hint behave as before.
+        assertEquals(setOf(Field.HOLD_AT, Field.HOLD_FOR), SettingsValidator.progression(ProgressionConfig(holdAt = 0, holdFor = -1)).errorFields())
+        assertTrue(Field.HOLD_AT in SettingsValidator.progression(ProgressionConfig(holdFor = 0)).hints)
+    }
 }

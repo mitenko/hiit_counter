@@ -40,11 +40,14 @@ object SettingsValidator {
         if (c.floor < 1) e[Field.FLOOR] = "Must be at least 1"
         if (c.startingTotal < c.floor) e[Field.STARTING_TOTAL] = "Must be ≥ floor"
         if (c.cap < c.startingTotal) e[Field.CAP] = "Must be ≥ starting total"
-        if (c.holdAt < 1) e[Field.HOLD_AT] = "Must be at least 1"
-        if (c.holdFor < 0) e[Field.HOLD_FOR] = "Must be 0 or more"
+        // Spec R3 §5.1: with the Hold switch off, the hidden hold values can't block a save.
+        if (c.hold) {
+            if (c.holdAt < 1) e[Field.HOLD_AT] = "Must be at least 1"
+            if (c.holdFor < 0) e[Field.HOLD_FOR] = "Must be 0 or more"
+        }
         if (c.windowHours < 1) e[Field.WINDOW_HOURS] = "Must be at least 1"
         if (!(c.penaltyHoursPerRep > 0.0) || !c.penaltyHoursPerRep.isFinite()) e[Field.PENALTY_RATE] = "Must be greater than 0"
-        val hints = if (Field.HOLD_AT !in e && !c.holdEnabled) mapOf(Field.HOLD_AT to "Hold disabled") else emptyMap()
+        val hints = if (c.hold && Field.HOLD_AT !in e && !c.holdEnabled) mapOf(Field.HOLD_AT to "Hold disabled") else emptyMap()
         return ValidationResult(e, hints)
     }
 

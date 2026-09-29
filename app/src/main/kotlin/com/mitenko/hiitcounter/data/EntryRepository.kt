@@ -10,6 +10,8 @@ import com.mitenko.hiitcounter.domain.NameCheck
 import com.mitenko.hiitcounter.domain.Outcome
 import com.mitenko.hiitcounter.domain.RepProgression
 import com.mitenko.hiitcounter.domain.SettingsValidator
+import com.mitenko.hiitcounter.domain.counterHoldReset
+import com.mitenko.hiitcounter.domain.holdResetNeeded
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
@@ -50,7 +52,7 @@ interface EntryRepository {
 
     suspend fun setTiming(id: Long, timing: TimingConfig)
 
-    /** The same UPDATE resets holdCount. */
+    /** One transaction: holdCount is reset only if holdAt, holdFor or the effective holdEnabled changed (R3 §6.3). */
     suspend fun setProgression(id: Long, progression: ProgressionConfig)
 
     suspend fun setCues(id: Long, cues: CueConfig)
@@ -58,7 +60,7 @@ interface EntryRepository {
     /** One transaction using the row's own progression: concurrent calls on one entry record exactly one check-in. */
     suspend fun checkIn(id: Long, clock: Clock): CheckInResult
 
-    /** The same UPDATE resets holdCount. */
+    /** One transaction: holdCount is reset only if the total changed; a stored NULL counts as the starting total (R3 §6.3). */
     suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?)
 
     /** total NULL, streaks 0, lastCheckIn NULL, holdCount 0. */
@@ -157,10 +159,16 @@ class RoomEntryRepository(
     override suspend fun setProgression(id: Long, progression: ProgressionConfig) {
         require(SettingsValidator.progression(progression).isValid) { "Invalid progression: $progression" }
         gate.awaitReady()
-        found(
-            id,
-            with(progression) { dao.setProgression(id, startingTotal, floor, cap, holdAt, holdFor, windowHours, penaltyHoursPerRep) },
-        )
+        db.withTransaction {
+            // Compared with the row's effective (repaired) progression, the one checkIn uses.
+            val old = dao.get(id)?.progression() ?: throw EntryNotFound(id)
+            with(progression) {
+                dao.setProgression(
+                    id, startingTotal, floor, cap, holdAt, holdFor, hold, windowHours, penaltyHoursPerRep,
+                    resetHoldCount = holdResetNeeded(old, progression),
+                )
+            }
+        }
     }
 
     override suspend fun setCues(id: Long, cues: CueConfig) {
@@ -193,10 +201,12 @@ class RoomEntryRepository(
         )
         require(check.isValid) { "Invalid counter: ${check.errors}" }
         gate.awaitReady()
-        found(
-            id,
-            dao.setCounter(id, total, bestStreak, currentStreak, holdCount = 0, lastCheckIn = lastCheckIn?.toEpochMilli()),
-        )
+        db.withTransaction {
+            // The resolved total (NULL reads as the starting total) is what the Current page showed.
+            val old = dao.get(id)?.toDomain()?.counter ?: throw EntryNotFound(id)
+            val holdCount = if (counterHoldReset(old.total, total)) 0 else old.holdCount
+            dao.setCounter(id, total, bestStreak, currentStreak, holdCount, lastCheckIn?.toEpochMilli())
+        }
     }
 
     override suspend fun resetProgress(id: Long) {

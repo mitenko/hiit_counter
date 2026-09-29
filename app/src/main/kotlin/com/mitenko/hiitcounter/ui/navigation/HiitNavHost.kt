@@ -16,12 +16,9 @@ import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
 import com.mitenko.hiitcounter.ui.entries.EntryListRoute
 import com.mitenko.hiitcounter.ui.entry.EntryRoute
-import com.mitenko.hiitcounter.ui.settings.CuesSettingsRoute
-import com.mitenko.hiitcounter.ui.settings.CurrentStateRoute
 import com.mitenko.hiitcounter.ui.settings.EntrySettingsRoute
-import com.mitenko.hiitcounter.ui.settings.ProgressionSettingsRoute
 import com.mitenko.hiitcounter.ui.settings.SettingsPage
-import com.mitenko.hiitcounter.ui.settings.TimingSettingsRoute
+import com.mitenko.hiitcounter.ui.settings.SettingsPagerRoute
 import com.mitenko.hiitcounter.ui.timer.TimerRoute
 
 @Composable
@@ -50,6 +47,7 @@ fun HiitNavHost(controller: TimerController) {
         }
         composable(Routes.ENTRY_SETTINGS, arguments = idArg) { entry ->
             val id = entry.entryId()
+            // Spec R3 §4: each row opens the pager at its page.
             val openPage = dropUnlessResumedWith<SettingsPage> { page ->
                 nav.navigate(Routes.settingsPage(id, page)) { launchSingleTop = true }
             }
@@ -62,17 +60,19 @@ fun HiitNavHost(controller: TimerController) {
                 onEntryGone = { nav.popToEntries() },
             )
         }
-        composable(Routes.ENTRY_TIMING, arguments = idArg) {
-            TimingSettingsRoute(onBack = dropUnlessResumed { nav.popBackStack() }, onEntryGone = { nav.popToEntries() })
-        }
-        composable(Routes.ENTRY_PROGRESSION, arguments = idArg) {
-            ProgressionSettingsRoute(onBack = dropUnlessResumed { nav.popBackStack() }, onEntryGone = { nav.popToEntries() })
-        }
-        composable(Routes.ENTRY_CURRENT, arguments = idArg) {
-            CurrentStateRoute(onBack = dropUnlessResumed { nav.popBackStack() }, onEntryGone = { nav.popToEntries() })
-        }
-        composable(Routes.ENTRY_CUES, arguments = idArg) {
-            CuesSettingsRoute(onBack = dropUnlessResumed { nav.popBackStack() }, onEntryGone = { nav.popToEntries() })
+        // Spec R3 §4: one pager route replaces the four settings routes. The pager flushes before every exit.
+        composable(
+            Routes.SETTINGS_PAGES,
+            arguments = idArg + navArgument(Routes.PAGE_ARG) {
+                type = NavType.IntType
+                defaultValue = 0
+            },
+        ) { entry ->
+            SettingsPagerRoute(
+                initialPage = entry.settingsPage(),
+                onBack = dropUnlessResumed { nav.popBackStack() },
+                onEntryGone = { nav.popToEntries() },
+            )
         }
         // Active-run routing relies on TimerRoute's BackHandler blocking back navigation while RUNNING,
         // so onExit only fires once the workout has stopped. lastEntryId outlives clearRun() (spec §7.2).
@@ -88,3 +88,9 @@ fun HiitNavHost(controller: TimerController) {
 }
 
 private fun NavBackStackEntry.entryId(): Long = requireNotNull(arguments) { "Missing route arguments" }.getLong(ENTRY_ID_ARG)
+
+/** The optional `page` argument (default 0); an out-of-range value opens the nearest page. */
+private fun NavBackStackEntry.settingsPage(): SettingsPage {
+    val index = requireNotNull(arguments) { "Missing route arguments" }.getInt(Routes.PAGE_ARG)
+    return SettingsPage.entries[index.coerceIn(0, SettingsPage.entries.lastIndex)]
+}

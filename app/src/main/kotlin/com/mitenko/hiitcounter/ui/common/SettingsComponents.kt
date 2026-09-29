@@ -7,10 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -45,18 +48,15 @@ import kotlinx.coroutines.launch
 fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
-    actions: @Composable RowScope.() -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Scaffold(bottomBar = bottomBar, contentWindowInsets = WindowInsets(0)) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets(0)) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
                     Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.back))
                 }
                 Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                actions()
             }
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), content = content)
         }
@@ -96,5 +96,28 @@ fun RepeatingIconButton(onClick: () -> Unit, @DrawableRes icon: Int, contentDesc
         contentAlignment = Alignment.Center,
     ) {
         Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.surface)
+    }
+}
+
+/**
+ * A labelled switch with the stepper rows' spacing (spec R2 §8.1) and an optional ⓘ after the
+ * label (R3 §7.1). The switch is tagged `switch_<label>`.
+ */
+@Composable
+fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    info: String? = null,
+) {
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.titleMedium)
+        info?.let { InfoTag(title = label, text = it) }
+        Spacer(Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("switch_$label"))
     }
 }

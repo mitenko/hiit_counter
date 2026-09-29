@@ -21,6 +21,7 @@ import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.testEntry
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
+import kotlinx.coroutines.MainScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
@@ -35,7 +36,7 @@ class TimingSettingsRestorationTest {
 
     private val repo = FakeEntryRepository(listOf(testEntry(1)))
     private val factory = viewModelFactory {
-        initializer { TimingSettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo) }
+        initializer { TimingSettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, MainScope()) }
     }
 
     @Test
@@ -45,7 +46,7 @@ class TimingSettingsRestorationTest {
             HiitTheme {
                 val vm: TimingSettingsViewModel = viewModel(factory = factory)
                 before = vm
-                TimingSettingsRoute(onBack = {}, onEntryGone = {}, vm = vm)
+                TimingPage(vm)
             }
         }
         compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
@@ -58,15 +59,12 @@ class TimingSettingsRestorationTest {
             assertSame(before, after)
             assertEquals(9, after.draft.value?.sets)
         }
-        assertEquals(8, repo.find(1).timing.sets) // unsaved: only the draft changed
     }
 
     @Test
     fun `an open edit dialog keeps its text across recreation`() {
         val restoration = StateRestorationTester(compose)
-        restoration.setContent {
-            HiitTheme { TimingSettingsRoute(onBack = {}, onEntryGone = {}, vm = viewModel(factory = factory)) }
-        }
+        restoration.setContent { HiitTheme { TimingPage(viewModel(factory = factory)) } }
         compose.onNodeWithTag("value_PREPARE").performScrollTo().performClick()
         compose.onNodeWithTag("edit_field").performTextReplacement("1:3")
         restoration.emulateSavedInstanceStateRestore()

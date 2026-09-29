@@ -8,7 +8,10 @@ data class ProgressionConfig(
     val holdFor: Int = 4,
     val windowHours: Int = 36,
     val penaltyHoursPerRep: Double = 19.5,
+    /** The Hold switch (spec R3 §5.1). Off keeps [holdAt] and [holdFor] stored, but unused. */
+    val hold: Boolean = true,
 ) {
+    /** RepProgression reads only this, so the switch needs no change there (spec R3 §5.1). */
     val holdEnabled: Boolean
-        get() = holdFor > 0 && holdAt >= floor && holdAt < cap
+        get() = hold && holdFor > 0 && holdAt >= floor && holdAt < cap
 }

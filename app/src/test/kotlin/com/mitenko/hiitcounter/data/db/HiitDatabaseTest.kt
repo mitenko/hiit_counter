@@ -1,5 +1,7 @@
 package com.mitenko.hiitcounter.data.db
 
+import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.core.app.ApplicationProvider
@@ -72,5 +74,66 @@ class HiitDatabaseTest {
         // Linux CI runs this test; local Windows runs skip it.
         assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
         helper.createDatabase("migration-helper-check", 1).close()
+    }
+
+    @Test
+    fun `schema v2 is exported with hold_enabled defaulting to 1`() {
+        val json = File("schemas/com.mitenko.hiitcounter.data.db.HiitDatabase/2.json").readText()
+        assertTrue(Regex("\"version\"\\s*:\\s*2").containsMatchIn(json))
+        assertTrue(json.contains("`hold_enabled` INTEGER NOT NULL DEFAULT 1"))
+    }
+
+    @Test
+    fun `the 1 to 2 migration SQL switches the hold off where hold_for was 0 and restores hold_for 4`() {
+        // Runs everywhere (no file-based helper), so Windows also covers the §5.2 SQL.
+        val raw = SQLiteDatabase.create(null)
+        try {
+            raw.execSQL(V1_ENTRY_TABLE)
+            raw.execSQL(v1Row(1, holdFor = 4))
+            raw.execSQL(v1Row(2, holdFor = 0))
+            HiitDatabase.MIGRATION_1_2_SQL.forEach { raw.execSQL(it) }
+            assertEquals(listOf(Triple(1L, 1, 4), Triple(2L, 0, 4)), raw.rawQuery(HOLD_QUERY, null).holdColumns())
+        } finally {
+            raw.close()
+        }
+    }
+
+    @Test
+    fun `migration 1 to 2 validates through MigrationTestHelper`() {
+        // Same Windows guard as the v1 check above: androidx.sqlite 2.6.1 mishandles backslash paths. CI runs it.
+        assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+        helper.createDatabase(MIGRATION_DB, 1).use { db ->
+            db.execSQL(v1Row(1, holdFor = 4))
+            db.execSQL(v1Row(2, holdFor = 0))
+        }
+        helper.runMigrationsAndValidate(MIGRATION_DB, 2, true, HiitDatabase.MIGRATION_1_2).use { db ->
+            assertEquals(listOf(Triple(1L, 1, 4), Triple(2L, 0, 4)), db.query(HOLD_QUERY).holdColumns())
+        }
+    }
+
+    /** A v1 row with the default settings and the given hold_for. */
+    private fun v1Row(id: Long, holdFor: Int) =
+        "INSERT INTO entry (id, name, position, prepare_sec, sets, work_sec, rest_sec, cooldown_sec, starting_total, floor, cap, " +
+            "hold_at, hold_for, window_hours, penalty_hours_per_rep, cue_sound, cue_vibration, total, best_streak, " +
+            "current_streak, hold_count, last_check_in) " +
+            "VALUES ($id, 'Workout', ${id - 1}, 10, 8, 20, 10, 0, 48, 48, 72, 64, $holdFor, 36, 19.5, 1, 1, NULL, 0, 0, 0, NULL)"
+
+    /** (id, hold_enabled, hold_for) per row, ordered by id. */
+    private fun Cursor.holdColumns(): List<Triple<Long, Int, Int>> = use {
+        buildList { while (moveToNext()) add(Triple(getLong(0), getInt(1), getInt(2))) }
+    }
+
+    private companion object {
+        const val MIGRATION_DB = "migration-1-2"
+        const val HOLD_QUERY = "SELECT id, hold_enabled, hold_for FROM entry ORDER BY id"
+
+        /** The v1 `entry` table exactly as 1.json creates it. */
+        const val V1_ENTRY_TABLE = "CREATE TABLE IF NOT EXISTS `entry` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`name` TEXT NOT NULL, `position` INTEGER NOT NULL, `prepare_sec` INTEGER NOT NULL, `sets` INTEGER NOT NULL, " +
+            "`work_sec` INTEGER NOT NULL, `rest_sec` INTEGER NOT NULL, `cooldown_sec` INTEGER NOT NULL, " +
+            "`starting_total` INTEGER NOT NULL, `floor` INTEGER NOT NULL, `cap` INTEGER NOT NULL, `hold_at` INTEGER NOT NULL, " +
+            "`hold_for` INTEGER NOT NULL, `window_hours` INTEGER NOT NULL, `penalty_hours_per_rep` REAL NOT NULL, " +
+            "`cue_sound` INTEGER NOT NULL, `cue_vibration` INTEGER NOT NULL, `total` INTEGER, `best_streak` INTEGER NOT NULL, " +
+            "`current_streak` INTEGER NOT NULL, `hold_count` INTEGER NOT NULL, `last_check_in` INTEGER)"
     }
 }

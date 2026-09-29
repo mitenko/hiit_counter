@@ -20,4 +20,11 @@ class ConfigsTest {
         assertFalse(ProgressionConfig(holdAt = 40).holdEnabled)
         assertTrue(ProgressionConfig(holdAt = 48).holdEnabled)
     }
+
+    @Test
+    fun `the hold switch turns the hold off whatever the values`() {
+        assertFalse(ProgressionConfig(hold = false).holdEnabled)
+        assertFalse(ProgressionConfig(hold = false, holdAt = 48).holdEnabled)
+        assertTrue(ProgressionConfig(hold = true).holdEnabled)
+    }
 }

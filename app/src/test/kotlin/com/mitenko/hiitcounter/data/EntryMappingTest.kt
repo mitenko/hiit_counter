@@ -7,7 +7,9 @@ import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.testEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
@@ -105,5 +107,20 @@ class EntryMappingTest {
             listOf<Any?>(65, 24, 4, 1, 1_000L),
             listOf(row.total, row.bestStreak, row.currentStreak, row.holdCount, row.lastCheckIn),
         )
+    }
+
+    @Test
+    fun `hold_enabled maps to the hold switch and back`() {
+        val off = testEntity().copy(holdEnabled = false).toDomain().progression
+        assertEquals(ProgressionConfig(hold = false), off)
+        assertFalse(off.holdEnabled)
+        assertTrue(testEntity().toDomain().progression.hold)
+        assertFalse(entryEntity("Burpees", 0, progression = ProgressionConfig(hold = false)).holdEnabled)
+        assertTrue(entryEntity("Burpees", 0).holdEnabled)
+    }
+
+    @Test
+    fun `an inconsistent progression falls back with the hold switched on`() {
+        assertEquals(ProgressionConfig(), testEntity().copy(holdEnabled = false, floor = 80, cap = 60).toDomain().progression)
     }
 }

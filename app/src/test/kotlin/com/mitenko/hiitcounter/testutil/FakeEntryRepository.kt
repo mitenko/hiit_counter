@@ -7,6 +7,8 @@ import com.mitenko.hiitcounter.domain.EntryNames
 import com.mitenko.hiitcounter.domain.NameCheck
 import com.mitenko.hiitcounter.domain.Outcome
 import com.mitenko.hiitcounter.domain.RepProgression
+import com.mitenko.hiitcounter.domain.counterHoldReset
+import com.mitenko.hiitcounter.domain.holdResetNeeded
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
@@ -25,8 +27,9 @@ import java.time.Instant
 /**
  * In-memory [EntryRepository] with the same contract as RoomEntryRepository: both flows and every
  * suspend call wait for [readiness], missing ids throw EntryNotFound, invalid names throw
- * IllegalArgumentException, positions stay contiguous. Settings validation is left to the
- * ViewModels under test.
+ * IllegalArgumentException, positions stay contiguous, and the hold count follows the R3 §6.3
+ * rules. Settings validation is left to the ViewModels under test. The write counters and
+ * [writeError] let the auto-save tests count and fail individual writes.
  */
 class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = true) : EntryRepository {
     val readiness = CompletableDeferred<Unit>().apply { if (ready) complete(Unit) }
@@ -37,6 +40,14 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     var checkInError: Throwable? = null
     val moves = mutableListOf<Pair<Long, Int>>()
     var deleteCalls = 0
+
+    /** setTiming / setProgression / overwriteCounter calls so far, including failed ones. */
+    var timingWrites = 0
+    var progressionWrites = 0
+    var counterWrites = 0
+
+    /** Thrown once by the next setTiming, setProgression or overwriteCounter (a repository-side rejection). */
+    var writeError: Throwable? = null
 
     override val entries: Flow<List<Entry>> = flow {
         readiness.await()
@@ -95,10 +106,20 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         state.value = list.mapIndexed { i, e -> e.copy(position = i) }
     }
 
-    override suspend fun setTiming(id: Long, timing: TimingConfig) = edit(id) { it.copy(timing = timing) }
+    override suspend fun setTiming(id: Long, timing: TimingConfig) {
+        timingWrites++
+        failIfAsked()
+        edit(id) { it.copy(timing = timing) }
+    }
 
-    override suspend fun setProgression(id: Long, progression: ProgressionConfig) =
-        edit(id) { it.copy(progression = progression, counter = it.counter.copy(holdCount = 0)) }
+    override suspend fun setProgression(id: Long, progression: ProgressionConfig) {
+        progressionWrites++
+        failIfAsked()
+        edit(id) {
+            val holdCount = if (holdResetNeeded(it.progression, progression)) 0 else it.counter.holdCount
+            it.copy(progression = progression, counter = it.counter.copy(holdCount = holdCount))
+        }
+    }
 
     override suspend fun setCues(id: Long, cues: CueConfig) = edit(id) { it.copy(cues = cues) }
 
@@ -112,12 +133,26 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         return result
     }
 
-    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?) =
-        edit(id) { it.copy(counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount = 0)) }
+    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?) {
+        counterWrites++
+        failIfAsked()
+        edit(id) {
+            val holdCount = if (counterHoldReset(it.counter.total, total)) 0 else it.counter.holdCount
+            it.copy(counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount))
+        }
+    }
 
+    /** Room stores a NULL total, which resolves to startingTotal; the fake stores startingTotal directly. */
     override suspend fun resetProgress(id: Long) = edit(id) { it.copy(counter = CounterState(total = it.progression.startingTotal)) }
 
     fun find(id: Long): Entry = state.value.firstOrNull { it.id == id } ?: throw EntryNotFound(id)
+
+    private fun failIfAsked() {
+        writeError?.let { error ->
+            writeError = null
+            throw error
+        }
+    }
 
     private suspend fun edit(id: Long, transform: (Entry) -> Entry) {
         readiness.await()

@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
+import com.mitenko.hiitcounter.ui.settings.SettingsPage
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -30,6 +31,13 @@ class NavActionsTest {
                 composable(Routes.ENTRIES) { }
                 composable(Routes.ENTRY, arguments = idArg) { }
                 composable(Routes.ENTRY_SETTINGS, arguments = idArg) { }
+                composable(
+                    Routes.SETTINGS_PAGES,
+                    arguments = idArg + navArgument(Routes.PAGE_ARG) {
+                        type = NavType.IntType
+                        defaultValue = 0
+                    },
+                ) { }
                 composable(Routes.TIMER) { }
             }
         }
@@ -86,5 +94,17 @@ class NavActionsTest {
             nav.popBackStack()
         }
         compose.runOnIdle { assertEquals(Routes.ENTRIES, nav.currentDestination?.route) }
+    }
+
+    @Test
+    fun `a settings page route carries its page and defaults to the first`() {
+        graph()
+        compose.runOnIdle { nav.navigate(Routes.settingsPage(1, SettingsPage.CURRENT)) }
+        compose.runOnIdle {
+            assertEquals(Routes.SETTINGS_PAGES, nav.currentDestination?.route)
+            assertEquals(2, nav.currentBackStackEntry?.arguments?.getInt(Routes.PAGE_ARG))
+            nav.navigate("entry/1/settings/pages")
+        }
+        compose.runOnIdle { assertEquals(0, nav.currentBackStackEntry?.arguments?.getInt(Routes.PAGE_ARG)) }
     }
 }
