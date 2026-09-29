@@ -122,4 +122,45 @@ class StepperRowTest {
         compose.onNodeWithTag("edit_ok").performClick()
         compose.onNodeWithTag("value_PENALTY").assertTextEquals("999.5")
     }
+
+    @Test
+    fun `the info tag sits beside the label and opens without editing the value`() {
+        compose.setContent {
+            HiitTheme {
+                Column {
+                    IntStepperField(
+                        "SETS", 8, FieldRanges.SETS, ValueInput.WHOLE, onUpdate = {},
+                        info = "How many work intervals the workout has.",
+                    )
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("About SETS").performClick()
+        compose.onNodeWithTag("info_text").assertTextEquals("How many work intervals the workout has.")
+        compose.onNodeWithTag("edit_field").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a dialog OK goes through the dialog update and a step through the plain update`() {
+        var stepped = 0
+        var dialog = 0
+        value = 8
+        compose.setContent {
+            HiitTheme {
+                Column {
+                    IntStepperField(
+                        "SETS", value, FieldRanges.SETS, ValueInput.WHOLE,
+                        onUpdate = { f -> stepped++; value = f(value) },
+                        onDialogUpdate = { f -> dialog++; value = f(value) },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("Increase SETS").performClick()
+        compose.onNodeWithTag("value_SETS").performClick()
+        compose.onNodeWithTag("edit_field").performTextReplacement("12")
+        compose.onNodeWithTag("edit_ok").performClick()
+        assertEquals(1 to 1, stepped to dialog)
+        assertEquals(12, value)
+    }
 }

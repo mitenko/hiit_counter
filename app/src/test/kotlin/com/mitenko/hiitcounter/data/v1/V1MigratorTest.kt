@@ -261,4 +261,13 @@ class V1MigratorTest {
         assertFalse(File(dir, V1Migrator.SETTINGS_FILE).exists())
         assertFalse(File(dir, V1Migrator.COUNTER_FILE).exists())
     }
+
+    @Test
+    fun `a v1 hold_for of 0 migrates as the hold switched off`() = runTest {
+        seed(V1Migrator.SETTINGS_FILE) { it[V1Keys.HOLD_FOR] = 0 }
+        migrator(appPreferences()).ready.await()
+        val row = rows().single()
+        assertFalse(row.holdEnabled)
+        assertEquals(4, row.holdFor)
+    }
 }

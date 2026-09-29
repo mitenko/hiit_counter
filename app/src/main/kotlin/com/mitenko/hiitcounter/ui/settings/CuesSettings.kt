@@ -1,21 +1,8 @@
 package com.mitenko.hiitcounter.ui.settings
 
-import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -24,7 +11,8 @@ import com.mitenko.hiitcounter.data.EntryRepository
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
-import com.mitenko.hiitcounter.ui.common.SettingsScaffold
+import com.mitenko.hiitcounter.ui.common.SettingsPageLayout
+import com.mitenko.hiitcounter.ui.common.SwitchRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,25 +55,12 @@ class CuesSettingsViewModel @Inject constructor(
     }
 }
 
+/** The Cues page inside the pager (spec R3 §4). Each switch saves at once, as before, so there's no status line. */
 @Composable
-fun CuesSettingsRoute(onBack: () -> Unit, onEntryGone: () -> Unit, vm: CuesSettingsViewModel = hiltViewModel()) {
+fun CuesPage(vm: CuesSettingsViewModel) {
     val cues by vm.cues.collectAsStateWithLifecycle()
-    val missing by vm.missing.collectAsStateWithLifecycle()
-    LaunchedEffect(missing) { if (missing) onEntryGone() }
-    SettingsScaffold(title = stringResource(R.string.settings_cues), onBack = onBack) {
-        SwitchRow(R.string.sound, cues.sound, vm::setSound)
-        SwitchRow(R.string.vibration, cues.vibration, vm::setVibration)
-    }
-}
-
-/** Restyled with the stepper rows' spacing (spec §8.1). */
-@Composable
-private fun SwitchRow(@StringRes label: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+    SettingsPageLayout {
+        SwitchRow(stringResource(R.string.sound), cues.sound, vm::setSound, info = stringResource(R.string.info_sound))
+        SwitchRow(stringResource(R.string.vibration), cues.vibration, vm::setVibration, info = stringResource(R.string.info_vibration))
     }
 }

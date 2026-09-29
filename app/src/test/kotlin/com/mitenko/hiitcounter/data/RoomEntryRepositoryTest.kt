@@ -398,4 +398,61 @@ class RoomEntryRepositoryTest {
     fun `checkIn throws EntryNotFound for a missing id`() = runTest {
         expectThrows<EntryNotFound> { repo().checkIn(99, clock) }
     }
+
+    @Test
+    fun `setProgression keeps the hold count for floor, penalty and window edits`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = 64, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+        r.setProgression(a, ProgressionConfig(floor = 40))
+        r.setProgression(a, ProgressionConfig(floor = 40, penaltyHoursPerRep = 12.5))
+        r.setProgression(a, ProgressionConfig(floor = 40, penaltyHoursPerRep = 12.5, windowHours = 30))
+        assertEquals(3, r.entry(a).first()!!.counter.holdCount)
+    }
+
+    @Test
+    fun `setProgression resets the hold count for hold at, hold for and switch edits`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        suspend fun holdCountAfter(p: ProgressionConfig): Int {
+            db.entryDao().setCounter(a, total = 64, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+            r.setProgression(a, p)
+            return r.entry(a).first()!!.counter.holdCount
+        }
+        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66)))
+        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66, holdFor = 3)))
+        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66, holdFor = 3, hold = false)))
+        assertFalse(r.entry(a).first()!!.progression.hold)
+    }
+
+    @Test
+    fun `overwriteCounter keeps the hold count for streak and date edits`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = 64, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+        val last = clock.instant.minusSeconds(3600)
+        r.overwriteCounter(a, total = 64, bestStreak = 5, currentStreak = 2, lastCheckIn = last)
+        assertEquals(CounterState(64, 5, 2, last, 3), r.entry(a).first()!!.counter)
+    }
+
+    @Test
+    fun `overwriteCounter resets the hold count for a total edit, a stored null total counting as the starting total`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = null, bestStreak = 0, currentStreak = 0, holdCount = 2, lastCheckIn = null)
+        r.overwriteCounter(a, total = 48, bestStreak = 1, currentStreak = 0, lastCheckIn = null)
+        assertEquals(2, r.entry(a).first()!!.counter.holdCount)
+        r.overwriteCounter(a, total = 49, bestStreak = 1, currentStreak = 0, lastCheckIn = null)
+        assertEquals(0, r.entry(a).first()!!.counter.holdCount)
+    }
+
+    @Test
+    fun `duplicate copies the hold switch`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.setProgression(a, ProgressionConfig(hold = false))
+        val copy = r.duplicate(a)
+        assertFalse(r.entry(copy).first()!!.progression.hold)
+        assertFalse(db.entryDao().get(copy)!!.holdEnabled)
+    }
 }

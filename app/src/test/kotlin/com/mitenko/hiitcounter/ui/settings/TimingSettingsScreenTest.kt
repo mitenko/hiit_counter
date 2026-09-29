@@ -4,21 +4,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.domain.SettingsValidator
 import com.mitenko.hiitcounter.domain.model.TimingConfig
-import com.mitenko.hiitcounter.testutil.FakeEntryRepository
-import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
+import com.mitenko.hiitcounter.ui.common.SaveStatus
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +29,11 @@ class TimingSettingsScreenTest {
         compose.setContent {
             HiitTheme {
                 var draft by remember { mutableStateOf(initial) }
-                TimingSettingsScreen(draft, SettingsValidator.timing(draft), onBack = {}, onChange = { draft = it(draft) }, onSave = {})
+                val validation = SettingsValidator.timing(draft)
+                TimingPageContent(
+                    draft, validation, SaveStatus.of(validation, failed = false),
+                    onChange = { draft = it(draft) }, onChangeNow = { draft = it(draft) },
+                )
             }
         }
     }
@@ -48,10 +48,12 @@ class TimingSettingsScreenTest {
     }
 
     @Test
-    fun `save disabled when invalid`() {
-        val tooLong = TimingConfig(sets = 20, workSec = 3599)
-        compose.setContent { HiitTheme { TimingSettingsScreen(tooLong, SettingsValidator.timing(tooLong), {}, {}, {}) } }
-        compose.onNodeWithTag("save").assertIsNotEnabled()
+    fun `the status line reads Not saved while invalid and Saved once valid`() {
+        // 0 + 3 × 59:59 = 2:59:57 is too long; one set fewer, 1:59:58, is fine.
+        show(TimingConfig(prepareSec = 0, sets = 3, workSec = 3599, restSec = 0, cooldownSec = 0))
+        compose.onNodeWithTag("save_status").assertTextEquals("Not saved: fix the highlighted field")
+        compose.onNodeWithContentDescription("Decrease SETS").performScrollTo().performClick()
+        compose.onNodeWithTag("save_status").assertTextEquals("Saved")
     }
 
     @Test
@@ -59,14 +61,5 @@ class TimingSettingsScreenTest {
         show(TimingConfig(workSec = 5))
         repeat(2) { compose.onNodeWithContentDescription("Decrease WORK").performScrollTo().performClick() }
         compose.onNodeWithTag("value_WORK").assertTextEquals("00:01")
-    }
-
-    @Test
-    fun `the route pops to the list when its entry loads as missing`() {
-        var gone = 0
-        val vm = TimingSettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), FakeEntryRepository())
-        compose.setContent { HiitTheme { TimingSettingsRoute(onBack = {}, onEntryGone = { gone++ }, vm = vm) } }
-        compose.waitForIdle()
-        assertEquals(1, gone)
     }
 }

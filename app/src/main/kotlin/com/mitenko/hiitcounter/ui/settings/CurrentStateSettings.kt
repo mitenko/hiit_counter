@@ -1,5 +1,6 @@
 package com.mitenko.hiitcounter.ui.settings
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,7 +18,6 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,139 +29,237 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.data.EntryRepository
+import com.mitenko.hiitcounter.di.ApplicationScope
 import com.mitenko.hiitcounter.domain.Clock
 import com.mitenko.hiitcounter.domain.Field
 import com.mitenko.hiitcounter.domain.FieldRanges
 import com.mitenko.hiitcounter.domain.SettingsValidator
 import com.mitenko.hiitcounter.domain.ValidationResult
+import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
+import com.mitenko.hiitcounter.ui.common.AutoSaver
 import com.mitenko.hiitcounter.ui.common.DateFormats
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
+import com.mitenko.hiitcounter.ui.common.InfoTag
 import com.mitenko.hiitcounter.ui.common.IntStepperField
-import com.mitenko.hiitcounter.ui.common.SettingsScaffold
+import com.mitenko.hiitcounter.ui.common.SaveStatus
+import com.mitenko.hiitcounter.ui.common.SaveStatusLine
+import com.mitenko.hiitcounter.ui.common.SettingsPageLayout
 import com.mitenko.hiitcounter.ui.common.ValueInput
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import javax.inject.Inject
 
+/**
+ * The Current page (spec R3 §6). It uses the same draft and save pipeline as Timing. overwriteCounter
+ * keeps the hold count unless the total changes (§6.3). While the pager is open, a draft without
+ * unsaved edits follows the stored counter, and the floor–cap hint follows the stored progression
+ * (plan Spec note 2).
+ */
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     repo: EntryRepository,
     private val clock: Clock,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : EntryScopedViewModel(savedStateHandle, repo) {
-    /** Typed draft (spec §8.1). */
+    /** Typed draft (spec R2 §8.1). */
     data class Draft(val total: Int, val best: Int, val current: Int, val lastCheckIn: Instant?)
 
     /** The entry's own progression, used only for the "outside floor–cap" hint. */
     private val config = MutableStateFlow(ProgressionConfig())
-    private val _draft = MutableStateFlow<Draft?>(null)
+    private val _draft = MutableStateFlow(savedStateHandle.get<LongArray>(DRAFT_KEY)?.toDraft())
     val draft: StateFlow<Draft?> = _draft.asStateFlow()
     val validation: StateFlow<ValidationResult> = combine(_draft, config) { d, c -> d?.let { validate(it, c) } ?: ValidationResult() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ValidationResult())
+
+    private val failed = MutableStateFlow(false)
+    val status: StateFlow<SaveStatus> = combine(validation, failed) { v, f -> SaveStatus.of(v, f) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SaveStatus.SAVED)
+
+    /** The counter as last stored. A draft equal to it, with no save pending, has no unsaved edits. */
+    private var stored: Draft? = null
+
+    private val saver = AutoSaver<Draft>(viewModelScope) { d ->
+        try {
+            repo.overwriteCounter(entryId, d.total, d.best, d.current, d.lastCheckIn)
+            failed.value = false
+        } catch (e: EntryNotFound) {
+            markMissing()
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Counter $d rejected", e)
+            failed.value = true
+        }
+    }
 
     val zone: ZoneId get() = clock.zone()
 
     fun now(): Instant = clock.now()
 
     init {
+        // A valid draft restored after process death may never have been written; the write is idempotent if it was.
+        val restored = _draft.value?.takeIf { validate(it, config.value).isValid }
+        restored?.let(saver::schedule)
         viewModelScope.launch {
-            repo.entry(entryId).first()?.let { e ->
+            repo.entry(entryId).filterNotNull().collect { e ->
                 config.value = e.progression
-                _draft.value = Draft(e.counter.total, e.counter.bestStreak, e.counter.currentStreak, e.counter.lastCheckIn)
+                val latest = e.counter.toDraft()
+                val current = _draft.value
+                // The first store emission after a restore: a restored draft already matching the
+                // store needs no write (Minor 3); a restored draft that differs still saves.
+                if (stored == null && restored == latest) saver.cancel()
+                // Follow the store only without unsaved edits. An edit back to the stored value
+                // whose save is still pending counts as unsaved, so an echo can't overwrite it.
+                if (current == null || (current == stored && !saver.hasPending)) setDraft(latest)
+                stored = latest
             }
         }
     }
 
-    fun update(transform: (Draft) -> Draft) {
-        _draft.update { it?.let(transform) }
+    /** A stepper change: saved 400 ms after the last one. */
+    fun update(transform: (Draft) -> Draft) = edit(transform, now = false)
+
+    /** A dialog OK, a date or time pick, or Clear: saved at once. */
+    fun updateNow(transform: (Draft) -> Draft) = edit(transform, now = true)
+
+    fun flush() = saver.flush()
+
+    override fun onCleared() {
+        saver.flushIn(appScope)
     }
 
-    /** Overwrites the counter; the same UPDATE resets holdCount (spec §5.3). */
-    fun save(onSaved: () -> Unit) {
-        val d = _draft.value ?: return
-        if (!validate(d, config.value).isValid) return
-        viewModelScope.launch {
+    /**
+     * Confirmed on the page and applied at once (spec R3 §6.4). A pending counter save is dropped,
+     * and an in-flight one lands first. Run in [appScope]: leaving the page (viewModelScope
+     * cancelled) can't drop the reset while it waits on the mutex or during the Room call. The
+     * post-reset re-read that republishes the draft stays in viewModelScope; it's fine to lose it
+     * once the page is gone.
+     */
+    fun resetProgress() {
+        saver.cancel()
+        appScope.launch {
             try {
-                repo.overwriteCounter(entryId, d.total, d.best, d.current, d.lastCheckIn)
-                onSaved()
+                saver.exclusive { repo.resetProgress(entryId) }
+                viewModelScope.launch {
+                    repo.entry(entryId).first()?.let { e ->
+                        val reset = e.counter.toDraft()
+                        stored = reset
+                        setDraft(reset)
+                    }
+                }
             } catch (e: EntryNotFound) {
                 markMissing()
             }
         }
     }
 
-    fun resetProgress(onDone: () -> Unit) {
-        viewModelScope.launch {
-            try {
-                repo.resetProgress(entryId)
-                onDone()
-            } catch (e: EntryNotFound) {
-                markMissing()
-            }
+    private fun edit(transform: (Draft) -> Draft, now: Boolean) {
+        val d = _draft.value?.let(transform) ?: return
+        setDraft(d)
+        when {
+            !validate(d, config.value).isValid -> saver.cancel()
+            now -> saver.saveNow(d)
+            else -> saver.schedule(d)
         }
+    }
+
+    private fun setDraft(d: Draft) {
+        _draft.value = d
+        savedStateHandle[DRAFT_KEY] = longArrayOf(
+            d.total.toLong(), d.best.toLong(), d.current.toLong(),
+            if (d.lastCheckIn != null) 1L else 0L, d.lastCheckIn?.toEpochMilli() ?: 0L,
+        )
     }
 
     private fun validate(d: Draft, c: ProgressionConfig): ValidationResult =
         SettingsValidator.currentState(d.total, d.best, d.current, d.lastCheckIn, clock.now(), c)
+
+    private companion object {
+        const val TAG = "CurrentState"
+        const val DRAFT_KEY = "current_draft"
+
+        fun CounterState.toDraft() = Draft(total, bestStreak, currentStreak, lastCheckIn)
+
+        fun LongArray.toDraft() =
+            Draft(this[0].toInt(), this[1].toInt(), this[2].toInt(), if (this[3] == 1L) Instant.ofEpochMilli(this[4]) else null)
+    }
+}
+
+/** The Current page inside the pager (spec R3 §4). */
+@Composable
+fun CurrentStatePage(vm: CurrentStateViewModel) {
+    val draft by vm.draft.collectAsStateWithLifecycle()
+    val validation by vm.validation.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
+    draft?.let {
+        CurrentStatePageContent(
+            it, validation, status, vm.zone, vm::now,
+            onChange = vm::update, onChangeNow = vm::updateNow, onResetProgress = vm::resetProgress,
+        )
+    }
 }
 
 @Composable
-fun CurrentStateRoute(onBack: () -> Unit, onEntryGone: () -> Unit, vm: CurrentStateViewModel = hiltViewModel()) {
-    val draft by vm.draft.collectAsStateWithLifecycle()
-    val validation by vm.validation.collectAsStateWithLifecycle()
-    val missing by vm.missing.collectAsStateWithLifecycle()
-    LaunchedEffect(missing) { if (missing) onEntryGone() }
-    val d = draft ?: return
+fun CurrentStatePageContent(
+    draft: CurrentStateViewModel.Draft,
+    validation: ValidationResult,
+    status: SaveStatus,
+    zone: ZoneId,
+    now: () -> Instant,
+    onChange: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
+    onChangeNow: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
+    onResetProgress: () -> Unit,
+) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val lastLabel = stringResource(R.string.last_check_in_field)
 
-    SettingsScaffold(
-        title = stringResource(R.string.settings_current_state),
-        onBack = onBack,
-        actions = {
-            TextButton(onClick = { vm.save(onBack) }, enabled = validation.isValid, modifier = Modifier.testTag("save")) {
-                Text(stringResource(R.string.save))
-            }
-        },
-    ) {
+    SettingsPageLayout(footer = { SaveStatusLine(status) }) {
         IntStepperField(
-            stringResource(R.string.current_total), d.total, FieldRanges.TOTAL, ValueInput.WHOLE,
-            onUpdate = { f -> vm.update { it.copy(total = f(it.total)) } },
+            stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
+            onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
+            onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
             error = validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL],
+            info = stringResource(R.string.info_total_reps),
         )
         IntStepperField(
-            stringResource(R.string.best_streak_field), d.best, FieldRanges.STREAK, ValueInput.WHOLE,
-            onUpdate = { f -> vm.update { it.copy(best = f(it.best)) } }, error = validation.errors[Field.BEST_STREAK],
+            stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
+            onUpdate = { f -> onChange { it.copy(best = f(it.best)) } },
+            onDialogUpdate = { f -> onChangeNow { it.copy(best = f(it.best)) } },
+            error = validation.errors[Field.BEST_STREAK], info = stringResource(R.string.info_best_streak),
         )
         IntStepperField(
-            stringResource(R.string.current_streak_field), d.current, FieldRanges.STREAK, ValueInput.WHOLE,
-            onUpdate = { f -> vm.update { it.copy(current = f(it.current)) } }, error = validation.errors[Field.CURRENT_STREAK],
+            stringResource(R.string.current_streak_field), draft.current, FieldRanges.STREAK, ValueInput.WHOLE,
+            onUpdate = { f -> onChange { it.copy(current = f(it.current)) } },
+            onDialogUpdate = { f -> onChangeNow { it.copy(current = f(it.current)) } },
+            error = validation.errors[Field.CURRENT_STREAK], info = stringResource(R.string.info_current_streak),
         )
-        Text(lastLabel, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(lastLabel, style = MaterialTheme.typography.labelLarge)
+            InfoTag(lastLabel, stringResource(R.string.info_last_check_in))
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Tapping the date text opens the date and time pickers (spec §8.1).
+            // Tapping the date text opens the date and time pickers (spec R2 §8.1).
             Text(
-                d.lastCheckIn?.let { DateFormats.dateTime(it, vm.zone) } ?: stringResource(R.string.none),
+                draft.lastCheckIn?.let { DateFormats.dateTime(it, zone) } ?: stringResource(R.string.none),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -170,7 +268,11 @@ fun CurrentStateRoute(onBack: () -> Unit, onEntryGone: () -> Unit, vm: CurrentSt
                     .padding(vertical = 12.dp)
                     .testTag("last_check_in"),
             )
-            TextButton(onClick = { vm.update { it.copy(lastCheckIn = null) } }, enabled = d.lastCheckIn != null) {
+            TextButton(
+                onClick = { onChangeNow { it.copy(lastCheckIn = null) } },
+                enabled = draft.lastCheckIn != null,
+                modifier = Modifier.testTag("clear_last_check_in"),
+            ) {
                 Text(stringResource(R.string.clear))
             }
         }
@@ -180,31 +282,35 @@ fun CurrentStateRoute(onBack: () -> Unit, onEntryGone: () -> Unit, vm: CurrentSt
         OutlinedButton(
             onClick = { confirmReset = true },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = 24.dp).testTag("reset_progress"),
         ) { Text(stringResource(R.string.reset_progress)) }
     }
 
     if (picking) {
         DateTimePickerDialog(
-            initial = d.lastCheckIn ?: vm.now(),
-            zone = vm.zone,
+            initial = draft.lastCheckIn ?: now(),
+            zone = zone,
             onPicked = { t ->
                 picking = false
-                vm.update { it.copy(lastCheckIn = t) }
+                onChangeNow { it.copy(lastCheckIn = t) }
             },
             onDismiss = { picking = false },
         )
     }
+    // Spec R3 §6.4: Reset progress keeps its confirmation and applies at once; the page stays open.
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text(stringResource(R.string.reset_progress_title)) },
             text = { Text(stringResource(R.string.reset_progress_body)) },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmReset = false
-                    vm.resetProgress(onBack)
-                }) { Text(stringResource(R.string.reset)) }
+                TextButton(
+                    onClick = {
+                        confirmReset = false
+                        onResetProgress()
+                    },
+                    modifier = Modifier.testTag("confirm_reset_progress"),
+                ) { Text(stringResource(R.string.reset)) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )

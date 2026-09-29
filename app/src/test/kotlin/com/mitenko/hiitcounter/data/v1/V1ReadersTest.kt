@@ -10,6 +10,7 @@ import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -74,5 +75,11 @@ class V1ReadersTest {
         val counter = prefs { it[V1Keys.CURRENT_STREAK] = -1; it[V1Keys.BEST_STREAK] = 7 }.readV1Counter()
         assertEquals(0, counter.currentStreak)
         assertEquals(7, counter.bestStreak)
+    }
+
+    @Test
+    fun `a v1 hold_for of 0 imports as the hold switched off with hold for 4`() {
+        assertEquals(ProgressionConfig(hold = false), prefs { it[V1Keys.HOLD_FOR] = 0 }.readV1Progression())
+        assertFalse(v1Entry(prefs { it[V1Keys.HOLD_FOR] = 0 }, emptyPreferences()).holdEnabled)
     }
 }

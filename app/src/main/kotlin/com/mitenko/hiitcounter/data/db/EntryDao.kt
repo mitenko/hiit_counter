@@ -45,11 +45,15 @@ interface EntryDao {
     )
     suspend fun setTiming(id: Long, prepareSec: Int, sets: Int, workSec: Int, restSec: Int, cooldownSec: Int): Int
 
-    /** The same UPDATE resets hold_count (spec §5.3), so the reset is atomic with the change. */
+    /**
+     * Writes the progression group, resetting hold_count only when [resetHoldCount] is true. The
+     * repository decides that with holdResetNeeded inside the same transaction (spec R3 §6.3).
+     */
     @Query(
         "UPDATE entry SET starting_total = :startingTotal, floor = :floor, cap = :cap, hold_at = :holdAt, " +
-            "hold_for = :holdFor, window_hours = :windowHours, penalty_hours_per_rep = :penaltyHoursPerRep, " +
-            "hold_count = 0 WHERE id = :id",
+            "hold_for = :holdFor, hold_enabled = :holdEnabled, window_hours = :windowHours, " +
+            "penalty_hours_per_rep = :penaltyHoursPerRep, " +
+            "hold_count = CASE WHEN :resetHoldCount THEN 0 ELSE hold_count END WHERE id = :id",
     )
     suspend fun setProgression(
         id: Long,
@@ -58,8 +62,10 @@ interface EntryDao {
         cap: Int,
         holdAt: Int,
         holdFor: Int,
+        holdEnabled: Boolean,
         windowHours: Int,
         penaltyHoursPerRep: Double,
+        resetHoldCount: Boolean,
     ): Int
 
     @Query("UPDATE entry SET cue_sound = :sound, cue_vibration = :vibration WHERE id = :id")

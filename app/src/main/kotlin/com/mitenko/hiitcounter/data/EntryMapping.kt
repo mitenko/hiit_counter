@@ -64,6 +64,8 @@ internal fun EntryEntity.progression(): ProgressionConfig {
         penaltyHoursPerRep = checked(id, "penalty_hours_per_rep", penaltyHoursPerRep, d.penaltyHoursPerRep) {
             it > 0.0 && it.isFinite()
         },
+        // Spec R3 §5.2: a boolean column (default true); every stored value is valid, and the group fallback gives true.
+        hold = holdEnabled,
     )
     if (SettingsValidator.progression(c).isValid) return c
     Log.w(TAG, "Entry $id: progression inconsistent ($c); using default progression")
@@ -122,6 +124,7 @@ internal fun entryEntity(
     cap = progression.cap,
     holdAt = progression.holdAt,
     holdFor = progression.holdFor,
+    holdEnabled = progression.hold,
     windowHours = progression.windowHours,
     penaltyHoursPerRep = progression.penaltyHoursPerRep,
     cueSound = cues.sound,
