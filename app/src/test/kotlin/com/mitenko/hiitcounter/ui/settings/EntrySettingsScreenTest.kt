@@ -3,6 +3,7 @@ package com.mitenko.hiitcounter.ui.settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -12,9 +13,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.domain.TimerController
@@ -146,5 +149,36 @@ class EntrySettingsScreenTest {
         compose.onNodeWithTag("page_CUES").assertExists()
         compose.onNodeWithTag("page_PROGRESSION").assertExists()
         compose.onNodeWithTag("page_CURRENT").assertExists()
+    }
+
+    /** Every Entry Settings option, top to bottom (spec rev 9 §4). */
+    private val optionTags = listOf("card_type") + SettingsPage.entries.map { "page_${it.name}" } + listOf("rename", "duplicate", "delete")
+
+    @Test
+    fun `every option is a full-width card at least 56 dp tall`() {
+        show()
+        val rootWidth = compose.onRoot().fetchSemanticsNode().boundsInRoot.width
+        val inset = with(compose.density) { 32.dp.toPx() } // SettingsScaffold's 16 dp either side
+        optionTags.forEach { tag ->
+            // The bottom rows sit below the fold, and Robolectric reports a zero rect for a node's
+            // bounds until it's scrolled into view (pre-approved test-only deviation).
+            val node = compose.onNodeWithTag(tag).performScrollTo()
+            node.assertHeightIsAtLeast(56.dp)
+            assertEquals(tag, rootWidth - inset, node.fetchSemanticsNode().boundsInRoot.width, 0.5f)
+        }
+    }
+
+    @Test
+    fun `the option cards sit 8 dp apart, with Delete last`() {
+        show()
+        val gap = with(compose.density) { 8.dp.toPx() }
+        optionTags.zipWithNext { upper, lower ->
+            // Scrolling the lower (later) tag into view keeps the pair in the same scroll snapshot,
+            // since the gap is tiny next to the viewport (pre-approved test-only deviation).
+            compose.onNodeWithTag(lower).performScrollTo()
+            val a = compose.onNodeWithTag(upper).fetchSemanticsNode().boundsInRoot
+            val b = compose.onNodeWithTag(lower).fetchSemanticsNode().boundsInRoot
+            assertEquals("$upper → $lower", gap, b.top - a.bottom, 0.5f)
+        }
     }
 }

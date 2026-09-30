@@ -5,14 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,7 +23,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
@@ -143,11 +147,15 @@ private fun ColumnScope.SettingsTabs(
     val scope = rememberCoroutineScope()
     PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {
         pages.forEachIndexed { index, page ->
+            // Spec rev 9 §4: the icon alone, named by its content description; a 48 dp minimum
+            // target; the selected tab in the primary colour, with the indicator unchanged.
             Tab(
                 selected = pagerState.currentPage == index,
                 onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                text = { Text(stringResource(page.tab)) },
-                modifier = Modifier.testTag("tab_${page.name}"),
+                icon = { Icon(painterResource(page.icon), contentDescription = stringResource(page.tab)) },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.heightIn(min = 48.dp).testTag("tab_${page.name}"),
             )
         }
     }

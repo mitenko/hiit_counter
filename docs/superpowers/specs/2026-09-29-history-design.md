@@ -28,14 +28,8 @@
 
 ### 3.1 Room migration 3 → 4
 ```sql
-CREATE TABLE IF NOT EXISTS check_in (
-  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  entry_id INTEGER NOT NULL,
-  at INTEGER NOT NULL,
-  total INTEGER,
-  FOREIGN KEY(entry_id) REFERENCES entry(id) ON UPDATE NO ACTION ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS index_check_in_entry_id_at ON check_in (entry_id, at);
+CREATE TABLE IF NOT EXISTS `check_in` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `entry_id` INTEGER NOT NULL, `at` INTEGER NOT NULL, `total` INTEGER, FOREIGN KEY(`entry_id`) REFERENCES `entry`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE );
+CREATE INDEX IF NOT EXISTS `index_check_in_entry_id_at` ON `check_in` (`entry_id`, `at`);
 INSERT INTO check_in (entry_id, at, total)
   SELECT id, last_check_in, CASE WHEN type = 'WORKOUT' THEN COALESCE(total, starting_total) ELSE NULL END
   FROM entry WHERE last_check_in IS NOT NULL;
@@ -170,3 +164,16 @@ Unchanged:
 - ask before pushing;
 - TDD subtasks;
 - a phone backup before every install.
+
+## 8. Implementation notes (from the plan, confirmed with the user)
+
+§4.1 and §4.2 are replaced by `2026-09-30-ui-refresh-design.md` (revision 9); its §8 holds the screen notes.
+
+- **§3.1 SQL.** The CREATE TABLE and CREATE INDEX above are Room's own text for `CheckInEntity` (backticks, and a space before the closing parenthesis of a table with a foreign key), checked against `4.json` by a test. The INSERT is unchanged; `type = 'WORKOUT'` still applies because a Timer only entry is stored as `'CHECK_IN'`.
+- **Seed edge.** The seed reads the raw `total` and `type` columns, so a stored total below 1 or an unknown type would be seeded as stored. No write path produces either.
+- **One read.** The entry screen reads every point once (`history(id, null)`) and filters by range in memory, so one query gives both empty states. `history(id, since)` is implemented and tested as §3.3 says.
+- **Cascade.** Tested on its own by deleting an `entry` row through the DAO; `delete` also removes history explicitly.
+- **Two points on one day.** Reset progress (keeping history) clears the last check-in, or clearing or back-dating Last check-in on the Current tab does the same, so a later check-in that day logs a second point; the chart shows both, the day-dots and calendar one day.
+- **v1 import (accepted edge).** A v1 import on a fresh install creates the entry directly at v4 and has no seed point; its first check-in logs the first point.
+- **Reset checkbox (§4.3).** Unchecked every time the dialog opens; kept across rotation while open. The reset still runs in the application scope.
+- **Device (§6).** The install goes over the Timer only build (revision 8, database v3), not R5.

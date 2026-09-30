@@ -9,10 +9,10 @@ import com.mitenko.hiitcounter.domain.RunStatus
 import com.mitenko.hiitcounter.domain.ServiceStatus
 import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.domain.WorkoutSnapshot
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
 import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.service.WorkoutServiceStarter
-import com.mitenko.hiitcounter.ui.common.DateFormats
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -28,18 +28,19 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 
 data class EntryUiState(
     val name: String = "",
-    /** Spec R4 §4.1–4.2, amended by spec revision 8: a Workout shows the rep table; a Timer only entry shows the streak rows. Both show Check in and Start. */
+    /** Spec rev 9 §3: a Workout shows the chart and the reps column, a Timer only entry the calendar. Both show the streak line, Check in and Start. */
     val type: EntryType = EntryType.WORKOUT,
     val reps: List<Int> = emptyList(),
     val total: Int = 0,
-    val lastCheckIn: String = "—",
     val bestStreak: Int = 0,
     val currentStreak: Int = 0,
-    val today: String = "",
     val checkedInToday: Boolean = false,
     val starting: Boolean = false,
     /** A Check in call is in flight (spec R4 §4.1): both buttons are disabled until it returns. */
@@ -47,6 +48,14 @@ data class EntryUiState(
     val error: String? = null,
     /** True once the entry has emitted at least once. The action buttons and Workout-only rows wait for this. */
     val loaded: Boolean = false,
+    /**
+     * Every point the entry has, oldest first (spec R6 §3.3): the screen filters by range, so one
+     * query gives both empty states (plan Spec note 3). [now] and [zone] are "today" for the range
+     * maths, re-read on resume.
+     */
+    val points: List<CheckInPoint> = emptyList(),
+    val now: Instant = Instant.EPOCH,
+    val zone: ZoneId = ZoneOffset.UTC,
 )
 
 @HiltViewModel
@@ -63,7 +72,7 @@ class EntryViewModel @Inject constructor(
     private val refresh = MutableStateFlow(0)
 
     val uiState: StateFlow<EntryUiState> =
-        combine(repo.entry(entryId).filterNotNull(), transient, refresh) { entry, tr, _ ->
+        combine(repo.entry(entryId).filterNotNull(), repo.history(entryId, since = null), transient, refresh) { entry, points, tr, _ ->
             val now = clock.now()
             val zone = clock.zone()
             val counter = entry.counter
@@ -72,19 +81,20 @@ class EntryViewModel @Inject constructor(
                 type = entry.type,
                 reps = RepDistributor.distribute(counter.total, entry.timing.sets),
                 total = counter.total,
-                lastCheckIn = counter.lastCheckIn?.let { DateFormats.dateTime(it, zone) } ?: "—",
                 bestStreak = counter.bestStreak,
                 currentStreak = counter.currentStreak,
-                today = DateFormats.date(now, zone),
                 checkedInToday = counter.lastCheckIn?.atZone(zone)?.toLocalDate() == now.atZone(zone).toLocalDate(),
                 starting = tr.starting,
                 checkingIn = tr.checkingIn,
                 error = tr.error,
                 loaded = true,
+                points = points,
+                now = now,
+                zone = zone,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryUiState())
 
-    /** Re-evaluates "Today" and "Checked in today" when the screen resumes (e.g. after midnight). */
+    /** Re-evaluates "Checked in today" and "now" (the range maths) when the screen resumes, e.g. after midnight. */
     fun onResume() {
         refresh.update { it + 1 }
     }

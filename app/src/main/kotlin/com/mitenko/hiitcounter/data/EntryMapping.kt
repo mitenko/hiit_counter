@@ -1,10 +1,12 @@
 package com.mitenko.hiitcounter.data
 
 import android.util.Log
+import com.mitenko.hiitcounter.data.db.CheckInEntity
 import com.mitenko.hiitcounter.data.db.EntryEntity
 import com.mitenko.hiitcounter.domain.EntryNames
 import com.mitenko.hiitcounter.domain.NameCheck
 import com.mitenko.hiitcounter.domain.SettingsValidator
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
@@ -100,6 +102,9 @@ internal fun EntryEntity.toDomain(): Entry {
         type = entryType(),
     )
 }
+
+/** A history row as a domain point (spec R6 §3.3). */
+internal fun CheckInEntity.toPoint(): CheckInPoint = CheckInPoint(Instant.ofEpochMilli(at), total)
 
 /** The counter group as stored: [total] null means "reads as the starting total". */
 internal data class StoredCounter(

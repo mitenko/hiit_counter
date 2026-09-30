@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.hiitcounter.domain.Field
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.testutil.FakeClock
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
@@ -101,7 +102,7 @@ class CurrentStateViewModelTest {
         )
         val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
         vm.update { it.copy(best = 30) } // pending, and must not land after the reset
-        vm.resetProgress()
+        vm.resetProgress(clearHistory = false)
         runCurrent()
         assertEquals(CounterState(total = 48), repo.find(1).counter)
         assertEquals(CurrentStateViewModel.Draft(48, 0, 0, null), vm.draft.value)
@@ -125,7 +126,7 @@ class CurrentStateViewModelTest {
         val vm = ViewModelProvider(store, factory)[CurrentStateViewModel::class.java]
         advanceTimeBy(400)
         runCurrent() // the restore-save fires and blocks in overwriteCounter, mutex held
-        vm.resetProgress()
+        vm.resetProgress(clearHistory = false)
         runCurrent() // the reset starts waiting on the same mutex
         store.clear() // cancels viewModelScope while the reset still waits
         notReady.readiness.complete(Unit)
@@ -199,5 +200,17 @@ class CurrentStateViewModelTest {
         vm.flush()
         runCurrent()
         assertTrue(vm.missing.value)
+    }
+
+    @Test
+    fun `reset progress passes Clear history too through to the repository`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(65, 24, 4, clock.instant, 1))))
+        repo.points.value = mapOf(1L to listOf(CheckInPoint(clock.instant, 65)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.resetProgress(clearHistory = true)
+        runCurrent()
+        assertEquals(listOf(1L to true), repo.resets)
+        assertTrue(repo.points.value[1L].isNullOrEmpty())
+        assertEquals(CounterState(total = 48), repo.find(1).counter)
     }
 }

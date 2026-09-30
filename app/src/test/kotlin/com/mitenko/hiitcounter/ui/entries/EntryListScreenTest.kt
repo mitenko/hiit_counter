@@ -6,15 +6,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
@@ -85,11 +89,11 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `rows show the name, reps and today's marker and open on tap`() {
+    fun `rows show the name, the week count and today's marker and open on tap`() {
         val opened = mutableListOf<Long>()
         show(EntryListUiState.Items(rows), onOpen = { opened += it })
-        compose.onNodeWithText("Reps 65").assertExists()
-        compose.onNodeWithText("Reps 48").assertExists()
+        compose.onNodeWithText("Burpees").assertExists()
+        compose.onAllNodesWithText("0× this week").assertCountEquals(3)
         compose.onAllNodesWithContentDescription("Checked in today", useUnmergedTree = true).assertCountEquals(1)
         compose.onNodeWithText("Lunges").performClick()
         assertEquals(listOf(2L), opened)
@@ -155,8 +159,9 @@ class EntryListScreenTest {
         val moves = mutableListOf<Pair<Long, Int>>()
         show(EntryListUiState.Items(rows), onMove = { id, delta -> moves += id to delta })
         val rowHeight = with(compose.density) { 56.dp.toPx() }
-        // center of "entry_1" lands in the row's text area, well clear of the handle on the far
-        // right edge, so only the row's plain clickable is in play here, not draggableHandle.
+        // center of "entry_1" lands on the tile graph (spec rev 9 §2), well clear of the handle on the
+        // far right edge. The graph has no pointer input, so only the card's plain clickable is in
+        // play here, not draggableHandle.
         compose.onNodeWithTag("entry_1").performTouchInput {
             down(center)
             moveBy(Offset(0f, rowHeight * 1.5f))
@@ -348,10 +353,10 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `a Timer only row reads Streak N with today's marker`() {
-        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 48, checkedInToday = true, type = EntryType.CHECK_IN, streak = 5))))
-        compose.onNodeWithText("Streak 5").assertExists()
-        compose.onNodeWithText("Reps 48").assertDoesNotExist()
+    fun `a Timer only row reads its week count with today's marker`() {
+        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 48, checkedInToday = true, type = EntryType.CHECK_IN, streak = 5, weekCount = 2))))
+        compose.onNodeWithText("2× this week").assertExists()
+        compose.onNodeWithText("Streak", substring = true).assertDoesNotExist()
         compose.onAllNodesWithContentDescription("Checked in today", useUnmergedTree = true).assertCountEquals(1)
     }
 
@@ -366,5 +371,57 @@ class EntryListScreenTest {
         compose.onNodeWithTag("name_field").performTextReplacement("Stretch")
         compose.onNodeWithTag("name_ok").performClick()
         assertEquals(listOf("Stretch" to EntryType.CHECK_IN), created)
+    }
+
+    @Test
+    fun `the title REPKIT is centred in the top bar`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithTag("title").assertTextEquals("REPKIT")
+        val title = compose.onNodeWithTag("title").fetchSemanticsNode().boundsInRoot
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        assertEquals(root.center.x, title.center.x, 0.5f)
+    }
+
+    @Test
+    fun `a tile shows this week's count and no rep total or streak`() {
+        show(EntryListUiState.Items(listOf(EntryRow(1, "Burpees", 65, checkedInToday = false, streak = 4, weekCount = 3))))
+        compose.onNodeWithText("3× this week").assertExists()
+        compose.onNodeWithText("Reps", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("65", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Streak", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `each tile has a 96 by 32 dp graph that describes its last 4 weeks`() {
+        show(EntryListUiState.Items(listOf(rows[0].copy(tile = TileData(count = 12)), rows[1].copy(tile = TileData(count = 1)), rows[2])))
+        compose.onNodeWithTag("tile_1", useUnmergedTree = true).assertWidthIsEqualTo(96.dp).assertHeightIsEqualTo(32.dp)
+        compose.onNodeWithContentDescription("12 check-ins in the last 4 weeks", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("1 check-in in the last 4 weeks", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("0 check-ins in the last 4 weeks", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `the graph sits just before the drag handle and adds no touch target`() {
+        show(EntryListUiState.Items(rows))
+        val gap = with(compose.density) { 8.dp.toPx() }
+        for (row in rows) {
+            val tile = compose.onNodeWithTag("tile_${row.id}", useUnmergedTree = true).fetchSemanticsNode()
+            val handle = compose.onNodeWithTag("drag_${row.id}", useUnmergedTree = true).fetchSemanticsNode()
+            assertTrue(tile.boundsInRoot.right <= handle.boundsInRoot.left)
+            assertTrue(handle.boundsInRoot.left - tile.boundsInRoot.right <= gap + 0.5f)
+            assertFalse(tile.config.contains(SemanticsActions.OnClick))
+        }
+    }
+
+    @Test
+    fun `tiles are at least 72 dp tall and 8 dp apart`() {
+        show(EntryListUiState.Items(rows))
+        val gap = with(compose.density) { 8.dp.toPx() }
+        rows.forEach { compose.onNodeWithTag("entry_${it.id}").assertHeightIsAtLeast(72.dp) }
+        rows.zipWithNext { upper, lower ->
+            val a = compose.onNodeWithTag("entry_${upper.id}").fetchSemanticsNode().boundsInRoot
+            val b = compose.onNodeWithTag("entry_${lower.id}").fetchSemanticsNode().boundsInRoot
+            assertEquals(gap, b.top - a.bottom, 0.5f)
+        }
     }
 }

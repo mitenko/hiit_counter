@@ -9,6 +9,7 @@ import com.mitenko.hiitcounter.domain.Outcome
 import com.mitenko.hiitcounter.domain.RepProgression
 import com.mitenko.hiitcounter.domain.counterHoldReset
 import com.mitenko.hiitcounter.domain.holdResetNeeded
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
@@ -26,17 +27,20 @@ import kotlinx.coroutines.flow.update
 import java.time.Instant
 
 /**
- * In-memory [EntryRepository] with the same contract as RoomEntryRepository: both flows and every
- * suspend call wait for [readiness], missing ids throw EntryNotFound, invalid names throw
+ * In-memory [EntryRepository] with the same contract as RoomEntryRepository: every flow and every
+ * suspend call waits for [readiness], missing ids throw EntryNotFound, invalid names throw
  * IllegalArgumentException, positions stay contiguous, the hold count follows the R3 §6.3 rules,
- * and a Timer only entry's check-in keeps its total (R4 §3.1). Settings validation is left to
- * the ViewModels under test. The write counters, [writeError] and [checkInGate] let the tests
- * count, fail and hold individual calls.
+ * a Timer only entry's check-in keeps its total (R4 §3.1), and a recorded check-in logs one
+ * point in [points] (R6 §3.2). Settings validation is left to the ViewModels under test. The write
+ * counters, [writeError] and [checkInGate] let the tests count, fail and hold individual calls.
  */
 class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = true) : EntryRepository {
     val readiness = CompletableDeferred<Unit>().apply { if (ready) complete(Unit) }
     val state = MutableStateFlow(initial.sortedWith(compareBy<Entry>({ it.position }, { it.id })))
     private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1
+
+    /** Each entry's history (spec R6 §3.2). Tests may seed it directly; reads sort each list by `at`. */
+    val points = MutableStateFlow<Map<Long, List<CheckInPoint>>>(emptyMap())
 
     var checkInCalls = 0
     var checkInError: Throwable? = null
@@ -45,6 +49,9 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     var checkInGate: CompletableDeferred<Unit>? = null
     val moves = mutableListOf<Pair<Long, Int>>()
     var deleteCalls = 0
+
+    /** Every resetProgress call as (id, clearHistory), including failed ones. */
+    val resets = mutableListOf<Pair<Long, Boolean>>()
 
     /** setTiming / setProgression / overwriteCounter / setType calls so far, including failed ones. */
     var timingWrites = 0
@@ -81,7 +88,7 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         edit(id) { it.copy(name = valid) }
     }
 
-    /** Copies the config, the type and the cues (voice included) with a fresh counter, as Room does. */
+    /** Copies the config, the type and the cues (voice included) with a fresh counter and no history, as Room does. */
     override suspend fun duplicate(id: Long): Long {
         readiness.await()
         val source = find(id)
@@ -102,6 +109,7 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         deleteCalls++
         find(id)
         state.update { list -> list.filter { it.id != id }.mapIndexed { i, e -> e.copy(position = i) } }
+        points.update { it - id }
     }
 
     override suspend fun moveBy(id: Long, delta: Int) {
@@ -144,10 +152,14 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         checkInGate?.await()
         checkInError?.let { throw it }
         val e = find(id)
-        val result = RepProgression.checkIn(
-            e.counter, e.progression, clock.now(), clock.zone(), countsReps = e.type == EntryType.WORKOUT,
-        )
-        if (result.outcome != Outcome.AlreadyToday) edit(id) { it.copy(counter = result.state) }
+        val countsReps = e.type == EntryType.WORKOUT
+        val result = RepProgression.checkIn(e.counter, e.progression, clock.now(), clock.zone(), countsReps)
+        if (result.outcome != Outcome.AlreadyToday) {
+            edit(id) { it.copy(counter = result.state) }
+            // Spec R6 §3.2: one point per recorded check-in; a Timer only point has no total.
+            val point = CheckInPoint(clock.now(), if (countsReps) result.state.total else null)
+            points.update { all -> all + (id to (all[id].orEmpty() + point)) }
+        }
         return result
     }
 
@@ -161,7 +173,26 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     }
 
     /** Room stores a NULL total, which resolves to startingTotal; the fake stores startingTotal directly. */
-    override suspend fun resetProgress(id: Long) = edit(id) { it.copy(counter = CounterState(total = it.progression.startingTotal)) }
+    override suspend fun resetProgress(id: Long, clearHistory: Boolean) {
+        resets += id to clearHistory
+        edit(id) { it.copy(counter = CounterState(total = it.progression.startingTotal)) }
+        if (clearHistory) points.update { it - id }
+    }
+
+    override fun history(id: Long, since: Instant?): Flow<List<CheckInPoint>> = flow {
+        readiness.await()
+        emitAll(points.map { all -> all[id].orEmpty().filter { since == null || !it.at.isBefore(since) }.sortedBy { it.at } })
+    }
+
+    override fun recentCheckIns(since: Instant): Flow<Map<Long, List<CheckInPoint>>> = flow {
+        readiness.await()
+        emitAll(
+            points.map { all ->
+                all.mapValues { (_, list) -> list.filter { !it.at.isBefore(since) }.sortedBy { it.at } }
+                    .filterValues { it.isNotEmpty() }
+            },
+        )
+    }
 
     fun find(id: Long): Entry = state.value.firstOrNull { it.id == id } ?: throw EntryNotFound(id)
 

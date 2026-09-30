@@ -3,8 +3,10 @@ package com.mitenko.hiitcounter.data
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.hiitcounter.data.db.CheckInEntity
 import com.mitenko.hiitcounter.data.db.HiitDatabase
 import com.mitenko.hiitcounter.domain.Outcome
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
@@ -29,6 +31,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.Instant
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4::class)
@@ -187,7 +190,7 @@ class RoomEntryRepositoryTest {
         val r = repo()
         val a = r.create("Burpees")
         r.overwriteCounter(a, 65, 24, 4, clock.instant.minusSeconds(60))
-        r.resetProgress(a)
+        r.resetProgress(a, clearHistory = false)
         assertNull(db.entryDao().get(a)!!.total)
         assertEquals(CounterState(total = 48), r.entry(a).first()!!.counter)
         r.setProgression(a, ProgressionConfig(startingTotal = 55))
@@ -198,7 +201,7 @@ class RoomEntryRepositoryTest {
     fun `counter writes on missing ids throw EntryNotFound`() = runTest {
         val r = repo()
         expectThrows<EntryNotFound> { r.overwriteCounter(99, 60, 0, 0, null) }
-        expectThrows<EntryNotFound> { r.resetProgress(99) }
+        expectThrows<EntryNotFound> { r.resetProgress(99, clearHistory = true) }
     }
 
     @Test
@@ -530,5 +533,112 @@ class RoomEntryRepositoryTest {
         assertEquals(2, row.holdCount)
         assertEquals(clock.instant.toEpochMilli(), row.lastCheckIn)
         assertEquals(48, r.entry(a).first()!!.counter.total)
+    }
+
+    @Test
+    fun `a check-in logs one point with the new total and a same-day repeat logs none`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.checkIn(a, clock)
+        val day1 = clock.instant
+        clock.instant = day1.plusSeconds(600)
+        assertEquals(Outcome.AlreadyToday, r.checkIn(a, clock).outcome)
+        clock.instant = day1.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(listOf(CheckInPoint(day1, 48), CheckInPoint(clock.instant, 49)), r.history(a, null).first())
+    }
+
+    @Test
+    fun `a Timer only check-in logs a point without a total`() = runTest {
+        val r = repo()
+        val a = r.create("Stretch", EntryType.CHECK_IN)
+        r.checkIn(a, clock)
+        assertEquals(listOf(CheckInPoint(clock.instant, null)), r.history(a, null).first())
+    }
+
+    @Test
+    fun `resetProgress without clearing keeps the history`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.checkIn(a, clock)
+        r.resetProgress(a, clearHistory = false)
+        assertEquals(CounterState(total = 48), r.entry(a).first()!!.counter)
+        // Spec R6 §3.2: nothing but checkIn writes history, so Current-tab edits and a type switch add no point.
+        r.overwriteCounter(a, total = 60, bestStreak = 1, currentStreak = 1, lastCheckIn = null)
+        r.setType(a, EntryType.CHECK_IN)
+        assertEquals(listOf(CheckInPoint(clock.instant, 48)), r.history(a, null).first())
+    }
+
+    @Test
+    fun `resetProgress with clearHistory deletes only that entry's history`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val b = r.create("Lunges")
+        r.checkIn(a, clock)
+        r.checkIn(b, clock)
+        r.resetProgress(a, clearHistory = true)
+        assertEquals(CounterState(total = 48), r.entry(a).first()!!.counter)
+        assertTrue(r.history(a, null).first().isEmpty())
+        assertEquals(listOf(CheckInPoint(clock.instant, 48)), r.history(b, null).first())
+    }
+
+    @Test
+    fun `delete removes the entry's history and a duplicate starts with none`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.checkIn(a, clock)
+        val copy = r.duplicate(a)
+        assertTrue(r.history(copy, null).first().isEmpty())
+        r.delete(a)
+        assertTrue(db.checkInDao().getForEntry(a).isEmpty())
+        assertTrue(r.recentCheckIns(Instant.EPOCH).first().isEmpty())
+    }
+
+    @Test
+    fun `history returns points oldest first from since, or all of them for null`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val days = (0L..2L).map { clock.instant.plusSeconds(it * 24 * 3600) }
+        // Inserted newest first, so the order has to come from the query.
+        days.reversed().forEachIndexed { i, at ->
+            db.checkInDao().insert(CheckInEntity(entryId = a, at = at.toEpochMilli(), total = 50 - i))
+        }
+        assertEquals(
+            listOf(CheckInPoint(days[0], 48), CheckInPoint(days[1], 49), CheckInPoint(days[2], 50)),
+            r.history(a, null).first(),
+        )
+        assertEquals(listOf(CheckInPoint(days[1], 49), CheckInPoint(days[2], 50)), r.history(a, days[1]).first())
+    }
+
+    @Test
+    fun `recentCheckIns groups every entry's points since the given instant`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val b = r.create("Stretch", EntryType.CHECK_IN)
+        r.create("Lunges") // no points: absent from the map
+        val old = clock.instant.minusSeconds(40L * 24 * 3600)
+        db.checkInDao().insert(CheckInEntity(entryId = a, at = old.toEpochMilli(), total = 47))
+        r.checkIn(a, clock)
+        r.checkIn(b, clock)
+        assertEquals(
+            mapOf(a to listOf(CheckInPoint(clock.instant, 48)), b to listOf(CheckInPoint(clock.instant, null))),
+            r.recentCheckIns(clock.instant.minusSeconds(3600)).first(),
+        )
+    }
+
+    @Test
+    fun `history and recentCheckIns wait for the migration gate`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val r = repo(object : MigrationGate {
+            override suspend fun awaitReady() = gate.await()
+        })
+        val history = async { r.history(1, null).first() }
+        val recent = async { r.recentCheckIns(Instant.EPOCH).first() }
+        runCurrent()
+        assertFalse(history.isCompleted)
+        assertFalse(recent.isCompleted)
+        gate.complete(Unit)
+        assertTrue(history.await().isEmpty())
+        assertTrue(recent.await().isEmpty())
     }
 }

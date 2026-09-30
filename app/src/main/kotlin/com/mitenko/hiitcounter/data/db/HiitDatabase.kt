@@ -7,13 +7,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2), version 3 adds
- * `entry.type` and `entry.cue_voice` (R4 §3.2). Schemas are exported to app/schemas and committed.
- * Every migration is registered in the builder (StorageModule), and there is no destructive fallback.
+ * `entry.type` and `entry.cue_voice` (R4 §3.2), version 4 adds the `check_in` history table
+ * (R6 §3.1). Schemas are exported to app/schemas and committed. Every migration is registered in
+ * the builder (StorageModule), and there is no destructive fallback.
  */
-@Database(entities = [EntryEntity::class, MetaEntity::class], version = 3, exportSchema = true)
+@Database(entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class], version = 4, exportSchema = true)
 abstract class HiitDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun metaDao(): MetaDao
+    abstract fun checkInDao(): CheckInDao
 
     companion object {
         const val NAME = "hiit.db"
@@ -46,6 +48,28 @@ abstract class HiitDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        /**
+         * Spec R6 §3.1. The CREATE TABLE and CREATE INDEX are Room's own text for CheckInEntity (the
+         * 4.json createSql, checked by HiitDatabaseTest; plan Spec note 1). The seed is the spec's
+         * INSERT … SELECT, verbatim: one point per checked-in entry, a Workout's total falling back
+         * to its starting total, NULL for a Timer only entry.
+         */
+        internal val MIGRATION_3_4_SQL = listOf(
+            "CREATE TABLE IF NOT EXISTS `check_in` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`entry_id` INTEGER NOT NULL, `at` INTEGER NOT NULL, `total` INTEGER, " +
+                "FOREIGN KEY(`entry_id`) REFERENCES `entry`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            "CREATE INDEX IF NOT EXISTS `index_check_in_entry_id_at` ON `check_in` (`entry_id`, `at`)",
+            "INSERT INTO check_in (entry_id, at, total) " +
+                "SELECT id, last_check_in, CASE WHEN type = 'WORKOUT' THEN COALESCE(total, starting_total) ELSE NULL END " +
+                "FROM entry WHERE last_check_in IS NOT NULL",
+        )
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_3_4_SQL.forEach { db.execSQL(it) }
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

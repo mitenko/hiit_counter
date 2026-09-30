@@ -163,4 +163,19 @@ class StepperRowTest {
         assertEquals(1 to 1, stepped to dialog)
         assertEquals(12, value)
     }
+
+    @Test
+    fun `the row is one rounded card holding its label, buttons and value`() {
+        showInt(8, FieldRanges.SETS, ValueInput.WHOLE, "SETS")
+        val card = compose.onNodeWithTag("card_SETS").fetchSemanticsNode().boundsInRoot
+        listOf(
+            compose.onNodeWithText("SETS"),
+            compose.onNodeWithTag("value_SETS"),
+            compose.onNodeWithContentDescription("Decrease SETS"),
+            compose.onNodeWithContentDescription("Increase SETS"),
+        ).forEach { node ->
+            val b = node.fetchSemanticsNode().boundsInRoot
+            assertTrue("$b outside $card", b.left >= card.left && b.top >= card.top && b.right <= card.right && b.bottom <= card.bottom)
+        }
+    }
 }

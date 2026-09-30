@@ -1,5 +1,7 @@
 package com.mitenko.hiitcounter.data
 
+import com.mitenko.hiitcounter.data.db.CheckInEntity
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
@@ -142,5 +144,11 @@ class EntryMappingTest {
         assertEquals(EntryType.WORKOUT, testEntity().copy(type = "HABIT").toDomain().type)
         assertEquals(EntryType.WORKOUT, testEntity().copy(type = "").toDomain().type)
         assertEquals(EntryType.WORKOUT, testEntity().copy(type = "check_in").toDomain().type)
+    }
+
+    @Test
+    fun `a check-in row maps to a point`() {
+        assertEquals(CheckInPoint(Instant.ofEpochMilli(1_790_000_000_123), 62), CheckInEntity(1, 7, 1_790_000_000_123, 62).toPoint())
+        assertNull(CheckInEntity(2, 7, 1_000, null).toPoint().total)
     }
 }
