@@ -63,7 +63,7 @@ interface EntryRepository {
 
     /**
      * One transaction using the row's own progression and type: concurrent calls on one entry record
-     * exactly one check-in. A check-in-only entry keeps its total and hold count (spec R4 §3.1).
+     * exactly one check-in. A Timer only entry keeps its total and hold count (spec R4 §3.1).
      */
     suspend fun checkIn(id: Long, clock: Clock): CheckInResult
 
@@ -203,7 +203,7 @@ class RoomEntryRepository(
             val result = RepProgression.checkIn(entry.counter, entry.progression, now, clock.zone(), countsReps)
             if (result.outcome != Outcome.AlreadyToday) {
                 val s = result.state
-                // A check-in-only entry never touches its total column, so a NULL total stays NULL (plan Spec note 6).
+                // A Timer only entry never touches its total column, so a NULL total stays NULL (plan Spec note 6).
                 val total = if (countsReps) s.total else row.total
                 dao.setCounter(id, total, s.bestStreak, s.currentStreak, s.holdCount, s.lastCheckIn?.toEpochMilli())
             }

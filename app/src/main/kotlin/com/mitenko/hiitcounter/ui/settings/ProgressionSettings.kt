@@ -162,7 +162,7 @@ class ProgressionSettingsViewModel @Inject constructor(
 }
 
 /**
- * The Progression page inside the pager (spec R3 §4). [windowOnly] is a check-in-only entry
+ * The Progression page inside the pager (spec R3 §4). [windowOnly] is a Timer only entry
  * (R4 §4.6): only the check-in window shows. The hidden fields keep their stored values and stay in
  * the draft that is validated and saved. Reset to defaults is hidden too, since it would reset them
  * (plan Spec note 7).

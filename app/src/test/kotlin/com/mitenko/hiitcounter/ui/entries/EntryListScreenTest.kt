@@ -348,7 +348,7 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `a check-in-only row reads Streak N with today's marker`() {
+    fun `a Timer only row reads Streak N with today's marker`() {
         show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 48, checkedInToday = true, type = EntryType.CHECK_IN, streak = 5))))
         compose.onNodeWithText("Streak 5").assertExists()
         compose.onNodeWithText("Reps 48").assertDoesNotExist()
@@ -356,7 +356,7 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `the create dialog offers Workout or Check-in only, defaulting to Workout`() {
+    fun `the create dialog offers Workout or Timer only, defaulting to Workout`() {
         val created = mutableListOf<Pair<String, EntryType>>()
         show(EntryListUiState.Items(rows), onCreate = { name, type -> created += name to type })
         compose.onNodeWithTag("add").performClick()

@@ -107,21 +107,19 @@ fun EntryScreen(
                 )
             }
             Spacer(Modifier.height(24.dp))
-            // Spec R4 §4.1–4.2: a Workout has Check in (outlined) and Start (filled); a check-in-only entry has one Check in.
-            // Buttons wait for the entry's first emission, so there's nothing to tap before its type is known.
+            // Spec R4 §4.1, amended by spec revision 8: every entry has Check in (outlined) and Start
+            // (filled), laid out the same way whether it's a Workout or Timer only. Buttons wait for
+            // the entry's first emission, so there's nothing to tap before its type is known.
             if (state.loaded) {
-                when (state.type) {
-                    EntryType.WORKOUT -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CheckInButton(state, onCheckIn, Modifier.weight(1f))
-                        Button(
-                            onClick = onStart,
-                            enabled = !state.starting && !state.checkingIn,
-                            modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("start"),
-                        ) {
-                            Text(stringResource(R.string.start), style = MaterialTheme.typography.titleMedium)
-                        }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CheckInButton(state, onCheckIn, Modifier.weight(1f))
+                    Button(
+                        onClick = onStart,
+                        enabled = !state.starting && !state.checkingIn,
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("start"),
+                    ) {
+                        Text(stringResource(R.string.start), style = MaterialTheme.typography.titleMedium)
                     }
-                    EntryType.CHECK_IN -> CheckInButton(state, onCheckIn, Modifier.fillMaxWidth())
                 }
             }
         }
@@ -150,7 +148,7 @@ private fun CheckInButton(state: EntryUiState, onCheckIn: () -> Unit, modifier: 
 private fun RepTable(state: EntryUiState) {
     val line = MaterialTheme.colorScheme.outline
     Column(Modifier.fillMaxWidth().border(1.dp, line)) {
-        // Spec R4 §4.2: a check-in-only entry has no rep rows and no Total Reps row. These also wait for
+        // Spec R4 §4.2: a Timer only entry has no rep rows and no Total Reps row. These also wait for
         // the entry's first emission, so a fresh WORKOUT-default state doesn't flash an empty table.
         if (state.loaded && state.type == EntryType.WORKOUT) {
             state.reps.forEachIndexed { index, reps ->

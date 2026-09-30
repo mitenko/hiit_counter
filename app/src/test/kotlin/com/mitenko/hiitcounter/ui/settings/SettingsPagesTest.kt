@@ -6,18 +6,17 @@ import org.junit.Test
 
 class SettingsPagesTest {
     @Test
-    fun `a check-in-only entry keeps only Progression and Current`() {
+    fun `every entry, Workout or Timer only, shows all four pages`() {
         assertEquals(SettingsPage.entries.toList(), SettingsPage.visibleFor(EntryType.WORKOUT))
-        assertEquals(listOf(SettingsPage.PROGRESSION, SettingsPage.CURRENT), SettingsPage.visibleFor(EntryType.CHECK_IN))
+        assertEquals(SettingsPage.entries.toList(), SettingsPage.visibleFor(EntryType.CHECK_IN))
     }
 
     @Test
-    fun `a page argument maps onto the visible tabs, and a hidden page opens the first`() {
-        val checkIn = SettingsPage.visibleFor(EntryType.CHECK_IN)
-        assertEquals(0, SettingsPage.PROGRESSION.tabIndex(checkIn))
-        assertEquals(1, SettingsPage.CURRENT.tabIndex(checkIn))
-        assertEquals(0, SettingsPage.TIMING.tabIndex(checkIn))
-        assertEquals(0, SettingsPage.CUES.tabIndex(checkIn))
-        assertEquals(3, SettingsPage.CUES.tabIndex(SettingsPage.visibleFor(EntryType.WORKOUT)))
+    fun `a page argument maps onto its own tab for every type`() {
+        val pages = SettingsPage.visibleFor(EntryType.CHECK_IN)
+        assertEquals(0, SettingsPage.TIMING.tabIndex(pages))
+        assertEquals(1, SettingsPage.PROGRESSION.tabIndex(pages))
+        assertEquals(2, SettingsPage.CURRENT.tabIndex(pages))
+        assertEquals(3, SettingsPage.CUES.tabIndex(pages))
     }
 }

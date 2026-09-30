@@ -21,7 +21,7 @@ import javax.inject.Inject
 
 /**
  * [reps] is the entry's current total, i.e. the next workout's total. [streak] is the current
- * check-in streak, which a check-in-only row shows instead (spec R4 §4.3).
+ * check-in streak, which a Timer only row shows instead (spec R4 §4.3).
  */
 data class EntryRow(
     val id: Long,

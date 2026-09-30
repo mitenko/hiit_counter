@@ -20,7 +20,7 @@ object RepProgression {
     private const val MS_PER_HOUR = 3_600_000.0
 
     /**
-     * [countsReps] is false for a check-in-only entry (spec R4 §3.1): rules 1–4 still decide the
+     * [countsReps] is false for a Timer only entry (spec R4 §3.1): rules 1–4 still decide the
      * outcome and the streaks, and [CounterState.lastCheckIn] becomes [now], but the total and the
      * hold count are kept exactly (no +1, no penalty, no clamp, no hold). A miss reports a penalty of 0.
      */
@@ -103,7 +103,7 @@ object RepProgression {
         )
     }
 
-    /** Rules 2–4 for the streaks and the date only (spec R4 §3.1); the total and hold count are copied as they are. */
+    /** Rules 2–4 for the streaks and the date only (spec R4 §3.1, Timer only entries); the total and hold count are copied as they are. */
     private fun streaksOnly(state: CounterState, config: ProgressionConfig, now: Instant, last: Instant?): CheckInResult {
         val (streak, outcome) = when {
             last == null -> 1 to Outcome.First

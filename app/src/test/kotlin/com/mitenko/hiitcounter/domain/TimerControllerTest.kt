@@ -32,6 +32,14 @@ class TimerControllerTest {
     }
 
     @Test
+    fun `a WorkoutSnapshot defaults to counting reps, and prepare carries the flag through`() = runTest {
+        assertTrue(WorkoutSnapshot(1L, "Burpees", TimingConfig(), CueConfig()).countsReps)
+        val c = controller()
+        c.prepare(snapshot.copy(countsReps = false))
+        assertFalse(c.snapshot!!.countsReps)
+    }
+
+    @Test
     fun `prepare only from idle`() = runTest {
         val c = controller()
         assertTrue(c.prepare(snapshot))
@@ -151,6 +159,21 @@ class TimerControllerTest {
         val starts = cues.filterIsInstance<Cue.PhaseStart>()
         assertEquals((1..8).toList(), starts.filter { it.phase == Phase.WORK }.map { it.reps })
         assertEquals(7, starts.count { it.phase == Phase.REST })
+        assertTrue(starts.filter { it.phase != Phase.WORK }.all { it.reps == null })
+    }
+
+    @Test
+    fun `a Timer only run carries the set number instead of reps, and other phases carry none`() = runTest {
+        val c = controller()
+        val cues = mutableListOf<Cue>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
+        c.prepare(snapshot.copy(countsReps = false))
+        c.onServiceStarted()
+        c.start(listOf(11, 12, 13, 14, 15, 16, 17, 18))
+        advanceTimeBy(240_000)
+        runCurrent()
+        val starts = cues.filterIsInstance<Cue.PhaseStart>()
+        assertEquals((1..8).toList(), starts.filter { it.phase == Phase.WORK }.map { it.reps })
         assertTrue(starts.filter { it.phase != Phase.WORK }.all { it.reps == null })
     }
 

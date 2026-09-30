@@ -29,7 +29,7 @@ import java.time.Instant
  * In-memory [EntryRepository] with the same contract as RoomEntryRepository: both flows and every
  * suspend call wait for [readiness], missing ids throw EntryNotFound, invalid names throw
  * IllegalArgumentException, positions stay contiguous, the hold count follows the R3 §6.3 rules,
- * and a check-in-only entry's check-in keeps its total (R4 §3.1). Settings validation is left to
+ * and a Timer only entry's check-in keeps its total (R4 §3.1). Settings validation is left to
  * the ViewModels under test. The write counters, [writeError] and [checkInGate] let the tests
  * count, fail and hold individual calls.
  */

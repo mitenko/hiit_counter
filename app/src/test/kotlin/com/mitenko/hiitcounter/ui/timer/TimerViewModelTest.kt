@@ -84,6 +84,20 @@ class TimerViewModelTest {
     }
 
     @Test
+    fun `a Timer only run's ui state shows the set number, not reps`() = runTest {
+        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
+        backgroundScope.launch { vm.uiState.collect {} }
+        controller.prepare(
+            WorkoutSnapshot(1L, "Stretch", TimingConfig(prepareSec = 0, sets = 1, workSec = 2, restSec = 0), CueConfig(), countsReps = false),
+        )
+        controller.onServiceStarted()
+        controller.start(listOf(5))
+        runCurrent()
+        assertEquals(1, vm.uiState.value?.centerNumber)
+    }
+
+    @Test
     fun `notification permission is asked once`() = runTest {
         val prefs = preferences()
         val vm = TimerViewModel(TimerController(backgroundScope) { testScheduler.currentTime }, prefs, FakeEntryRepository())
