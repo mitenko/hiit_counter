@@ -83,7 +83,7 @@
     <string name="reset_defaults_title">Reset progression to defaults?</string>
     <string name="info_prepare">Countdown before the first set, so you can get into position. 0 skips it.</string>
     <string name="info_sets">How many work intervals the workout has. A rest follows every set except the last.</string>
-    <string name="info_work">Length of each work interval. For Workout entries, the rep table shows how many reps to do in each set.</string>
+    <string name="info_work">Length of each work interval. For Counter entries, the rep table shows how many reps to do in each set.</string>
     <string name="info_rest">Break between sets. There\'s no rest after the last set.</string>
     <string name="info_cooldown">Countdown after the last set. 0 skips it.</string>
     <string name="info_total">The workout\'s full length: prepare, all sets and rests, and cooldown. It can be at most 2:00:00.</string>
@@ -93,7 +93,7 @@
     <string name="info_hold">When on, your total pauses at hold at for a few check-ins before climbing again.</string>
     <string name="info_hold_at">The rep total where the hold happens. It needs to be at or above the floor and below the cap.</string>
     <string name="info_hold_for">How many check-ins you stay at hold at before going up again. The day you first reach it counts. 0 skips the hold.</string>
-    <string name="info_window">Check in within this many hours of your last check-in to count as on time: your streak continues (and, for Workout entries, your total goes up by one).</string>
+    <string name="info_window">Check in within this many hours of your last check-in to count as on time: your streak continues (and, for Counter entries, your total goes up by one).</string>
     <string name="info_penalty_rate">After a missed window, you lose reps for the time away: one rep for roughly every this-many hours past the first day, less one. The total never drops below the floor.</string>
     <string name="info_total_reps">Your current rep total, split across the sets in the rep table. Changing it here takes effect immediately.</string>
     <string name="info_best_streak">Your longest run of on-time check-ins. It must be at least your current streak.</string>
@@ -102,17 +102,17 @@
     <string name="info_sound">Beeps for the countdown and at each phase change.</string>
     <string name="info_vibration">Vibrates at each phase change, including with the screen off.</string>
 
-    <!-- Timer only entries, Check in / Start and the Voice cue (spec R4 §6, verbatim) -->
+    <!-- Timer Only entries, Check in / Start and the Voice cue (spec R4 §6, verbatim) -->
     <string name="check_in">Check in</string>
     <string name="checked_in">Checked in ✓</string>
     <string name="type">Type</string>
-    <string name="type_workout">Workout</string>
-    <string name="type_check_in">Timer only</string>
+    <string name="type_workout">Counter</string>
+    <string name="type_check_in">Timer Only</string>
     <string name="streak_n">Streak %1$d</string>
     <string name="voice">Voice</string>
     <string name="voice_unavailable">Voice not available on this device</string>
-    <string name="info_type">Workout entries count reps and grow them as you check in. Timer only entries run the same timer without counting reps; checking in keeps your streak. Switching keeps all your values.</string>
-    <string name="info_voice">Says the number of reps (or the set number, for Timer only entries) as each work set starts.</string>
+    <string name="info_type">Counter entries count reps and grow them as you check in. Timer Only entries run the same timer without counting reps; checking in keeps your streak. Switching keeps all your values.</string>
+    <string name="info_voice">Says the number of reps (or the set number, for Timer Only entries) as each work set starts.</string>
 
     <!-- Cue toggles on the timer screen (spec revision 7): live mid-run, saved to the entry -->
     <string name="cue_sound_on">Sound on</string>

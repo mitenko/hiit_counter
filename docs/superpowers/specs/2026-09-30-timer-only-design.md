@@ -127,3 +127,7 @@ unchanged.
 
 Unchanged from R4 §8: the mitenko identity, no AI attribution, squash to one commit and open a PR,
 ask before pushing, TDD.
+
+## Addendum (2026-09-30)
+
+The user renamed the type labels to **Counter | Timer Only**. `type_workout` is "Counter", `type_check_in` is "Timer Only", and the ⓘ texts say "Counter entries" and "Timer Only entries". The code names (`EntryType.WORKOUT` / `CHECK_IN`) and the stored values are unchanged.
