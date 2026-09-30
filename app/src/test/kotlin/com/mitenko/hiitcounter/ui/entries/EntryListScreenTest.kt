@@ -3,13 +3,13 @@ package com.mitenko.hiitcounter.ui.entries
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsEqualTo
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -17,11 +17,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,20 +43,29 @@ class EntryListScreenTest {
 
     private fun show(
         state: EntryListUiState,
-        reorder: Boolean = false,
         onOpen: (Long) -> Unit = {},
-        onUp: (Long) -> Unit = {},
-        onDown: (Long) -> Unit = {},
+        onMove: (Long, Int) -> Unit = { _, _ -> },
         onCreate: (String, EntryType) -> Unit = { _, _ -> },
     ) {
         compose.setContent {
             HiitTheme {
-                EntryListScreen(
-                    state, reorder, onOpenEntry = onOpen, onToggleReorder = {},
-                    onMoveUp = onUp, onMoveDown = onDown, onCreate = onCreate,
-                )
+                EntryListScreen(state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate)
             }
         }
+    }
+
+    private fun customActionLabels(entryId: Long): List<String> =
+        compose.onNodeWithTag("entry_$entryId", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.CustomActions]
+            .map { it.label }
+
+    private fun performCustomAction(entryId: Long, label: String) {
+        compose.onNodeWithTag("entry_$entryId", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.CustomActions]
+            .first { it.label == label }
+            .action()
     }
 
     @Test
@@ -84,47 +96,244 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `reorder buttons move rows and disable the edges`() {
-        val moves = mutableListOf<String>()
-        show(EntryListUiState.Items(rows), reorder = true, onUp = { moves += "up $it" }, onDown = { moves += "down $it" })
-        compose.onNodeWithContentDescription("Move Burpees up").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Move Squats down").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Move Burpees down").assertIsEnabled()
-        compose.onNodeWithContentDescription("Move Lunges up").performClick()
-        compose.onNodeWithContentDescription("Move Lunges down").performClick()
-        assertEquals(listOf("up 2", "down 2"), moves)
-        compose.onNodeWithTag("add").assertDoesNotExist()
+    fun `there is no reorder node`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithTag("reorder").assertDoesNotExist()
     }
 
     @Test
-    fun `reorder buttons are 48 dp`() {
-        show(EntryListUiState.Items(rows), reorder = true)
-        compose.onNodeWithContentDescription("Move Burpees up")
-            .assertWidthIsEqualTo(48.dp)
-            .assertHeightIsEqualTo(48.dp)
+    fun `each row has a drag handle at least 48 dp`() {
+        show(EntryListUiState.Items(rows))
+        for (row in rows) {
+            compose.onNodeWithTag("drag_${row.id}", useUnmergedTree = true)
+                .assertWidthIsEqualTo(48.dp)
+                .assertHeightIsEqualTo(48.dp)
+        }
     }
 
     @Test
-    fun `a moved row stays scrolled into view`() {
-        var list by mutableStateOf((1L..12L).map { EntryRow(it, "Entry $it", 48, false) })
+    fun `the drag handle names the row`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithContentDescription("Reorder Lunges", useUnmergedTree = true)
+            .assertExists()
+    }
+
+    @Test
+    fun `the drag handle has no dead click action`() {
+        show(EntryListUiState.Items(rows))
+        val hasClickAction = compose.onNodeWithTag("drag_2", useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config
+            .contains(SemanticsActions.OnClick)
+        assertFalse("the handle should not announce as a clickable button that does nothing", hasClickAction)
+    }
+
+    @Test
+    fun `tapping the drag handle does not open the row`() {
+        val opened = mutableListOf<Long>()
+        show(EntryListUiState.Items(rows), onOpen = { opened += it })
+        compose.onNodeWithTag("drag_2", useUnmergedTree = true).performClick()
+        assertTrue(opened.isEmpty())
+    }
+
+    @Test
+    fun `dragging a handle persists one move`() {
+        val moves = mutableListOf<Pair<Long, Int>>()
+        show(EntryListUiState.Items(rows), onMove = { id, delta -> moves += id to delta })
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+            up()
+        }
+        compose.waitForIdle()
+        assertEquals(listOf(1L to 1), moves)
+    }
+
+    @Test
+    fun `dragging the row body does not reorder`() {
+        val moves = mutableListOf<Pair<Long, Int>>()
+        show(EntryListUiState.Items(rows), onMove = { id, delta -> moves += id to delta })
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        // center of "entry_1" lands in the row's text area, well clear of the handle on the far
+        // right edge, so only the row's plain clickable is in play here, not draggableHandle.
+        compose.onNodeWithTag("entry_1").performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+            up()
+        }
+        compose.waitForIdle()
+        assertTrue(moves.isEmpty())
+    }
+
+    @Test
+    fun `after a drop the local order stays until the store catches up`() {
+        // onMove is a no-op here: the incoming `rows` never changes, simulating a repository
+        // that hasn't re-emitted the reordered rows yet. The drag is split across two
+        // performTouchInput calls with a waitForIdle in between, so Compose actually recomposes
+        // (and a dragging state is genuinely observed) mid-gesture, the way a real drag does --
+        // a single down/moveBy/up block completes before Compose ever recomposes, which would
+        // mask the bug entirely. The custom actions (derived purely from the row's current
+        // logical index, with no animation involved) are the reliable signal that row 1 stayed a
+        // middle row instead of snapping back to being first.
+        show(EntryListUiState.Items(rows))
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput { up() }
+        compose.waitForIdle()
+        assertEquals(listOf("Move up", "Move down"), customActionLabels(1))
+    }
+
+    @Test
+    fun `a delete of another row mid-drag is applied once the drag ends, with no onMove`() {
+        var list by mutableStateOf(rows)
+        val moves = mutableListOf<Pair<Long, Int>>()
+        compose.setContent {
+            HiitTheme {
+                EntryListScreen(EntryListUiState.Items(list), onOpenEntry = {}, onMove = { id, delta -> moves += id to delta }, onCreate = { _, _ -> })
+            }
+        }
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+        }
+        compose.waitForIdle()
+        // While the drag is in progress, the store's list changes underneath it (a delete
+        // elsewhere removed Squats: the id set shrank). This must not be dropped, and the
+        // in-progress drag (now against a stale id set) must not be persisted.
+        list = rows.filter { it.id != 3L }
+        compose.waitForIdle()
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput { up() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("entry_3").assertDoesNotExist()
+        assertTrue(moves.isEmpty())
+    }
+
+    @Test
+    fun `a delete of the dragged row mid-drag resyncs with no onMove`() {
+        var list by mutableStateOf(rows)
+        val moves = mutableListOf<Pair<Long, Int>>()
+        compose.setContent {
+            HiitTheme {
+                EntryListScreen(EntryListUiState.Items(list), onOpenEntry = {}, onMove = { id, delta -> moves += id to delta }, onCreate = { _, _ -> })
+            }
+        }
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+        }
+        compose.waitForIdle()
+        // The dragged row itself (Burpees, 1) gets deleted elsewhere mid-drag.
+        list = rows.filter { it.id != 1L }
+        compose.waitForIdle()
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput { up() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("entry_1").assertDoesNotExist()
+        assertTrue(moves.isEmpty())
+    }
+
+    @Test
+    fun `an unrelated field change mid-drag does not discard the drag`() {
+        var list by mutableStateOf(rows)
+        val moves = mutableListOf<Pair<Long, Int>>()
+        compose.setContent {
+            HiitTheme {
+                EntryListScreen(EntryListUiState.Items(list), onOpenEntry = {}, onMove = { id, delta -> moves += id to delta }, onCreate = { _, _ -> })
+            }
+        }
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+        }
+        compose.waitForIdle()
+        // Same ids, just a total/reps change elsewhere (e.g. a check-in bumped Lunges' total).
+        list = list.map { if (it.id == 2L) it.copy(reps = 99) else it }
+        compose.waitForIdle()
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput { up() }
+        compose.waitForIdle()
+        assertEquals(listOf(1L to 1), moves)
+    }
+
+    @Test
+    fun `a same-id-set re-emission mid-drag - the previous drag's own confirmation - does not discard the second drag`() {
+        var list by mutableStateOf(rows)
+        val moves = mutableListOf<Pair<Long, Int>>()
+        compose.setContent {
+            HiitTheme {
+                EntryListScreen(EntryListUiState.Items(list), onOpenEntry = {}, onMove = { id, delta -> moves += id to delta }, onCreate = { _, _ -> })
+            }
+        }
+        val rowHeight = with(compose.density) { 56.dp.toPx() }
+
+        // First drag: Burpees (1) down past Lunges (2). `list` (the store) never catches up to
+        // this during the test, standing in for the repository not having re-emitted it yet.
+        compose.onNodeWithTag("drag_1", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, rowHeight * 1.5f))
+            up()
+        }
+        compose.waitForIdle()
+        val confirmedOrder = listOf(rows[1], rows[0], rows[2]) // Lunges, Burpees, Squats
+
+        // Second drag: Squats (3), now at the bottom of the (already locally reordered) list, up
+        // by one step.
+        compose.onNodeWithTag("drag_3", useUnmergedTree = true).performTouchInput {
+            down(center)
+            moveBy(Offset(0f, -rowHeight * 1.5f))
+        }
+        compose.waitForIdle()
+        // Mid-drag, the store catches up to the FIRST drag's own confirmed order: the same ids,
+        // just reordered. This must not discard the second, still-in-progress drag.
+        list = confirmedOrder
+        compose.waitForIdle()
+        compose.onNodeWithTag("drag_3", useUnmergedTree = true).performTouchInput { up() }
+        compose.waitForIdle()
+
+        assertEquals(listOf(1L to 1, 3L to -1), moves)
+        // Final order: Lunges, Squats, Burpees.
+        assertEquals(listOf("Move down"), customActionLabels(2))
+        assertEquals(listOf("Move up", "Move down"), customActionLabels(3))
+        assertEquals(listOf("Move up"), customActionLabels(1))
+    }
+
+    @Test
+    fun `Move up and Move down custom actions exist except at the edges`() {
+        show(EntryListUiState.Items(rows))
+        assertEquals(listOf("Move down"), customActionLabels(1))
+        assertEquals(listOf("Move up", "Move down"), customActionLabels(2))
+        assertEquals(listOf("Move up"), customActionLabels(3))
+    }
+
+    @Test
+    fun `performing Move down on the first row calls through and re-renders the moved row`() {
+        var list by mutableStateOf(rows)
         compose.setContent {
             HiitTheme {
                 EntryListScreen(
-                    EntryListUiState.Items(list), reorderMode = true, onOpenEntry = {}, onToggleReorder = {}, onMoveUp = {},
-                    onMoveDown = { id ->
+                    EntryListUiState.Items(list),
+                    onOpenEntry = {},
+                    onMove = { id, delta ->
                         val i = list.indexOfFirst { it.id == id }
-                        if (i < list.lastIndex) list = list.toMutableList().apply { add(i + 1, removeAt(i)) }
+                        val to = (i + delta).coerceIn(0, list.lastIndex)
+                        list = list.toMutableList().apply { add(to, removeAt(i)) }
                     },
                     onCreate = { _, _ -> },
                 )
             }
         }
-        repeat(10) {
-            compose.onNodeWithContentDescription("Move Entry 1 down").performClick()
-            compose.waitForIdle()
-        }
-        assertEquals(10, list.indexOfFirst { it.id == 1L })
-        compose.onNodeWithText("Entry 1").assertIsDisplayed()
+        performCustomAction(entryId = 1, label = "Move down")
+        compose.waitForIdle()
+        // Row 1 (Burpees) moved off the top: it's a middle row now, so it offers both directions.
+        assertEquals(listOf("Move up", "Move down"), customActionLabels(1))
+        // Row 2 (Lunges) took the top spot: only Move down.
+        assertEquals(listOf("Move down"), customActionLabels(2))
     }
 
     @Test

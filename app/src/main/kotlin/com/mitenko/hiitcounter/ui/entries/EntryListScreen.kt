@@ -1,7 +1,7 @@
 package com.mitenko.hiitcounter.ui.entries
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,21 +30,24 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,22 +59,20 @@ import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.common.NameDialog
 import com.mitenko.hiitcounter.ui.common.label
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @Composable
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val reorderMode by vm.reorderMode.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
     }
     EntryListScreen(
         state = state,
-        reorderMode = reorderMode,
         onOpenEntry = onOpenEntry,
-        onToggleReorder = vm::toggleReorder,
-        onMoveUp = vm::moveUp,
-        onMoveDown = vm::moveDown,
+        onMove = vm::move,
         onCreate = { name, type -> vm.create(name, type, onCreated) },
     )
 }
@@ -80,11 +81,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
 @Composable
 fun EntryListScreen(
     state: EntryListUiState,
-    reorderMode: Boolean,
     onOpenEntry: (Long) -> Unit,
-    onToggleReorder: () -> Unit,
-    onMoveUp: (Long) -> Unit,
-    onMoveDown: (Long) -> Unit,
+    onMove: (Long, Int) -> Unit,
     onCreate: (String, EntryType) -> Unit,
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
@@ -97,21 +95,14 @@ fun EntryListScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                if (state is EntryListUiState.Items) {
-                    TextButton(onClick = onToggleReorder, modifier = Modifier.testTag("reorder")) {
-                        Text(stringResource(if (reorderMode) R.string.done else R.string.reorder))
-                    }
-                }
             }
         },
         floatingActionButton = {
-            if (!reorderMode) {
-                FloatingActionButton(
-                    onClick = { if (!loading) naming = true },
-                    modifier = Modifier.testTag("add").semantics { if (loading) disabled() },
-                ) {
-                    Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.add_workout))
-                }
+            FloatingActionButton(
+                onClick = { if (!loading) naming = true },
+                modifier = Modifier.testTag("add").semantics { if (loading) disabled() },
+            ) {
+                Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.add_workout))
             }
         },
     ) { padding ->
@@ -122,7 +113,7 @@ fun EntryListScreen(
                 EntryListUiState.Empty ->
                     EmptyState(onAdd = { naming = true }, modifier = Modifier.align(Alignment.Center))
                 is EntryListUiState.Items ->
-                    EntryList(state.rows, reorderMode, onOpenEntry, onMoveUp, onMoveDown)
+                    EntryList(state.rows, onOpenEntry, onMove)
             }
         }
     }
@@ -154,46 +145,100 @@ private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 private fun EntryList(
     rows: List<EntryRow>,
-    reorderMode: Boolean,
     onOpen: (Long) -> Unit,
-    onMoveUp: (Long) -> Unit,
-    onMoveDown: (Long) -> Unit,
+    onMove: (Long, Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    var movedId by remember { mutableStateOf<Long?>(null) }
-    // Keep the moved row in view (spec §7.3): wait one frame for the reordered layout, then scroll just enough.
-    LaunchedEffect(rows, movedId) {
-        val id = movedId ?: return@LaunchedEffect
-        withFrameNanos { }
-        val info = listState.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.key == id }
-        when {
-            item == null -> rows.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { listState.animateScrollToItem(it) }
-            item.offset < info.viewportStartOffset ->
-                listState.animateScrollBy((item.offset - info.viewportStartOffset).toFloat())
-            item.offset + item.size > info.viewportEndOffset ->
-                listState.animateScrollBy((item.offset + item.size - info.viewportEndOffset).toFloat())
-            else -> Unit
-        }
+    val currentRows by rememberUpdatedState(rows)
+
+    // Drag-to-reorder (PR B). While dragging, the list reorders locally only. It is NOT resynced
+    // from [rows] the instant the drag ends: the store hasn't re-emitted the new order yet at
+    // that point, so resyncing then would snap the row back to the old order and then forward
+    // again once the real emission finally arrives. Instead, on drop:
+    //  - a no-op drop (delta == 0), or [rows] having changed while the drag was in progress (e.g.
+    //    a delete elsewhere made the local guess stale) resyncs immediately from the latest [rows];
+    //  - otherwise the locally-reordered list (already correct) is kept, and the next real
+    //    emission - the confirmation of this move, or a later one - resyncs it via the
+    //    LaunchedEffect below. A change to [rows] that arrives while a drag is active is never
+    //    applied mid-drag (it would fight the live drag), but it is not dropped either: it's simply
+    //    picked up by that same resync once the drag ends.
+    var localRows by remember { mutableStateOf(rows) }
+    var draggingId by remember { mutableStateOf<Long?>(null) }
+    var dragStartIndex by remember { mutableIntStateOf(-1) }
+    var rowsAtDragStart by remember { mutableStateOf<List<EntryRow>?>(null) }
+    LaunchedEffect(rows) {
+        if (draggingId == null) localRows = rows
     }
+    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+        localRows = localRows.moved(from.index, to.index)
+    }
+
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
-        itemsIndexed(rows, key = { _, row -> row.id }) { index, row ->
-            EntryRowItem(
-                row = row,
-                reorderMode = reorderMode,
-                canMoveUp = index > 0,
-                canMoveDown = index < rows.lastIndex,
-                onOpen = { onOpen(row.id) },
-                onMoveUp = {
-                    movedId = row.id
-                    onMoveUp(row.id)
-                },
-                onMoveDown = {
-                    movedId = row.id
-                    onMoveDown(row.id)
-                },
-            )
-            HorizontalDivider()
+        itemsIndexed(localRows, key = { _, row -> row.id }) { index, row ->
+            ReorderableItem(reorderableState, key = row.id) { isDragging ->
+                // The divider lives inside ReorderableItem (PR B review), so it moves with its
+                // row during the drag animation instead of staying behind as a fixed sibling.
+                Column {
+                    EntryRowItem(
+                        row = row,
+                        isDragging = isDragging,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < localRows.lastIndex,
+                        onOpen = { onOpen(row.id) },
+                        onMoveUp = { onMove(row.id, -1) },
+                        onMoveDown = { onMove(row.id, +1) },
+                        dragHandle = {
+                            val reorderDescription = stringResource(R.string.reorder_entry, row.name)
+                            // An IconButton (PR B review, matching the reorderable library's own
+                            // pattern for a handle beside clickable row content): its clickable is
+                            // what reliably keeps a plain tap here from bubbling to the row's
+                            // onOpen, exactly as the library's docs pair a draggableHandle with.
+                            // clearAndSetSemantics then replaces its default Role.Button + onClick
+                            // semantics (which would read as a dead "button, does nothing" in
+                            // TalkBack) with just the description; Move up/down are reached via
+                            // the row's own custom actions.
+                            IconButton(
+                                onClick = {},
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("drag_${row.id}")
+                                    .draggableHandle(
+                                        onDragStarted = {
+                                            draggingId = row.id
+                                            rowsAtDragStart = currentRows
+                                            dragStartIndex = localRows.indexOfFirst { it.id == row.id }
+                                        },
+                                        onDragStopped = {
+                                            val id = draggingId
+                                            val startRows = rowsAtDragStart
+                                            draggingId = null
+                                            rowsAtDragStart = null
+                                            if (id != null) {
+                                                val finalIndex = localRows.indexOfFirst { it.id == id }
+                                                val delta = finalIndex - dragStartIndex
+                                                // Only an insert or delete during the drag invalidates it: a
+                                                // re-emission that just reorders or updates a field (the
+                                                // previous drag's own confirmation landing, or an unrelated
+                                                // change) keeps the same id set and must not discard this drag.
+                                                val changedDuringDrag = startRows != null &&
+                                                    startRows.map { it.id }.toSet() != currentRows.map { it.id }.toSet()
+                                                if (delta == 0 || changedDuringDrag) {
+                                                    localRows = currentRows
+                                                } else {
+                                                    onMove(id, delta)
+                                                }
+                                            }
+                                        },
+                                    )
+                                    .clearAndSetSemantics { contentDescription = reorderDescription },
+                            ) {
+                                Icon(painterResource(R.drawable.ic_drag_handle), contentDescription = null)
+                            }
+                        },
+                    )
+                    HorizontalDivider()
+                }
+            }
         }
     }
 }
@@ -201,21 +246,34 @@ private fun EntryList(
 @Composable
 private fun EntryRowItem(
     row: EntryRow,
-    reorderMode: Boolean,
+    isDragging: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onOpen: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    dragHandle: @Composable () -> Unit,
 ) {
     val checkedDescription = stringResource(R.string.checked_in_today)
+    val moveUpLabel = stringResource(R.string.move_up)
+    val moveDownLabel = stringResource(R.string.move_down)
+    // Lift feedback while dragging (PR B): the row's background lifts off the list.
+    val background = if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clickable(enabled = !reorderMode, onClick = onOpen)
+            .background(background)
+            .clickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("entry_${row.id}"),
+            .testTag("entry_${row.id}")
+            .semantics {
+                // Accessibility reorder actions (PR B): neither edge offers the wrong direction.
+                customActions = listOfNotNull(
+                    if (canMoveUp) CustomAccessibilityAction(moveUpLabel) { onMoveUp(); true } else null,
+                    if (canMoveDown) CustomAccessibilityAction(moveDownLabel) { onMoveDown(); true } else null,
+                )
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -235,14 +293,7 @@ private fun EntryRowItem(
                 modifier = Modifier.padding(horizontal = 8.dp).semantics { contentDescription = checkedDescription },
             )
         }
-        if (reorderMode) {
-            IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_arrow_up), contentDescription = stringResource(R.string.move_up, row.name))
-            }
-            IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_arrow_down), contentDescription = stringResource(R.string.move_down, row.name))
-            }
-        }
+        dragHandle()
     }
 }
 
