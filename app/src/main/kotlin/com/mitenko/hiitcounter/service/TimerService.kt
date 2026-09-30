@@ -23,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -105,7 +106,11 @@ class TimerService : Service() {
 
     private fun observe() {
         scope.launch {
-            controller.cues.collect { cue -> controller.snapshot?.let { cuePlayer.play(cue, it.cues) } }
+            // Cues are live (spec R4 §5, rev 7): liveCues.value while a run exists, the frozen
+            // snapshot's cues only as a fallback.
+            controller.cues.collect { cue ->
+                controller.snapshot?.let { snap -> cuePlayer.play(cue, controller.liveCues.value ?: snap.cues) }
+            }
         }
         scope.launch {
             controller.state.collect { state ->
@@ -116,10 +121,12 @@ class TimerService : Service() {
             }
         }
         scope.launch {
-            // collectLatest: a new PREPARING/RUNNING status cancels a pending DONE-grace stop.
-            controller.status.collectLatest { status ->
-                // Spec R4 §5: before any delay below, so DONE and IDLE shut the speaker down at once.
-                syncSpeaker(VoicePolicy.speakerWanted(status, controller.snapshot))
+            // collectLatest: a new PREPARING/RUNNING status, or a live cue toggle, cancels a
+            // pending DONE-grace stop and re-evaluates the speaker.
+            combine(controller.status, controller.liveCues) { status, cues -> status to cues }.collectLatest { (status, cues) ->
+                // Spec R4 §5: before any delay below, so DONE and IDLE shut the speaker down at once,
+                // and so toggling Voice mid-run creates or tears down the speaker right away.
+                syncSpeaker(VoicePolicy.speakerWanted(status, cues))
                 if (status == RunStatus.IDLE || status == RunStatus.DONE) {
                     // DONE: wait out the grace period (so the Finished triple tone can still play
                     // with the screen off) before releasing the wake lock; IDLE releases at once.
@@ -165,8 +172,8 @@ class TimerService : Service() {
     }
 
     /**
-     * Creates the speaker for a voice run (the snapshot is set before PREPARING is emitted, so it is
-     * frozen here) and shuts it down otherwise. Initialisation is asynchronous; until it succeeds
+     * Creates the speaker while the run's live cues have Voice on (rev 7: cues follow the timer
+     * screen's toggles) and shuts it down otherwise. Initialisation is asynchronous; until it succeeds
      * the speaker reports unavailable and CuePlayer says nothing.
      */
     private fun syncSpeaker(wanted: Boolean) {

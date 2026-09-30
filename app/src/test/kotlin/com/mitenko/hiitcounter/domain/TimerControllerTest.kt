@@ -254,4 +254,46 @@ class TimerControllerTest {
         c.stop()
         assertFalse(c.isBusy(1L))
     }
+
+    @Test
+    fun `prepare seeds liveCues from the snapshot`() = runTest {
+        val c = controller()
+        assertNull(c.liveCues.value)
+        c.prepare(snapshot)
+        assertEquals(snapshot.cues, c.liveCues.value)
+    }
+
+    @Test
+    fun `setCues updates liveCues while preparing or running`() = runTest {
+        val c = controller()
+        c.prepare(snapshot)
+        val prepared = CueConfig(sound = false)
+        c.setCues(prepared)
+        assertEquals(prepared, c.liveCues.value)
+
+        c.onServiceStarted()
+        c.start(reps)
+        runCurrent()
+        val running = CueConfig(vibration = false, voice = true)
+        c.setCues(running)
+        assertEquals(running, c.liveCues.value)
+    }
+
+    @Test
+    fun `setCues is ignored when idle`() = runTest {
+        val c = controller()
+        c.setCues(CueConfig(sound = false))
+        assertNull(c.liveCues.value)
+    }
+
+    @Test
+    fun `clearRun resets liveCues and never mutates the snapshot`() = runTest {
+        val c = controller()
+        c.prepare(snapshot)
+        c.setCues(CueConfig(sound = false, vibration = false, voice = true))
+        assertEquals(snapshot, c.snapshot)
+        c.stop()
+        assertNull(c.liveCues.value)
+        assertNull(c.snapshot)
+    }
 }

@@ -11,6 +11,7 @@ As you develop, refine the instructions here.
 - **Settings pager revision (approved, amends both):** `docs/superpowers/specs/2026-09-28-settings-pager-design.md` — read all three.
 - **Check-in / voice revision (approved, amends all three):** `docs/superpowers/specs/2026-09-29-checkin-voice-design.md` — read all four.
 - **Drag-to-reorder (approved, amends R2 §7.3):** `docs/superpowers/specs/2026-09-29-drag-reorder-design.md` — ≡ handles replace Reorder mode.
+- **Cue toggles (approved, amends R4 §5):** `docs/superpowers/specs/2026-09-30-cue-toggles-design.md` — Sound/Vibration/Voice toggle buttons on the timer screen; cues are live mid-run, not frozen.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").
@@ -22,10 +23,11 @@ As you develop, refine the instructions here.
 - Entries are **Workout** (timer + reps) or **Check-in only** (`entry.type`; streaks and date only, the total and hold count never change). The type is chosen at create time and switched in Entry Settings without losing any values; check-in-only entries have no Timing or Cues pages, and their pager shows only Progression (window) · Current (no total).
 - Progression math matches the sheet (36 h window, penalty `round((h−24)/19.5)−1`, floor 48, cap 72) except the hold: hold at `holdAt` (64) for `holdFor` (4) check-ins, counting the day it's reached; a miss that leaves the total at `holdAt` restarts the hold.
 - Starting total (48) is separate from the floor. No first-run prompt; all values are edited in one settings pager per entry (tabs Timing · Progression · Current · Cues, swipe). Valid drafts auto-save (steppers 400 ms after the last change, everything else at once; invalid drafts never save), and every row has an ⓘ info tag. The Hold switch (`hold_enabled`) keeps its values when off; the hold count resets only when holdAt, holdFor, the effective hold or the total changes.
-- Home = the entry list (create, rename, duplicate, delete, reorder); each entry opens the sheet-style table. The run snapshot (entry id, name, timing, cues) is frozen at Start. No history.
-- Stack: Compose + Material 3 (dark), Hilt, Navigation Compose, Room 2.8.1 (`hiit.db`, schemas committed in `app/schemas/`), DataStore Preferences (only `app.preferences_pb`), coroutines/Flow. minSdk 26. Package `com.mitenko.hiitcounter`. User-visible app name: **Repkit** (`app_name`); the package id, db and repo keep the old name, because changing the package id loses user data.
+- Home = the entry list (create, rename, duplicate, delete, reorder); each entry opens the sheet-style table. The run snapshot (entry id, name, timing) is frozen at Start; cues are live via `TimerController.liveCues`. No history.
+- Stack: Compose + Material 3 (dark), Hilt, Navigation Compose, Room 2.8.1 (`hiit.db`, schemas committed in `app/schemas/`), DataStore Preferences (only `app.preferences_pb`), coroutines/Flow. minSdk 26. Package `com.mitenko.hiitcounter`. User-visible app name: **REPKIT** (`app_name`); the package id, db and repo keep the old name, because changing the package id loses user data.
 - Timer: `TimerController` singleton owns the engine; `TimerService` (specialUse foreground service + partial wake lock) only hosts it. ViewModels never bind to the service.
-- Voice cue (`cue_voice`): `TimerController` puts each WORK set's reps on `Cue.PhaseStart`; `CuePlayer` says them after the beep through `platform/CueSpeaker` (TextToSpeech, English), inside the beeps' ducking focus. `TimerService` creates the speaker only for a voice run. The manifest's `<queries>` TTS_SERVICE entry is required for Android 11+.
+- Voice cue (`cue_voice`): `TimerController` puts each WORK set's reps on `Cue.PhaseStart`; `CuePlayer` says them after the beep through `platform/CueSpeaker` (TextToSpeech, English), inside the beeps' ducking focus. `TimerService` creates the speaker while the live cues have Voice on, and shuts it down when Voice is toggled off. The manifest's `<queries>` TTS_SERVICE entry is required for Android 11+.
+- Cue toggles: cues are live mid-run via `TimerController.liveCues`, not frozen with the rest of the snapshot; each toggle applies at once and saves to the entry.
 
 ## Working rules
 - `domain/` stays pure Kotlin (no Android imports) and is developed test-first.
