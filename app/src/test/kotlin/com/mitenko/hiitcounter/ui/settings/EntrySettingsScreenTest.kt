@@ -5,8 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -15,6 +18,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.domain.TimerController
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeClock
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.testEntry
@@ -24,6 +28,7 @@ import com.mitenko.hiitcounter.ui.entries.EntryListViewModel
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import kotlinx.coroutines.MainScope
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,10 +44,14 @@ class EntrySettingsScreenTest {
         onOpen: (SettingsPage) -> Unit = {},
         onRename: (String) -> Unit = {},
         onDelete: () -> Unit = {},
+        onSetType: (EntryType) -> Unit = {},
     ) {
         compose.setContent {
             HiitTheme {
-                EntrySettingsScreen(state, onBack = {}, onOpen = onOpen, onRename = onRename, onDuplicate = {}, onDelete = onDelete)
+                EntrySettingsScreen(
+                    state, onBack = {}, onOpen = onOpen, onRename = onRename, onDuplicate = {}, onDelete = onDelete,
+                    onSetType = onSetType,
+                )
             }
         }
     }
@@ -107,5 +116,35 @@ class EntrySettingsScreenTest {
         compose.onNodeWithTag("duplicate").performScrollTo().performClick()
         compose.onNodeWithText("Burpees copy").assertIsDisplayed()
         compose.onNodeWithText("Burpees").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the type row opens a radio dialog and only OK with a new type saves it`() {
+        val chosen = mutableListOf<EntryType>()
+        show(onSetType = { chosen += it })
+        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Workout")
+        compose.onNodeWithContentDescription("About Type").assertExists()
+        compose.onNodeWithTag("type").performClick()
+        compose.onNodeWithTag("type_option_CHECK_IN").performClick()
+        compose.onNodeWithTag("type_cancel").performClick()
+        assertTrue(chosen.isEmpty())
+        compose.onNodeWithTag("type").performClick()
+        compose.onNodeWithTag("type_ok").performClick() // OK with the current type (Workout) writes nothing
+        assertTrue(chosen.isEmpty())
+        compose.onNodeWithTag("type").performClick()
+        compose.onNodeWithTag("type_option_WORKOUT").assertIsSelected() // Cancel discarded the pick
+        compose.onNodeWithTag("type_option_CHECK_IN").performClick()
+        compose.onNodeWithTag("type_ok").performClick()
+        assertEquals(listOf(EntryType.CHECK_IN), chosen)
+    }
+
+    @Test
+    fun `a check-in-only entry hides the Timing and Cues rows`() {
+        show(EntrySettingsUiState(name = "Stretch", type = EntryType.CHECK_IN))
+        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Check-in only")
+        compose.onNodeWithTag("page_TIMING").assertDoesNotExist()
+        compose.onNodeWithTag("page_CUES").assertDoesNotExist()
+        compose.onNodeWithTag("page_PROGRESSION").assertExists()
+        compose.onNodeWithTag("page_CURRENT").assertExists()
     }
 }

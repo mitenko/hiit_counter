@@ -130,12 +130,28 @@ class TimerControllerTest {
         c.start(reps)
         advanceTimeBy(11_000)
         runCurrent()
-        assertEquals(listOf(Cue.Countdown(3), Cue.Countdown(2), Cue.Countdown(1), Cue.PhaseStart(Phase.WORK)), first)
+        assertEquals(listOf(Cue.Countdown(3), Cue.Countdown(2), Cue.Countdown(1), Cue.PhaseStart(Phase.WORK, reps = 8)), first)
         job.cancel()
         val second = mutableListOf<Cue>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { second += it } }
         runCurrent()
         assertTrue(second.isEmpty())
+    }
+
+    @Test
+    fun `each work start carries its own set's reps and other phases carry none`() = runTest {
+        val c = controller()
+        val cues = mutableListOf<Cue>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
+        c.prepare(snapshot)
+        c.onServiceStarted()
+        c.start(listOf(1, 2, 3, 4, 5, 6, 7, 8))
+        advanceTimeBy(240_000)
+        runCurrent()
+        val starts = cues.filterIsInstance<Cue.PhaseStart>()
+        assertEquals((1..8).toList(), starts.filter { it.phase == Phase.WORK }.map { it.reps })
+        assertEquals(7, starts.count { it.phase == Phase.REST })
+        assertTrue(starts.filter { it.phase != Phase.WORK }.all { it.reps == null })
     }
 
     @Test

@@ -184,4 +184,39 @@ class RepProgressionTest {
     fun `hold at the floor restarts after a miss down to the floor`() {
         assertEquals(48 to 1, check(state(49), hoursLater(84.0), cfg.copy(holdAt = 48)).state.totalAndHold())
     }
+
+    private fun streaksOnly(s: CounterState, now: Instant) = RepProgression.checkIn(s, cfg, now, zone, countsReps = false)
+
+    @Test
+    fun `without reps a first check-in starts the streak and keeps the total and hold count`() {
+        val now = hoursLater(1.0)
+        // Counting reps would clamp 40 up to the floor (48) and reset the hold count.
+        val r = streaksOnly(CounterState(total = 40, holdCount = 2), now)
+        assertEquals(Outcome.First, r.outcome)
+        assertEquals(CounterState(total = 40, bestStreak = 1, currentStreak = 1, lastCheckIn = now, holdCount = 2), r.state)
+    }
+
+    @Test
+    fun `without reps an on-time check-in extends the streaks and keeps the total`() {
+        val now = hoursLater(24.0)
+        val r = streaksOnly(state(50, streak = 10, best = 10, hold = 2), now)
+        assertEquals(Outcome.OnTime, r.outcome)
+        assertEquals(CounterState(total = 50, bestStreak = 11, currentStreak = 11, lastCheckIn = now, holdCount = 2), r.state)
+    }
+
+    @Test
+    fun `without reps a missed window restarts the streak with no penalty`() {
+        val now = hoursLater(100.0) // counting reps: round((100 − 24) / 19.5) − 1 = 3 reps lost
+        val r = streaksOnly(state(60, streak = 5, best = 10, hold = 1), now)
+        assertEquals(Outcome.Missed(0), r.outcome)
+        assertEquals(CounterState(total = 60, bestStreak = 10, currentStreak = 1, lastCheckIn = now, holdCount = 1), r.state)
+    }
+
+    @Test
+    fun `without reps a second check-in the same day changes nothing`() {
+        val s = state(60)
+        val r = streaksOnly(s, hoursLater(10.0))
+        assertEquals(Outcome.AlreadyToday, r.outcome)
+        assertEquals(s, r.state)
+    }
 }

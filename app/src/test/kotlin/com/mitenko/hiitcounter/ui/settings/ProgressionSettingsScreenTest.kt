@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -30,7 +31,7 @@ class ProgressionSettingsScreenTest {
     private var draft by mutableStateOf(ProgressionDraft.from(ProgressionConfig()))
     private var resets = 0
 
-    private fun show(initial: ProgressionConfig) {
+    private fun show(initial: ProgressionConfig, windowOnly: Boolean = false) {
         draft = ProgressionDraft.from(initial)
         compose.setContent {
             HiitTheme {
@@ -38,6 +39,7 @@ class ProgressionSettingsScreenTest {
                 ProgressionPageContent(
                     draft, validation, SaveStatus.of(validation, failed = false),
                     onChange = { draft = it(draft) }, onChangeNow = { draft = it(draft) }, onReset = { resets++ },
+                    windowOnly = windowOnly,
                 )
             }
         }
@@ -75,5 +77,20 @@ class ProgressionSettingsScreenTest {
         assertEquals(0, resets)
         compose.onNodeWithTag("confirm_reset_defaults").performClick()
         assertEquals(1, resets)
+    }
+
+    @Test
+    fun `window only shows just the check-in window and keeps the other values`() {
+        show(ProgressionConfig(cap = 80, holdAt = 66), windowOnly = true)
+        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
+        listOf("Starting total", "Floor (min)", "Cap (max)", "Hold at", "Hold for (check-ins)", "Penalty rate (hours per rep)")
+            .forEach { compose.onNodeWithTag("value_$it").assertDoesNotExist() }
+        compose.onNodeWithTag("switch_Hold").assertDoesNotExist()
+        compose.onNodeWithTag("reset_defaults").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Increase Check-in window (hours)").performClick()
+        assertEquals(37, draft.windowHours)
+        assertEquals(80, draft.cap)
+        assertEquals(66, draft.holdAt)
+        compose.onNodeWithTag("save_status").assertTextEquals("Saved")
     }
 }

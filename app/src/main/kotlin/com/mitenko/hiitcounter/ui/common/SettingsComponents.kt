@@ -101,7 +101,8 @@ fun RepeatingIconButton(onClick: () -> Unit, @DrawableRes icon: Int, contentDesc
 
 /**
  * A labelled switch with the stepper rows' spacing (spec R2 §8.1) and an optional ⓘ after the
- * label (R3 §7.1). The switch is tagged `switch_<label>`.
+ * label (R3 §7.1). The switch is tagged `switch_<label>`. [supportingText] goes under the row,
+ * tagged `support_<label>` (the Voice switch's "not available", R4 §4.7).
  */
 @Composable
 fun SwitchRow(
@@ -110,14 +111,25 @@ fun SwitchRow(
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     info: String? = null,
+    supportingText: String? = null,
 ) {
-    Row(
-        modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
-        info?.let { InfoTag(title = label, text = it) }
-        Spacer(Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("switch_$label"))
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            info?.let { InfoTag(title = label, text = it) }
+            Spacer(Modifier.weight(1f))
+            Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("switch_$label"))
+        }
+        supportingText?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp).testTag("support_$label"),
+            )
+        }
     }
 }

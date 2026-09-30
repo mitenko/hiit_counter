@@ -4,6 +4,8 @@ import android.content.Context
 import com.mitenko.hiitcounter.domain.Clock
 import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.platform.AndroidClock
+import com.mitenko.hiitcounter.platform.AndroidVoiceAvailability
+import com.mitenko.hiitcounter.platform.VoiceAvailability
 import com.mitenko.hiitcounter.service.AndroidWorkoutServiceStarter
 import com.mitenko.hiitcounter.service.WorkoutServiceStarter
 import dagger.Module
@@ -35,4 +37,8 @@ object AppModule {
     @Provides @Singleton
     fun workoutServiceStarter(@ApplicationContext context: Context): WorkoutServiceStarter =
         AndroidWorkoutServiceStarter(context)
+
+    /** The Cues page's device check (spec R4 §4.7). */
+    @Provides @Singleton
+    fun voiceAvailability(@ApplicationContext context: Context): VoiceAvailability = AndroidVoiceAvailability(context)
 }

@@ -169,3 +169,19 @@ These are unchanged:
 - ask before pushing;
 - TDD subtasks;
 - a phone backup before every install.
+
+## 9. Implementation notes (from the plan, confirmed with the user)
+
+- **Start order (§4.1).** "Calls `checkIn` first" means before the timer starts. As in v1 §4, the foreground service is started and confirmed first, then `checkIn` runs, then the timer. After a manual Check in, Start's call returns `AlreadyToday`.
+- **`CueSpeaker.speak` is `suspend` (§5).** It returns when the utterance ends (done, error or replaced), which is how the `UtteranceProgressListener` reaches `CuePlayer`. `CuePlayer` wraps it in a 3 s timeout.
+- **Speech follows the beep (§5).** With Sound on, the number is said once the 600 ms WORK tone has played; with Sound off, at once. Focus is abandoned when both the tone's hold and the speech have ended.
+- **Voice availability in Settings (§4.7).** `platform/VoiceAvailability` initialises a throwaway engine (5 s timeout) for the Cues page. The note shows only once the check says unavailable.
+- **`type` storage (§3.2).** A plain TEXT column mapped in `EntryMapping`, not a `TypeConverter`, so an unknown value is repaired to WORKOUT with the entry id logged.
+- **Check-in-only check-ins (§3.1).** The stored total column is never written, so a NULL total stays NULL.
+- **Check-in-only Progression tab (§4.6).** Reset to defaults is hidden with the other fields. The status line stays.
+- **Check-in-only Current tab (§4.6).** The draft keeps the stored total and writes it back, so a NULL total becomes the starting-total value on the first streak edit (as on the R3 Current page). The hold count is kept.
+- **Buttons (§4.1).** Check in and Start disable each other while either call is in flight. Check in and the Type dialog's OK finish their write even if the screen is left at once. The "Checked in today" line under the table stays.
+- **Type dialog.** OK with the current type selected writes nothing.
+- **Manifest (defect in §5).** Android 11+ needs `<queries>` for `android.intent.action.TTS_SERVICE`, or no engine is visible.
+- **Short prepare.** The engine initialises asynchronously; if the first work set starts before it's ready (e.g. PREPARE 0), that set is silent.
+- **Open item.** `info_last_check_in` still says "When you last pressed Start." Check in now sets it too; the text is unchanged until the user decides.

@@ -270,4 +270,13 @@ class V1MigratorTest {
         assertFalse(row.holdEnabled)
         assertEquals(4, row.holdFor)
     }
+
+    @Test
+    fun `v1 data imports as a workout with the voice off`() = runTest {
+        seed(V1Migrator.SETTINGS_FILE) { it[V1Keys.SETS] = 5 }
+        migrator(appPreferences()).ready.await()
+        val row = rows().single()
+        assertEquals("WORKOUT", row.type)
+        assertFalse(row.cueVoice)
+    }
 }

@@ -161,15 +161,21 @@ class ProgressionSettingsViewModel @Inject constructor(
     }
 }
 
-/** The Progression page inside the pager (spec R3 §4). */
+/**
+ * The Progression page inside the pager (spec R3 §4). [windowOnly] is a check-in-only entry
+ * (R4 §4.6): only the check-in window shows. The hidden fields keep their stored values and stay in
+ * the draft that is validated and saved. Reset to defaults is hidden too, since it would reset them
+ * (plan Spec note 7).
+ */
 @Composable
-fun ProgressionPage(vm: ProgressionSettingsViewModel) {
+fun ProgressionPage(vm: ProgressionSettingsViewModel, windowOnly: Boolean = false) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     draft?.let {
         ProgressionPageContent(
             it, validation, status, onChange = vm::update, onChangeNow = vm::updateNow, onReset = vm::resetToDefaults,
+            windowOnly = windowOnly,
         )
     }
 }
@@ -182,47 +188,50 @@ fun ProgressionPageContent(
     onChange: ((ProgressionDraft) -> ProgressionDraft) -> Unit,
     onChangeNow: ((ProgressionDraft) -> ProgressionDraft) -> Unit,
     onReset: () -> Unit,
+    windowOnly: Boolean = false,
 ) {
     val errors = validation.errors
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     SettingsPageLayout(footer = { SaveStatusLine(status) }) {
-        IntStepperField(
-            stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(startingTotal = f(it.startingTotal)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(startingTotal = f(it.startingTotal)) } },
-            error = errors[Field.STARTING_TOTAL], info = stringResource(R.string.info_starting_total),
-        )
-        IntStepperField(
-            stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(floor = f(it.floor)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(floor = f(it.floor)) } },
-            error = errors[Field.FLOOR], info = stringResource(R.string.info_floor),
-        )
-        IntStepperField(
-            stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(cap = f(it.cap)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(cap = f(it.cap)) } },
-            error = errors[Field.CAP], info = stringResource(R.string.info_cap),
-        )
-        // Spec R3 §5.3: the switch sits directly above Hold at; off hides both rows but keeps their values.
-        SwitchRow(
-            stringResource(R.string.hold), draft.hold,
-            onChange = { on -> onChangeNow { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
-        )
-        AnimatedVisibility(visible = draft.hold) {
-            Column {
-                IntStepperField(
-                    stringResource(R.string.hold_at), draft.holdAt, FieldRanges.REPS, ValueInput.WHOLE,
-                    onUpdate = { f -> onChange { it.copy(holdAt = f(it.holdAt)) } },
-                    onDialogUpdate = { f -> onChangeNow { it.copy(holdAt = f(it.holdAt)) } },
-                    error = errors[Field.HOLD_AT], hint = validation.hints[Field.HOLD_AT], info = stringResource(R.string.info_hold_at),
-                )
-                IntStepperField(
-                    stringResource(R.string.hold_for), draft.holdFor, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
-                    onUpdate = { f -> onChange { it.copy(holdFor = f(it.holdFor)) } },
-                    onDialogUpdate = { f -> onChangeNow { it.copy(holdFor = f(it.holdFor)) } },
-                    error = errors[Field.HOLD_FOR], info = stringResource(R.string.info_hold_for),
-                )
+        if (!windowOnly) {
+            IntStepperField(
+                stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
+                onUpdate = { f -> onChange { it.copy(startingTotal = f(it.startingTotal)) } },
+                onDialogUpdate = { f -> onChangeNow { it.copy(startingTotal = f(it.startingTotal)) } },
+                error = errors[Field.STARTING_TOTAL], info = stringResource(R.string.info_starting_total),
+            )
+            IntStepperField(
+                stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
+                onUpdate = { f -> onChange { it.copy(floor = f(it.floor)) } },
+                onDialogUpdate = { f -> onChangeNow { it.copy(floor = f(it.floor)) } },
+                error = errors[Field.FLOOR], info = stringResource(R.string.info_floor),
+            )
+            IntStepperField(
+                stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
+                onUpdate = { f -> onChange { it.copy(cap = f(it.cap)) } },
+                onDialogUpdate = { f -> onChangeNow { it.copy(cap = f(it.cap)) } },
+                error = errors[Field.CAP], info = stringResource(R.string.info_cap),
+            )
+            // Spec R3 §5.3: the switch sits directly above Hold at; off hides both rows but keeps their values.
+            SwitchRow(
+                stringResource(R.string.hold), draft.hold,
+                onChange = { on -> onChangeNow { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
+            )
+            AnimatedVisibility(visible = draft.hold) {
+                Column {
+                    IntStepperField(
+                        stringResource(R.string.hold_at), draft.holdAt, FieldRanges.REPS, ValueInput.WHOLE,
+                        onUpdate = { f -> onChange { it.copy(holdAt = f(it.holdAt)) } },
+                        onDialogUpdate = { f -> onChangeNow { it.copy(holdAt = f(it.holdAt)) } },
+                        error = errors[Field.HOLD_AT], hint = validation.hints[Field.HOLD_AT], info = stringResource(R.string.info_hold_at),
+                    )
+                    IntStepperField(
+                        stringResource(R.string.hold_for), draft.holdFor, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
+                        onUpdate = { f -> onChange { it.copy(holdFor = f(it.holdFor)) } },
+                        onDialogUpdate = { f -> onChangeNow { it.copy(holdFor = f(it.holdFor)) } },
+                        error = errors[Field.HOLD_FOR], info = stringResource(R.string.info_hold_for),
+                    )
+                }
             }
         }
         IntStepperField(
@@ -231,14 +240,16 @@ fun ProgressionPageContent(
             onDialogUpdate = { f -> onChangeNow { it.copy(windowHours = f(it.windowHours)) } },
             error = errors[Field.WINDOW_HOURS], info = stringResource(R.string.info_window),
         )
-        PenaltyStepperField(
-            stringResource(R.string.penalty_rate), draft.penalty,
-            onUpdate = { f -> onChange { it.copy(penalty = f(it.penalty)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(penalty = f(it.penalty)) } },
-            error = errors[Field.PENALTY_RATE], info = stringResource(R.string.info_penalty_rate),
-        )
-        OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 16.dp).testTag("reset_defaults")) {
-            Text(stringResource(R.string.reset_defaults))
+        if (!windowOnly) {
+            PenaltyStepperField(
+                stringResource(R.string.penalty_rate), draft.penalty,
+                onUpdate = { f -> onChange { it.copy(penalty = f(it.penalty)) } },
+                onDialogUpdate = { f -> onChangeNow { it.copy(penalty = f(it.penalty)) } },
+                error = errors[Field.PENALTY_RATE], info = stringResource(R.string.info_penalty_rate),
+            )
+            OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 16.dp).testTag("reset_defaults")) {
+                Text(stringResource(R.string.reset_defaults))
+            }
         }
     }
     // Spec R3 §6.4: confirmed, then applied at once.

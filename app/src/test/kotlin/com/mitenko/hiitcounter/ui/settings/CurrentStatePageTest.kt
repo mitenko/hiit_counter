@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -31,7 +32,7 @@ class CurrentStatePageTest {
     private var immediate = 0
     private var resets = 0
 
-    private fun show() {
+    private fun show(showTotal: Boolean = true) {
         compose.setContent {
             HiitTheme {
                 CurrentStatePageContent(
@@ -39,6 +40,7 @@ class CurrentStatePageTest {
                     onChange = { draft = it(draft) },
                     onChangeNow = { immediate++; draft = it(draft) },
                     onResetProgress = { resets++ },
+                    showTotal = showTotal,
                 )
             }
         }
@@ -60,5 +62,18 @@ class CurrentStatePageTest {
         assertEquals(0, resets)
         compose.onNodeWithTag("confirm_reset_progress").performClick()
         assertEquals(1, resets)
+    }
+
+    @Test
+    fun `without the total the page shows the streaks, the date and Reset progress`() {
+        show(showTotal = false)
+        compose.onNodeWithTag("value_Current total").assertDoesNotExist()
+        compose.onNodeWithTag("value_Best streak").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("value_Current streak").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("last_check_in").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("reset_progress").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Increase Best streak").performScrollTo().performClick()
+        assertEquals(25, draft.best)
+        assertEquals(65, draft.total) // a streak edit keeps the stored total in the draft, so the save writes it back unchanged
     }
 }

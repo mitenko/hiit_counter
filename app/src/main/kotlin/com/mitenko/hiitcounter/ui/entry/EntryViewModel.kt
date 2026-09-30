@@ -10,11 +10,13 @@ import com.mitenko.hiitcounter.domain.ServiceStatus
 import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.domain.WorkoutSnapshot
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.service.WorkoutServiceStarter
 import com.mitenko.hiitcounter.ui.common.DateFormats
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,11 +26,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class EntryUiState(
     val name: String = "",
+    /** Spec R4 §4.1–4.2: a Workout shows the rep table and both buttons; a check-in-only entry shows the streak rows and Check in. */
+    val type: EntryType = EntryType.WORKOUT,
     val reps: List<Int> = emptyList(),
     val total: Int = 0,
     val lastCheckIn: String = "—",
@@ -37,7 +42,11 @@ data class EntryUiState(
     val today: String = "",
     val checkedInToday: Boolean = false,
     val starting: Boolean = false,
+    /** A Check in call is in flight (spec R4 §4.1): both buttons are disabled until it returns. */
+    val checkingIn: Boolean = false,
     val error: String? = null,
+    /** True once the entry has emitted at least once. The action buttons and Workout-only rows wait for this. */
+    val loaded: Boolean = false,
 )
 
 @HiltViewModel
@@ -48,7 +57,7 @@ class EntryViewModel @Inject constructor(
     private val starter: WorkoutServiceStarter,
     private val clock: Clock,
 ) : EntryScopedViewModel(savedStateHandle, repo) {
-    private data class Transient(val starting: Boolean = false, val error: String? = null)
+    private data class Transient(val starting: Boolean = false, val checkingIn: Boolean = false, val error: String? = null)
 
     private val transient = MutableStateFlow(Transient())
     private val refresh = MutableStateFlow(0)
@@ -60,6 +69,7 @@ class EntryViewModel @Inject constructor(
             val counter = entry.counter
             EntryUiState(
                 name = entry.name,
+                type = entry.type,
                 reps = RepDistributor.distribute(counter.total, entry.timing.sets),
                 total = counter.total,
                 lastCheckIn = counter.lastCheckIn?.let { DateFormats.dateTime(it, zone) } ?: "—",
@@ -68,7 +78,9 @@ class EntryViewModel @Inject constructor(
                 today = DateFormats.date(now, zone),
                 checkedInToday = counter.lastCheckIn?.atZone(zone)?.toLocalDate() == now.atZone(zone).toLocalDate(),
                 starting = tr.starting,
+                checkingIn = tr.checkingIn,
                 error = tr.error,
+                loaded = true,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryUiState())
 
@@ -81,9 +93,37 @@ class EntryViewModel @Inject constructor(
         transient.update { it.copy(error = null) }
     }
 
-    /** v1 spec §4: the check-in is committed only after the foreground service has started. */
+    /**
+     * Spec R4 §4.1: Check in on its own. Ignored while a check-in or a start is in flight. The
+     * repository call runs NonCancellable, so leaving the screen can't drop a check-in that has
+     * started. A missing entry pops to the list; any other failure shows a message.
+     */
+    fun onCheckIn() {
+        val t = transient.value
+        if (t.checkingIn || t.starting) return
+        transient.update { it.copy(checkingIn = true, error = null) }
+        viewModelScope.launch {
+            try {
+                withContext(NonCancellable) { repo.checkIn(entryId, clock) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: EntryNotFound) {
+                markMissing()
+            } catch (e: Exception) {
+                transient.update { it.copy(error = "Couldn't check in: ${e.message ?: e.javaClass.simpleName}") }
+            } finally {
+                transient.update { it.copy(checkingIn = false) }
+            }
+        }
+    }
+
+    /**
+     * v1 spec §4: the check-in is committed only after the foreground service has started. After a
+     * manual Check in, that call returns AlreadyToday and writes nothing (R4 §4.1).
+     */
     fun onStart() {
-        if (transient.value.starting) return
+        val t = transient.value
+        if (t.starting || t.checkingIn) return
         if (controller.status.value == RunStatus.RUNNING) return
         transient.value = Transient(starting = true)
         viewModelScope.launch {
@@ -102,6 +142,8 @@ class EntryViewModel @Inject constructor(
 
     private suspend fun startWorkout() {
         val entry = repo.entry(entryId).first() ?: throw EntryNotFound(entryId)
+        // A check-in-only entry has no Start (spec R4 §4.1); guard it here too in case it's ever called anyway.
+        if (entry.type != EntryType.WORKOUT) return
         // Frozen at Start (spec §7.1): the run never reads the entry again.
         if (!controller.prepare(WorkoutSnapshot(entry.id, entry.name, entry.timing, entry.cues))) {
             transient.update { it.copy(error = "A workout is already starting") }

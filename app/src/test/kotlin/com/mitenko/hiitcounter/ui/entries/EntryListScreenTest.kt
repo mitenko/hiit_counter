@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -42,7 +44,7 @@ class EntryListScreenTest {
         onOpen: (Long) -> Unit = {},
         onUp: (Long) -> Unit = {},
         onDown: (Long) -> Unit = {},
-        onCreate: (String) -> Unit = {},
+        onCreate: (String, EntryType) -> Unit = { _, _ -> },
     ) {
         compose.setContent {
             HiitTheme {
@@ -113,7 +115,7 @@ class EntryListScreenTest {
                         val i = list.indexOfFirst { it.id == id }
                         if (i < list.lastIndex) list = list.toMutableList().apply { add(i + 1, removeAt(i)) }
                     },
-                    onCreate = {},
+                    onCreate = { _, _ -> },
                 )
             }
         }
@@ -128,11 +130,32 @@ class EntryListScreenTest {
     @Test
     fun `add creates through the name dialog`() {
         var created: String? = null
-        show(EntryListUiState.Items(rows), onCreate = { created = it })
+        show(EntryListUiState.Items(rows), onCreate = { name, _ -> created = name })
         compose.onNodeWithTag("add").performClick()
         compose.onNodeWithTag("name_field").performTextReplacement("Kettlebell Lunges")
         compose.onNodeWithTag("name_ok").performClick()
         assertEquals("Kettlebell Lunges", created)
         compose.onNodeWithTag("name_field").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a check-in-only row reads Streak N with today's marker`() {
+        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 48, checkedInToday = true, type = EntryType.CHECK_IN, streak = 5))))
+        compose.onNodeWithText("Streak 5").assertExists()
+        compose.onNodeWithText("Reps 48").assertDoesNotExist()
+        compose.onAllNodesWithContentDescription("Checked in today", useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun `the create dialog offers Workout or Check-in only, defaulting to Workout`() {
+        val created = mutableListOf<Pair<String, EntryType>>()
+        show(EntryListUiState.Items(rows), onCreate = { name, type -> created += name to type })
+        compose.onNodeWithTag("add").performClick()
+        compose.onNodeWithTag("type_WORKOUT").assertIsSelected()
+        compose.onNodeWithTag("type_CHECK_IN").performClick()
+        compose.onNodeWithTag("type_CHECK_IN").assertIsSelected()
+        compose.onNodeWithTag("name_field").performTextReplacement("Stretch")
+        compose.onNodeWithTag("name_ok").performClick()
+        assertEquals(listOf("Stretch" to EntryType.CHECK_IN), created)
     }
 }

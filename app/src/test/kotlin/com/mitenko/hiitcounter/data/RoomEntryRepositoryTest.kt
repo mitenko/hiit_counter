@@ -8,6 +8,7 @@ import com.mitenko.hiitcounter.domain.Outcome
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.FakeClock
@@ -454,5 +455,80 @@ class RoomEntryRepositoryTest {
         val copy = r.duplicate(a)
         assertFalse(r.entry(copy).first()!!.progression.hold)
         assertFalse(db.entryDao().get(copy)!!.holdEnabled)
+    }
+
+    @Test
+    fun `create stores the chosen type and create(name) makes a workout`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val b = r.create("Stretch", EntryType.CHECK_IN)
+        assertEquals(EntryType.WORKOUT, r.entry(a).first()!!.type)
+        assertEquals(EntryType.CHECK_IN, r.entry(b).first()!!.type)
+        assertEquals("CHECK_IN", db.entryDao().get(b)!!.type)
+    }
+
+    @Test
+    fun `setType changes only the type, and switching back restores everything`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.setTiming(a, TimingConfig(sets = 6))
+        r.setProgression(a, ProgressionConfig(cap = 80, hold = false))
+        r.setCues(a, CueConfig(sound = false, voice = true))
+        r.overwriteCounter(a, 65, 24, 4, clock.instant.minusSeconds(60))
+        val before = db.entryDao().get(a)!!
+        r.setType(a, EntryType.CHECK_IN)
+        assertEquals(before.copy(type = "CHECK_IN"), db.entryDao().get(a)!!)
+        r.setType(a, EntryType.WORKOUT)
+        assertEquals(before, db.entryDao().get(a)!!)
+    }
+
+    @Test
+    fun `setType waits for the migration gate and throws EntryNotFound for a missing id`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val r = repo(object : MigrationGate {
+            override suspend fun awaitReady() = gate.await()
+        })
+        val write = async { runCatching { r.setType(99, EntryType.CHECK_IN) } }
+        runCurrent()
+        assertFalse(write.isCompleted)
+        gate.complete(Unit)
+        assertTrue(write.await().exceptionOrNull() is EntryNotFound)
+    }
+
+    @Test
+    fun `setCues writes the voice`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.setCues(a, CueConfig(voice = true))
+        assertEquals(CueConfig(voice = true), r.entry(a).first()!!.cues)
+        assertTrue(db.entryDao().get(a)!!.cueVoice)
+    }
+
+    @Test
+    fun `duplicate copies the type and the voice`() = runTest {
+        val r = repo()
+        val a = r.create("Stretch", EntryType.CHECK_IN)
+        r.setCues(a, CueConfig(voice = true))
+        val copy = r.entry(r.duplicate(a)).first()!!
+        assertEquals(EntryType.CHECK_IN, copy.type)
+        assertTrue(copy.cues.voice)
+    }
+
+    @Test
+    fun `a check-in-only check-in moves the day and streaks and never touches the total`() = runTest {
+        val r = repo()
+        val a = r.create("Stretch", EntryType.CHECK_IN)
+        db.entryDao().setCounter(a, total = null, bestStreak = 0, currentStreak = 0, holdCount = 2, lastCheckIn = null)
+        assertEquals(Outcome.First, r.checkIn(a, clock).outcome)
+        val day1 = clock.instant
+        clock.instant = day1.plusSeconds(24 * 3600)
+        assertEquals(Outcome.OnTime, r.checkIn(a, clock).outcome)
+        val row = db.entryDao().get(a)!!
+        assertNull(row.total)
+        assertEquals(2, row.currentStreak)
+        assertEquals(2, row.bestStreak)
+        assertEquals(2, row.holdCount)
+        assertEquals(clock.instant.toEpochMilli(), row.lastCheckIn)
+        assertEquals(48, r.entry(a).first()!!.counter.total)
     }
 }

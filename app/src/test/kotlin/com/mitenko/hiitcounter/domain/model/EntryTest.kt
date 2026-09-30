@@ -13,4 +13,12 @@ class EntryTest {
         assertEquals(3L, busy.id)
         assertEquals("Entry 3 has an active workout", busy.message)
     }
+
+    @Test
+    fun `a new entry is a workout unless told otherwise`() {
+        val entry = Entry(1, "Burpees", 0, TimingConfig(), ProgressionConfig(), CueConfig(), CounterState(total = 48))
+        assertEquals(EntryType.WORKOUT, entry.type)
+        assertEquals(EntryType.CHECK_IN, entry.copy(type = EntryType.CHECK_IN).type)
+        assertEquals(listOf(EntryType.WORKOUT, EntryType.CHECK_IN), EntryType.entries.toList())
+    }
 }

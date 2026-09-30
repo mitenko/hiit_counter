@@ -19,13 +19,26 @@ data class CheckInResult(val state: CounterState, val outcome: Outcome)
 object RepProgression {
     private const val MS_PER_HOUR = 3_600_000.0
 
-    fun checkIn(state: CounterState, config: ProgressionConfig, now: Instant, zone: ZoneId): CheckInResult {
+    /**
+     * [countsReps] is false for a check-in-only entry (spec R4 §3.1): rules 1–4 still decide the
+     * outcome and the streaks, and [CounterState.lastCheckIn] becomes [now], but the total and the
+     * hold count are kept exactly (no +1, no penalty, no clamp, no hold). A miss reports a penalty of 0.
+     */
+    fun checkIn(
+        state: CounterState,
+        config: ProgressionConfig,
+        now: Instant,
+        zone: ZoneId,
+        countsReps: Boolean = true,
+    ): CheckInResult {
         val last = state.lastCheckIn
 
         // Rule 1: already checked in today.
         if (last != null && last.atZone(zone).toLocalDate() == now.atZone(zone).toLocalDate()) {
             return CheckInResult(state, Outcome.AlreadyToday)
         }
+
+        if (!countsReps) return streaksOnly(state, config, now, last)
 
         // Rules 2–4 start from a total clamped to [floor, cap] (config may have changed).
         val total = state.total.coerceIn(config.floor, config.cap)
@@ -44,7 +57,7 @@ object RepProgression {
             )
         }
 
-        val hours = roundHalfUp((now.toEpochMilli() - last.toEpochMilli()) / MS_PER_HOUR)
+        val hours = hoursSince(last, now)
 
         // Rule 3: missed. A miss that leaves the total on holdAt restarts the hold.
         if (hours > config.windowHours) {
@@ -89,6 +102,22 @@ object RepProgression {
             Outcome.OnTime,
         )
     }
+
+    /** Rules 2–4 for the streaks and the date only (spec R4 §3.1); the total and hold count are copied as they are. */
+    private fun streaksOnly(state: CounterState, config: ProgressionConfig, now: Instant, last: Instant?): CheckInResult {
+        val (streak, outcome) = when {
+            last == null -> 1 to Outcome.First
+            hoursSince(last, now) > config.windowHours -> 1 to Outcome.Missed(penalty = 0)
+            else -> state.currentStreak + 1 to Outcome.OnTime
+        }
+        return CheckInResult(
+            state.copy(bestStreak = max(state.bestStreak, streak), currentStreak = streak, lastCheckIn = now),
+            outcome,
+        )
+    }
+
+    private fun hoursSince(last: Instant, now: Instant): Int =
+        roundHalfUp((now.toEpochMilli() - last.toEpochMilli()) / MS_PER_HOUR)
 
     /** 1 when this check-in is the first performed at the hold value, else 0. */
     private fun startingHoldCount(total: Int, config: ProgressionConfig): Int =
