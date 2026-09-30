@@ -24,11 +24,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.domain.RunStatus
+import com.mitenko.hiitcounter.domain.model.CueConfig
 
 @Composable
 fun TimerRoute(onExit: () -> Unit, vm: TimerViewModel = hiltViewModel()) {
     val ui by vm.uiState.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val cues by vm.cues.collectAsStateWithLifecycle()
     var confirmStop by remember { mutableStateOf(false) }
 
     LaunchedEffect(status) { if (status == RunStatus.IDLE) onExit() }
@@ -45,7 +47,13 @@ fun TimerRoute(onExit: () -> Unit, vm: TimerViewModel = hiltViewModel()) {
     }
     BackHandler(onBack = onClose)
 
-    ui?.let { TimerScreen(it, onTogglePause = vm::togglePause, onClose = onClose) }
+    ui?.let {
+        TimerScreen(
+            it, cues ?: CueConfig(),
+            onTogglePause = vm::togglePause, onClose = onClose,
+            onToggleSound = vm::toggleSound, onToggleVibration = vm::toggleVibration, onToggleVoice = vm::toggleVoice,
+        )
+    }
 
     if (confirmStop) {
         AlertDialog(

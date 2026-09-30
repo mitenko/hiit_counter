@@ -52,6 +52,14 @@ class TimerController(
     private val _cues = MutableSharedFlow<Cue>(replay = 0, extraBufferCapacity = 64)
     val cues: SharedFlow<Cue> = _cues.asSharedFlow()
 
+    /**
+     * The run's cues, live (this amends spec R4 §5's "frozen at Start" for cues only, spec
+     * revision 7): seeded from the snapshot by [prepare], updatable by [setCues] while a run
+     * exists, and cleared by [clearRun]. Name, timing and reps stay frozen in [snapshot].
+     */
+    private val _liveCues = MutableStateFlow<CueConfig?>(null)
+    val liveCues: StateFlow<CueConfig?> = _liveCues.asStateFlow()
+
     private val _serviceStatus = MutableStateFlow<ServiceStatus>(ServiceStatus.Pending)
     val serviceStatus: StateFlow<ServiceStatus> = _serviceStatus.asStateFlow()
 
@@ -79,9 +87,15 @@ class TimerController(
         clearRun() // clears the previous snapshot; assign the new one after
         this.snapshot = snapshot
         lastEntryId = snapshot.entryId
+        _liveCues.value = snapshot.cues
         _serviceStatus.value = ServiceStatus.Pending
         _status.value = RunStatus.PREPARING
         return true
+    }
+
+    /** Applies immediately to the running workout while it exists; ignored otherwise (spec R4 §5, rev 7). */
+    fun setCues(config: CueConfig) {
+        if (snapshot != null) _liveCues.value = config
     }
 
     fun onServiceStarted() {
@@ -172,6 +186,7 @@ class TimerController(
         pauseTimeoutJob = null
         engine = null
         snapshot = null
+        _liveCues.value = null
         _state.value = null
     }
 
