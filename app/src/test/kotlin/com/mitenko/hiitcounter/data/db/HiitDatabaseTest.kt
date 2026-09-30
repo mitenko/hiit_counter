@@ -123,9 +123,64 @@ class HiitDatabaseTest {
         buildList { while (moveToNext()) add(Triple(getLong(0), getInt(1), getInt(2))) }
     }
 
+    @Test
+    fun `schema v3 is exported with the type and cue_voice defaults`() {
+        val json = File("schemas/com.mitenko.hiitcounter.data.db.HiitDatabase/3.json").readText()
+        assertTrue(Regex("\"version\"\\s*:\\s*3").containsMatchIn(json))
+        assertTrue(json.contains("`type` TEXT NOT NULL DEFAULT 'WORKOUT'"))
+        assertTrue(json.contains("`cue_voice` INTEGER NOT NULL DEFAULT 0"))
+    }
+
+    @Test
+    fun `the 2 to 3 migration SQL makes every row a workout with the voice off`() {
+        // Runs everywhere (no file-based helper), so Windows also covers the §3.2 SQL.
+        val raw = SQLiteDatabase.create(null)
+        try {
+            raw.execSQL(V2_ENTRY_TABLE)
+            raw.execSQL(v2Row(1, holdEnabled = 1, total = "65"))
+            raw.execSQL(v2Row(2, holdEnabled = 0, total = "NULL"))
+            HiitDatabase.MIGRATION_2_3_SQL.forEach { raw.execSQL(it) }
+            assertEquals(MIGRATED_V3_ROWS, raw.rawQuery(TYPE_QUERY, null).typeColumns())
+        } finally {
+            raw.close()
+        }
+    }
+
+    @Test
+    fun `migration 2 to 3 validates through MigrationTestHelper`() {
+        // Same Windows guard as the checks above: androidx.sqlite 2.6.1 mishandles backslash paths. CI runs it.
+        assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+        helper.createDatabase(MIGRATION_DB_3, 2).use { db ->
+            db.execSQL(v2Row(1, holdEnabled = 1, total = "65"))
+            db.execSQL(v2Row(2, holdEnabled = 0, total = "NULL"))
+        }
+        helper.runMigrationsAndValidate(MIGRATION_DB_3, 3, true, HiitDatabase.MIGRATION_2_3).use { db ->
+            assertEquals(MIGRATED_V3_ROWS, db.query(TYPE_QUERY).typeColumns())
+        }
+    }
+
+    /** A v2 row with the default settings, the given hold switch and a raw SQL total ("65" or "NULL"). */
+    private fun v2Row(id: Long, holdEnabled: Int, total: String) =
+        "INSERT INTO entry (id, name, position, prepare_sec, sets, work_sec, rest_sec, cooldown_sec, starting_total, floor, cap, " +
+            "hold_at, hold_for, hold_enabled, window_hours, penalty_hours_per_rep, cue_sound, cue_vibration, total, best_streak, " +
+            "current_streak, hold_count, last_check_in) " +
+            "VALUES ($id, 'Workout', ${id - 1}, 10, 8, 20, 10, 0, 48, 48, 72, 64, 4, $holdEnabled, 36, 19.5, 1, 1, $total, 0, 0, 0, NULL)"
+
+    /** (id, type, cue_voice, hold_enabled, total) per row, ordered by id. */
+    private fun Cursor.typeColumns(): List<List<Any?>> = use {
+        buildList {
+            while (moveToNext()) add(listOf(getLong(0), getString(1), getInt(2), getInt(3), if (isNull(4)) null else getInt(4)))
+        }
+    }
+
     private companion object {
         const val MIGRATION_DB = "migration-1-2"
         const val HOLD_QUERY = "SELECT id, hold_enabled, hold_for FROM entry ORDER BY id"
+        const val MIGRATION_DB_3 = "migration-2-3"
+        const val TYPE_QUERY = "SELECT id, type, cue_voice, hold_enabled, total FROM entry ORDER BY id"
+
+        /** Both v2 rows after 2 → 3: Workouts with the voice off, every other column kept. */
+        val MIGRATED_V3_ROWS = listOf(listOf<Any?>(1L, "WORKOUT", 0, 1, 65), listOf<Any?>(2L, "WORKOUT", 0, 0, null))
 
         /** The v1 `entry` table exactly as 1.json creates it. */
         const val V1_ENTRY_TABLE = "CREATE TABLE IF NOT EXISTS `entry` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -135,5 +190,15 @@ class HiitDatabaseTest {
             "`hold_for` INTEGER NOT NULL, `window_hours` INTEGER NOT NULL, `penalty_hours_per_rep` REAL NOT NULL, " +
             "`cue_sound` INTEGER NOT NULL, `cue_vibration` INTEGER NOT NULL, `total` INTEGER, `best_streak` INTEGER NOT NULL, " +
             "`current_streak` INTEGER NOT NULL, `hold_count` INTEGER NOT NULL, `last_check_in` INTEGER)"
+
+        /** The v2 `entry` table exactly as 2.json creates it. */
+        const val V2_ENTRY_TABLE = "CREATE TABLE IF NOT EXISTS `entry` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`name` TEXT NOT NULL, `position` INTEGER NOT NULL, `prepare_sec` INTEGER NOT NULL, `sets` INTEGER NOT NULL, " +
+            "`work_sec` INTEGER NOT NULL, `rest_sec` INTEGER NOT NULL, `cooldown_sec` INTEGER NOT NULL, " +
+            "`starting_total` INTEGER NOT NULL, `floor` INTEGER NOT NULL, `cap` INTEGER NOT NULL, `hold_at` INTEGER NOT NULL, " +
+            "`hold_for` INTEGER NOT NULL, `hold_enabled` INTEGER NOT NULL DEFAULT 1, `window_hours` INTEGER NOT NULL, " +
+            "`penalty_hours_per_rep` REAL NOT NULL, `cue_sound` INTEGER NOT NULL, `cue_vibration` INTEGER NOT NULL, " +
+            "`total` INTEGER, `best_streak` INTEGER NOT NULL, `current_streak` INTEGER NOT NULL, " +
+            "`hold_count` INTEGER NOT NULL, `last_check_in` INTEGER)"
     }
 }

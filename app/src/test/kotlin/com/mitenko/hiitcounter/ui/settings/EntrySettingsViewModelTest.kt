@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.domain.WorkoutSnapshot
 import com.mitenko.hiitcounter.domain.model.CueConfig
+import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
@@ -143,5 +145,29 @@ class EntrySettingsViewModelTest {
         h.vm.rename("Kettlebell Lunges")
         runCurrent()
         assertEquals(null, h.vm.uiState.value.error)
+    }
+
+    @Test
+    fun `setType saves at once, even while busy, and keeps every other value`() = runTest {
+        val h = harness()
+        h.controller.prepare(snapshot)
+        runCurrent()
+        assertTrue(h.vm.uiState.value.busy)
+        val before = repo.find(1)
+        h.vm.setType(EntryType.CHECK_IN)
+        runCurrent()
+        assertEquals(before.copy(type = EntryType.CHECK_IN), repo.find(1))
+        assertEquals(EntryType.CHECK_IN, h.vm.uiState.value.type)
+        assertEquals(1, repo.typeWrites)
+    }
+
+    @Test
+    fun `setType racing a delete reports missing`() = runTest {
+        val h = harness()
+        repo.writeError = EntryNotFound(1)
+        h.vm.setType(EntryType.CHECK_IN)
+        runCurrent()
+        assertTrue(h.vm.missing.value)
+        assertEquals(EntryType.WORKOUT, repo.find(1).type)
     }
 }

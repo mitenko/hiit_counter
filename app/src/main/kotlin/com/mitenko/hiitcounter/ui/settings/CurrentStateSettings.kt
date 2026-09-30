@@ -203,9 +203,13 @@ class CurrentStateViewModel @Inject constructor(
     }
 }
 
-/** The Current page inside the pager (spec R3 §4). */
+/**
+ * The Current page inside the pager (spec R3 §4). Without [showTotal] (a check-in-only entry,
+ * R4 §4.6) the total row is hidden; the draft keeps the stored total, so saves write it back
+ * unchanged and the hold count is kept (plan Spec note 8).
+ */
 @Composable
-fun CurrentStatePage(vm: CurrentStateViewModel) {
+fun CurrentStatePage(vm: CurrentStateViewModel, showTotal: Boolean = true) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
@@ -213,6 +217,7 @@ fun CurrentStatePage(vm: CurrentStateViewModel) {
         CurrentStatePageContent(
             it, validation, status, vm.zone, vm::now,
             onChange = vm::update, onChangeNow = vm::updateNow, onResetProgress = vm::resetProgress,
+            showTotal = showTotal,
         )
     }
 }
@@ -227,19 +232,22 @@ fun CurrentStatePageContent(
     onChange: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
     onChangeNow: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
     onResetProgress: () -> Unit,
+    showTotal: Boolean = true,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val lastLabel = stringResource(R.string.last_check_in_field)
 
     SettingsPageLayout(footer = { SaveStatusLine(status) }) {
-        IntStepperField(
-            stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
-            error = validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL],
-            info = stringResource(R.string.info_total_reps),
-        )
+        if (showTotal) {
+            IntStepperField(
+                stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
+                onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
+                onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
+                error = validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL],
+                info = stringResource(R.string.info_total_reps),
+            )
+        }
         IntStepperField(
             stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
             onUpdate = { f -> onChange { it.copy(best = f(it.best)) } },

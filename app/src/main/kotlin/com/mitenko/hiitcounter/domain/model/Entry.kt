@@ -12,6 +12,8 @@ data class Entry(
     val progression: ProgressionConfig,
     val cues: CueConfig,
     val counter: CounterState,
+    /** Spec R4 §3.1: new entries are Workouts. */
+    val type: EntryType = EntryType.WORKOUT,
 )
 
 class EntryNotFound(val id: Long) : Exception("Entry $id not found")

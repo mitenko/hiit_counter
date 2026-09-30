@@ -8,6 +8,7 @@ import com.mitenko.hiitcounter.domain.WorkoutSnapshot
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.FakeClock
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
@@ -16,6 +17,7 @@ import com.mitenko.hiitcounter.testutil.FakeServiceStarter.Behavior
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
 import com.mitenko.hiitcounter.testutil.testEntry
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.update
@@ -181,5 +183,101 @@ class EntryViewModelTest {
         h.vm.viewModelScope.cancel()
         runCurrent()
         assertEquals(RunStatus.IDLE, h.controller.status.value)
+    }
+
+    @Test
+    fun `check in updates the counter and then reads as checked in today`() = runTest {
+        val h = harness()
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertEquals(1, repo.checkInCalls)
+        assertEquals(66, h.vm.uiState.value.total)
+        assertTrue(h.vm.uiState.value.checkedInToday)
+        assertFalse(h.vm.uiState.value.checkingIn)
+        assertEquals(RunStatus.IDLE, h.controller.status.value)
+    }
+
+    @Test
+    fun `check in ignores taps on either button while its call is in flight`() = runTest {
+        val h = harness()
+        val gate = CompletableDeferred<Unit>()
+        repo.checkInGate = gate
+        h.vm.onCheckIn()
+        h.vm.onCheckIn()
+        h.vm.onStart()
+        runCurrent()
+        assertTrue(h.vm.uiState.value.checkingIn)
+        assertEquals(0, h.starter.calls)
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(1, repo.checkInCalls)
+        assertFalse(h.vm.uiState.value.checkingIn)
+        assertEquals(66, repo.find(1).counter.total)
+    }
+
+    @Test
+    fun `start after a check-in starts with no second check-in`() = runTest {
+        val h = harness()
+        h.vm.onCheckIn()
+        runCurrent()
+        h.vm.onStart()
+        runCurrent()
+        assertEquals(RunStatus.RUNNING, h.controller.status.value)
+        // Start still calls checkIn; the second call is AlreadyToday and writes nothing.
+        assertEquals(2, repo.checkInCalls)
+        assertEquals(66, repo.find(1).counter.total)
+        assertEquals(66, h.controller.state.value!!.totalReps)
+    }
+
+    @Test
+    fun `onStart does nothing for a check-in-only entry`() = runTest {
+        val habit = FakeEntryRepository(
+            listOf(testEntry(1, "Stretch", type = EntryType.CHECK_IN)),
+        )
+        val h = harness(repository = habit)
+        runCurrent()
+        h.vm.onStart()
+        runCurrent()
+        assertEquals(0, h.starter.calls)
+        assertNull(h.controller.snapshot)
+        assertEquals(RunStatus.IDLE, h.controller.status.value)
+    }
+
+    @Test
+    fun `a check-in-only entry checks in without changing its total`() = runTest {
+        val habit = FakeEntryRepository(
+            listOf(
+                testEntry(
+                    1, "Stretch", type = EntryType.CHECK_IN,
+                    counter = CounterState(total = 65, bestStreak = 24, currentStreak = 4, lastCheckIn = Instant.parse("2026-09-23T12:55:00Z")),
+                ),
+            ),
+        )
+        val h = harness(repository = habit)
+        runCurrent()
+        assertEquals(EntryType.CHECK_IN, h.vm.uiState.value.type)
+        h.vm.onCheckIn()
+        runCurrent()
+        val counter = habit.find(1).counter
+        assertEquals(65, counter.total)
+        assertEquals(5, counter.currentStreak)
+        assertEquals(clock.instant, counter.lastCheckIn)
+        assertTrue(h.vm.uiState.value.checkedInToday)
+    }
+
+    @Test
+    fun `a failed check-in shows an error, and a deleted entry pops`() = runTest {
+        val h = harness()
+        repo.checkInError = IOException("disk full")
+        h.vm.onCheckIn()
+        runCurrent()
+        assertTrue(h.vm.uiState.value.error!!.contains("disk full"))
+        assertFalse(h.vm.uiState.value.checkingIn)
+        assertFalse(h.vm.missing.value)
+        repo.checkInError = EntryNotFound(1)
+        h.vm.onCheckIn()
+        runCurrent()
+        assertTrue(h.vm.missing.value)
     }
 }

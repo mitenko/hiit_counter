@@ -2,6 +2,7 @@ package com.mitenko.hiitcounter.domain
 
 import com.mitenko.hiitcounter.domain.model.Cue
 import com.mitenko.hiitcounter.domain.model.CueConfig
+import com.mitenko.hiitcounter.domain.model.Phase
 import com.mitenko.hiitcounter.domain.model.TimerState
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +107,7 @@ class TimerController(
             repsPerSet = repsPerSet,
             nowMs = nowMs,
             onState = { _state.value = it },
-            onCue = { _cues.tryEmit(it) },
+            onCue = { _cues.tryEmit(withReps(it, repsPerSet)) },
         )
         engine = e
         _status.value = RunStatus.RUNNING
@@ -151,6 +152,16 @@ class TimerController(
         if (_status.value != RunStatus.DONE) return
         clearRun()
         _status.value = RunStatus.IDLE
+    }
+
+    /**
+     * Spec R4 §5: a WORK start carries that set's entry of [repsPerSet]. The engine publishes the
+     * set's first state just before its PhaseStart, so [state] already names the starting set.
+     */
+    private fun withReps(cue: Cue, repsPerSet: List<Int>): Cue {
+        if (cue !is Cue.PhaseStart || cue.phase != Phase.WORK) return cue
+        val set = _state.value?.set ?: return cue
+        return cue.copy(reps = repsPerSet.getOrNull(set - 1))
     }
 
     /** Clears the run but deliberately not [lastEntryId]. */

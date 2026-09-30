@@ -1,5 +1,7 @@
 package com.mitenko.hiitcounter.ui.entry
 
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -7,7 +9,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,12 +26,22 @@ class EntryScreenTest {
 
     private val state = EntryUiState(
         name = "Burpees", reps = listOf(9, 8, 8, 8, 8, 8, 8, 8), total = 65, lastCheckIn = "24 Sep 2026, 05:55",
-        bestStreak = 24, currentStreak = 4, today = "24 Sep 2026", checkedInToday = true,
+        bestStreak = 24, currentStreak = 4, today = "24 Sep 2026", checkedInToday = true, loaded = true,
     )
 
-    private fun show(s: EntryUiState, onBack: () -> Unit = {}, onStart: () -> Unit = {}, onSettings: () -> Unit = {}) {
+    private fun show(
+        s: EntryUiState,
+        onBack: () -> Unit = {},
+        onStart: () -> Unit = {},
+        onSettings: () -> Unit = {},
+        onCheckIn: () -> Unit = {},
+    ) {
         compose.setContent {
-            HiitTheme { EntryScreen(s, onBack = onBack, onStart = onStart, onOpenSettings = onSettings, onDismissError = {}) }
+            HiitTheme {
+                EntryScreen(
+                    s, onBack = onBack, onStart = onStart, onCheckIn = onCheckIn, onOpenSettings = onSettings, onDismissError = {},
+                )
+            }
         }
     }
 
@@ -69,5 +83,57 @@ class EntryScreenTest {
         compose.onNodeWithTag("settings").performClick()
         assertEquals(1, backs)
         assertEquals(1, settings)
+    }
+
+    @Test
+    fun `check in sits next to start and invokes its callback`() {
+        var checks = 0
+        show(state.copy(checkedInToday = false), onCheckIn = { checks++ })
+        compose.onNodeWithTag("check_in").performScrollTo().assertTextEquals("Check in").performClick()
+        assertEquals(1, checks)
+        compose.onNodeWithTag("start").assertIsEnabled()
+    }
+
+    @Test
+    fun `once checked in today it reads Checked in and is disabled`() {
+        show(state) // checkedInToday = true
+        compose.onNodeWithTag("check_in").assertTextEquals("Checked in ✓").assertIsNotEnabled()
+        compose.onNodeWithTag("start").assertIsEnabled()
+    }
+
+    @Test
+    fun `both buttons are disabled while a check-in is in flight`() {
+        show(state.copy(checkedInToday = false, checkingIn = true))
+        compose.onNodeWithTag("check_in").assertIsNotEnabled()
+        compose.onNodeWithTag("start").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a check-in-only entry shows the streak rows and one Check in`() {
+        show(state.copy(type = EntryType.CHECK_IN, checkedInToday = false))
+        compose.onNodeWithTag("rep_0").assertDoesNotExist()
+        compose.onNodeWithText("Total Reps").assertDoesNotExist()
+        compose.onNodeWithText("Last Check In").assertExists()
+        compose.onNodeWithText("Best CI Streak").assertExists()
+        compose.onNodeWithText("Curr CI Streak").assertExists()
+        compose.onNodeWithText("Today").assertExists()
+        compose.onNodeWithTag("start").assertDoesNotExist()
+        compose.onNodeWithTag("check_in").assertIsEnabled()
+    }
+
+    @Test
+    fun `before the entry has loaded there is no start or check-in button`() {
+        show(EntryUiState())
+        compose.onNodeWithTag("start").assertDoesNotExist()
+        compose.onNodeWithTag("check_in").assertDoesNotExist()
+        compose.onNodeWithTag("rep_0").assertDoesNotExist()
+        compose.onNodeWithText("Total Reps").assertDoesNotExist()
+    }
+
+    @Test
+    fun `both buttons are at least 48 dp tall`() {
+        show(state.copy(checkedInToday = false))
+        compose.onNodeWithTag("check_in").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("start").assertHeightIsAtLeast(48.dp)
     }
 }

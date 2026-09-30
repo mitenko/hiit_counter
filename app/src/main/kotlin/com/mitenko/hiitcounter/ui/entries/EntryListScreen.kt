@@ -19,12 +19,16 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,7 +53,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.hiitcounter.R
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.common.NameDialog
+import com.mitenko.hiitcounter.ui.common.label
 
 @Composable
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
@@ -66,7 +72,7 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onToggleReorder = vm::toggleReorder,
         onMoveUp = vm::moveUp,
         onMoveDown = vm::moveDown,
-        onCreate = { name -> vm.create(name, onCreated) },
+        onCreate = { name, type -> vm.create(name, type, onCreated) },
     )
 }
 
@@ -79,7 +85,7 @@ fun EntryListScreen(
     onToggleReorder: () -> Unit,
     onMoveUp: (Long) -> Unit,
     onMoveDown: (Long) -> Unit,
-    onCreate: (String) -> Unit,
+    onCreate: (String, EntryType) -> Unit,
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
     val loading = state is EntryListUiState.Loading
@@ -121,14 +127,17 @@ fun EntryListScreen(
         }
     }
     if (naming) {
+        // Spec R4 §4.4: Workout by default, every time the dialog opens; kept across rotation.
+        var type by rememberSaveable { mutableStateOf(EntryType.WORKOUT) }
         NameDialog(
             title = stringResource(R.string.new_workout),
             initial = "",
             onConfirm = { name ->
                 naming = false
-                onCreate(name)
+                onCreate(name, type)
             },
             onDismiss = { naming = false },
+            extra = { EntryTypeChoice(type, onSelect = { type = it }) },
         )
     }
 }
@@ -212,7 +221,8 @@ private fun EntryRowItem(
         Column(Modifier.weight(1f)) {
             Text(row.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                stringResource(R.string.reps_n, row.reps),
+                // Spec R4 §4.3: a Workout reads "Reps N", a check-in-only entry "Streak N".
+                if (row.type == EntryType.CHECK_IN) stringResource(R.string.streak_n, row.streak) else stringResource(R.string.reps_n, row.reps),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -231,6 +241,25 @@ private fun EntryRowItem(
             }
             IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(48.dp)) {
                 Icon(painterResource(R.drawable.ic_arrow_down), contentDescription = stringResource(R.string.move_down, row.name))
+            }
+        }
+    }
+}
+
+/** Workout | Check-in only (spec R4 §4.4). Each segment is tagged `type_<TYPE>`. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EntryTypeChoice(selected: EntryType, onSelect: (EntryType) -> Unit) {
+    val types = EntryType.entries
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        types.forEachIndexed { index, type ->
+            SegmentedButton(
+                selected = selected == type,
+                onClick = { onSelect(type) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = types.size),
+                modifier = Modifier.testTag("type_${type.name}"),
+            ) {
+                Text(stringResource(type.label))
             }
         }
     }

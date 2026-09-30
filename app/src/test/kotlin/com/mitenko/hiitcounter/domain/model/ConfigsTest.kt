@@ -27,4 +27,11 @@ class ConfigsTest {
         assertFalse(ProgressionConfig(hold = false, holdAt = 48).holdEnabled)
         assertTrue(ProgressionConfig(hold = true).holdEnabled)
     }
+
+    @Test
+    fun `the voice cue is off by default`() {
+        assertFalse(CueConfig().voice)
+        assertTrue(CueConfig(voice = true).voice)
+        assertEquals(CueConfig(sound = true, vibration = true, voice = false), CueConfig())
+    }
 }

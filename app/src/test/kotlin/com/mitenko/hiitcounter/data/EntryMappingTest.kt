@@ -3,6 +3,7 @@ package com.mitenko.hiitcounter.data
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.testEntity
@@ -122,5 +123,24 @@ class EntryMappingTest {
     @Test
     fun `an inconsistent progression falls back with the hold switched on`() {
         assertEquals(ProgressionConfig(), testEntity().copy(holdEnabled = false, floor = 80, cap = 60).toDomain().progression)
+    }
+
+    @Test
+    fun `type and voice map to the domain and back`() {
+        val entry = testEntity().copy(type = "CHECK_IN", cueVoice = true).toDomain()
+        assertEquals(EntryType.CHECK_IN, entry.type)
+        assertEquals(CueConfig(voice = true), entry.cues)
+        val row = entryEntity("Stretch", 0, cues = CueConfig(voice = true), type = EntryType.CHECK_IN)
+        assertEquals("CHECK_IN", row.type)
+        assertTrue(row.cueVoice)
+        assertEquals("WORKOUT", entryEntity("Burpees", 0).type)
+        assertFalse(entryEntity("Burpees", 0).cueVoice)
+    }
+
+    @Test
+    fun `an unknown type reads as a workout`() {
+        assertEquals(EntryType.WORKOUT, testEntity().copy(type = "HABIT").toDomain().type)
+        assertEquals(EntryType.WORKOUT, testEntity().copy(type = "").toDomain().type)
+        assertEquals(EntryType.WORKOUT, testEntity().copy(type = "check_in").toDomain().type)
     }
 }

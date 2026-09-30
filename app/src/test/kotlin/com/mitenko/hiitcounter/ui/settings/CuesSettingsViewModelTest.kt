@@ -3,6 +3,7 @@ package com.mitenko.hiitcounter.ui.settings
 import androidx.lifecycle.SavedStateHandle
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
+import com.mitenko.hiitcounter.testutil.FakeVoiceAvailability
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
 import com.mitenko.hiitcounter.testutil.testEntry
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
@@ -23,7 +24,7 @@ class CuesSettingsViewModelTest {
     @Test
     fun `toggles persist immediately for this entry`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1), testEntry(2)))
-        val vm = CuesSettingsViewModel(handle, repo)
+        val vm = CuesSettingsViewModel(handle, repo, FakeVoiceAvailability())
         vm.setSound(false)
         assertEquals(CueConfig(sound = false, vibration = true), repo.find(1).cues)
         vm.setVibration(false)
@@ -34,7 +35,7 @@ class CuesSettingsViewModelTest {
     @Test
     fun `back-to-back toggles both persist`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1)))
-        val vm = CuesSettingsViewModel(handle, repo)
+        val vm = CuesSettingsViewModel(handle, repo, FakeVoiceAvailability())
         vm.setSound(false)
         vm.setVibration(false)
         runCurrent()
@@ -44,10 +45,21 @@ class CuesSettingsViewModelTest {
     @Test
     fun `a toggle on a deleted entry reports missing instead of crashing`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1)))
-        val vm = CuesSettingsViewModel(handle, repo)
+        val vm = CuesSettingsViewModel(handle, repo, FakeVoiceAvailability())
         repo.delete(1)
         vm.setSound(false)
         runCurrent()
         assertTrue(vm.missing.value)
+    }
+
+    @Test
+    fun `the voice switch persists at once and the device check is exposed`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val voice = FakeVoiceAvailability(available = false)
+        val vm = CuesSettingsViewModel(handle, repo, voice)
+        assertEquals(false, vm.voiceAvailable.value)
+        assertEquals(1, voice.checks)
+        vm.setVoice(true)
+        assertEquals(CueConfig(voice = true), repo.find(1).cues)
     }
 }

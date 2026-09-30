@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mitenko.hiitcounter.data.EntryRepository
 import com.mitenko.hiitcounter.domain.Clock
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,8 +18,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** [reps] is the entry's current total, i.e. the next workout's total. */
-data class EntryRow(val id: Long, val name: String, val reps: Int, val checkedInToday: Boolean)
+/**
+ * [reps] is the entry's current total, i.e. the next workout's total. [streak] is the current
+ * check-in streak, which a check-in-only row shows instead (spec R4 §4.3).
+ */
+data class EntryRow(
+    val id: Long,
+    val name: String,
+    val reps: Int,
+    val checkedInToday: Boolean,
+    val type: EntryType = EntryType.WORKOUT,
+    val streak: Int = 0,
+)
 
 sealed interface EntryListUiState {
     data object Loading : EntryListUiState
@@ -48,6 +59,8 @@ class EntryListViewModel @Inject constructor(
                         name = e.name,
                         reps = e.counter.total,
                         checkedInToday = e.counter.lastCheckIn?.atZone(zone)?.toLocalDate() == today,
+                        type = e.type,
+                        streak = e.counter.currentStreak,
                     )
                 },
             )
@@ -74,11 +87,14 @@ class EntryListViewModel @Inject constructor(
 
     fun moveDown(id: Long) = move(id, +1)
 
-    /** Creates with defaults and reports the new id for navigation (spec §7.3). The name dialog already blocks invalid names. */
-    fun create(name: String, onCreated: (Long) -> Unit) {
+    /**
+     * Creates with defaults and the chosen [type] (spec R4 §4.4) and reports the new id for
+     * navigation (spec §7.3). The name dialog already blocks invalid names.
+     */
+    fun create(name: String, type: EntryType = EntryType.WORKOUT, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
             val id = try {
-                repo.create(name)
+                repo.create(name, type)
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "Create rejected: ${e.message}")
                 return@launch

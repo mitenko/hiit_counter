@@ -22,8 +22,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.hiitcounter.R
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeClock
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
+import com.mitenko.hiitcounter.testutil.FakeVoiceAvailability
 import com.mitenko.hiitcounter.testutil.testEntry
 import com.mitenko.hiitcounter.ui.common.ENTRY_ID_ARG
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
@@ -45,13 +47,15 @@ class SettingsPagerTest {
 
     private fun handle() = SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L))
 
+    private fun checkInRepo() = FakeEntryRepository(listOf(testEntry(1, name = "Stretch", type = EntryType.CHECK_IN)))
+
     private fun show(initial: SettingsPage = SettingsPage.TIMING, repo: FakeEntryRepository = this.repo) {
         val appScope = MainScope()
         val pagerVm = SettingsPagerViewModel(handle(), repo)
         val timingVm = TimingSettingsViewModel(handle(), repo, appScope)
         val progressionVm = ProgressionSettingsViewModel(handle(), repo, appScope)
         val currentVm = CurrentStateViewModel(handle(), repo, FakeClock(), appScope)
-        val cuesVm = CuesSettingsViewModel(handle(), repo)
+        val cuesVm = CuesSettingsViewModel(handle(), repo, FakeVoiceAvailability())
         compose.setContent {
             HiitTheme {
                 SettingsPagerRoute(
@@ -98,6 +102,7 @@ class SettingsPagerTest {
         SettingsPage.CUES to listOf(
             InfoRow(R.string.sound, R.string.info_sound),
             InfoRow(R.string.vibration, R.string.info_vibration),
+            InfoRow(R.string.voice, R.string.info_voice),
         ),
     )
 
@@ -211,5 +216,26 @@ class SettingsPagerTest {
         show(repo = FakeEntryRepository())
         compose.waitForIdle()
         assertEquals(1, gone)
+    }
+
+    @Test
+    fun `a check-in-only entry shows only the Progression and Current tabs`() {
+        show(initial = SettingsPage.CURRENT, repo = checkInRepo())
+        tab(SettingsPage.TIMING).assertDoesNotExist()
+        tab(SettingsPage.CUES).assertDoesNotExist()
+        tab(SettingsPage.CURRENT).assertIsSelected()
+        compose.onNodeWithTag("value_Best streak").assertIsDisplayed()
+        compose.onNodeWithTag("value_Current total").assertDoesNotExist()
+        tab(SettingsPage.PROGRESSION).performClick()
+        tab(SettingsPage.PROGRESSION).assertIsSelected()
+        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
+        compose.onNodeWithTag("value_Starting total").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a hidden page argument opens the first visible tab`() {
+        show(initial = SettingsPage.TIMING, repo = checkInRepo())
+        tab(SettingsPage.PROGRESSION).assertIsSelected()
+        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
     }
 }

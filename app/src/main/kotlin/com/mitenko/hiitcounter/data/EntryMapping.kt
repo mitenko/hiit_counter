@@ -8,6 +8,7 @@ import com.mitenko.hiitcounter.domain.SettingsValidator
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import java.time.Instant
@@ -80,6 +81,11 @@ internal fun EntryEntity.counter(startingTotal: Int): CounterState = CounterStat
     holdCount = checked(id, "hold_count", holdCount, 0) { it >= 0 },
 )
 
+/** Read repair (spec R4 §3.2): an unknown type string is logged and reads as a Workout. */
+internal fun EntryEntity.entryType(): EntryType =
+    EntryType.entries.firstOrNull { it.name == type }
+        ?: EntryType.WORKOUT.also { Log.w(TAG, "Entry $id: unknown type=$type; reading as WORKOUT") }
+
 /** Spec §5.1 invariant: a NULL total is resolved to the (repaired) starting total, so the UI never sees null. */
 internal fun EntryEntity.toDomain(): Entry {
     val progression = progression()
@@ -89,8 +95,9 @@ internal fun EntryEntity.toDomain(): Entry {
         position = position,
         timing = timing(),
         progression = progression,
-        cues = CueConfig(cueSound, cueVibration),
+        cues = CueConfig(cueSound, cueVibration, cueVoice),
         counter = counter(progression.startingTotal),
+        type = entryType(),
     )
 }
 
@@ -111,9 +118,11 @@ internal fun entryEntity(
     progression: ProgressionConfig = ProgressionConfig(),
     cues: CueConfig = CueConfig(),
     counter: StoredCounter = StoredCounter(),
+    type: EntryType = EntryType.WORKOUT,
 ): EntryEntity = EntryEntity(
     name = name,
     position = position,
+    type = type.name,
     prepareSec = timing.prepareSec,
     sets = timing.sets,
     workSec = timing.workSec,
@@ -129,6 +138,7 @@ internal fun entryEntity(
     penaltyHoursPerRep = progression.penaltyHoursPerRep,
     cueSound = cues.sound,
     cueVibration = cues.vibration,
+    cueVoice = cues.voice,
     total = counter.total,
     bestStreak = counter.bestStreak,
     currentStreak = counter.currentStreak,

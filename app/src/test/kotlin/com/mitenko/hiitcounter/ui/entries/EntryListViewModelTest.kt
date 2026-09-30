@@ -1,6 +1,7 @@
 package com.mitenko.hiitcounter.ui.entries
 
 import com.mitenko.hiitcounter.domain.model.CounterState
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeClock
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
@@ -119,5 +120,31 @@ class EntryListViewModelTest {
         runCurrent()
         assertNull(created)
         assertTrue(repo.state.value.isEmpty())
+    }
+
+    @Test
+    fun `a check-in-only row carries its type and current streak`() = runTest {
+        val repo = FakeEntryRepository(
+            listOf(
+                testEntry(
+                    1, "Stretch", type = EntryType.CHECK_IN,
+                    counter = CounterState(total = 48, currentStreak = 5, lastCheckIn = checkedInThisMorning),
+                ),
+            ),
+        )
+        assertEquals(
+            EntryListUiState.Items(listOf(EntryRow(1, "Stretch", 48, true, type = EntryType.CHECK_IN, streak = 5))),
+            vm(repo).uiState.value,
+        )
+    }
+
+    @Test
+    fun `create passes the chosen type`() = runTest {
+        val repo = FakeEntryRepository()
+        val vm = vm(repo)
+        vm.create("Stretch", EntryType.CHECK_IN) {}
+        vm.create("Burpees") {}
+        runCurrent()
+        assertEquals(listOf(EntryType.CHECK_IN, EntryType.WORKOUT), repo.state.value.map { it.type })
     }
 }

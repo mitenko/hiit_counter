@@ -15,6 +15,7 @@ import com.mitenko.hiitcounter.domain.holdResetNeeded
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.domain.model.ProgressionConfig
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import kotlinx.coroutines.flow.Flow
@@ -36,8 +37,8 @@ interface EntryRepository {
     /** Emits null once loaded if the entry does not exist. */
     fun entry(id: Long): Flow<Entry?>
 
-    /** A new entry with default settings, appended at the end. */
-    suspend fun create(name: String): Long
+    /** A new entry with default settings, appended at the end. `create(name)` makes a Workout (spec R4 §4.4). */
+    suspend fun create(name: String, type: EntryType = EntryType.WORKOUT): Long
 
     suspend fun rename(id: Long, name: String)
 
@@ -57,7 +58,13 @@ interface EntryRepository {
 
     suspend fun setCues(id: Long, cues: CueConfig)
 
-    /** One transaction using the row's own progression: concurrent calls on one entry record exactly one check-in. */
+    /** Spec R4 §3.3: one UPDATE of the type; counter, timing, progression and cues are untouched. */
+    suspend fun setType(id: Long, type: EntryType)
+
+    /**
+     * One transaction using the row's own progression and type: concurrent calls on one entry record
+     * exactly one check-in. A check-in-only entry keeps its total and hold count (spec R4 §3.1).
+     */
     suspend fun checkIn(id: Long, clock: Clock): CheckInResult
 
     /** One transaction: holdCount is reset only if the total changed; a stored NULL counts as the starting total (R3 §6.3). */
@@ -95,10 +102,10 @@ class RoomEntryRepository(
         emitAll(dao.observe(id))
     }.map { it?.toDomain() }
 
-    override suspend fun create(name: String): Long {
+    override suspend fun create(name: String, type: EntryType): Long {
         val valid = requireName(name)
         gate.awaitReady()
-        return db.withTransaction { dao.insert(entryEntity(valid, position = dao.count())) }
+        return db.withTransaction { dao.insert(entryEntity(valid, position = dao.count(), type = type)) }
     }
 
     override suspend fun rename(id: Long, name: String) {
@@ -118,6 +125,7 @@ class RoomEntryRepository(
                     timing = source.timing,
                     progression = source.progression,
                     cues = source.cues,
+                    type = source.type,
                 ),
             )
         }
@@ -173,22 +181,31 @@ class RoomEntryRepository(
 
     override suspend fun setCues(id: Long, cues: CueConfig) {
         gate.awaitReady()
-        found(id, dao.setCues(id, cues.sound, cues.vibration))
+        found(id, dao.setCues(id, cues.sound, cues.vibration, cues.voice))
+    }
+
+    override suspend fun setType(id: Long, type: EntryType) {
+        gate.awaitReady()
+        found(id, dao.setType(id, type.name))
     }
 
     override suspend fun checkIn(id: Long, clock: Clock): CheckInResult {
         gate.awaitReady()
         return db.withTransaction {
-            // The row's progression is the single source of truth (spec §5.3).
-            val entry = dao.get(id)?.toDomain() ?: throw EntryNotFound(id)
+            // The row's progression and type are the single source of truth (spec §5.3, R4 §3.3).
+            val row = dao.get(id) ?: throw EntryNotFound(id)
+            val entry = row.toDomain()
             val now = clock.now()
             entry.counter.lastCheckIn?.let { last ->
                 if (now.isBefore(last)) Log.w(TAG, "Clock moved backwards: now=$now last=$last")
             }
-            val result = RepProgression.checkIn(entry.counter, entry.progression, now, clock.zone())
+            val countsReps = entry.type == EntryType.WORKOUT
+            val result = RepProgression.checkIn(entry.counter, entry.progression, now, clock.zone(), countsReps)
             if (result.outcome != Outcome.AlreadyToday) {
                 val s = result.state
-                dao.setCounter(id, s.total, s.bestStreak, s.currentStreak, s.holdCount, s.lastCheckIn?.toEpochMilli())
+                // A check-in-only entry never touches its total column, so a NULL total stays NULL (plan Spec note 6).
+                val total = if (countsReps) s.total else row.total
+                dao.setCounter(id, total, s.bestStreak, s.currentStreak, s.holdCount, s.lastCheckIn?.toEpochMilli())
             }
             result
         }

@@ -68,8 +68,12 @@ interface EntryDao {
         resetHoldCount: Boolean,
     ): Int
 
-    @Query("UPDATE entry SET cue_sound = :sound, cue_vibration = :vibration WHERE id = :id")
-    suspend fun setCues(id: Long, sound: Boolean, vibration: Boolean): Int
+    @Query("UPDATE entry SET cue_sound = :sound, cue_vibration = :vibration, cue_voice = :voice WHERE id = :id")
+    suspend fun setCues(id: Long, sound: Boolean, vibration: Boolean, voice: Boolean): Int
+
+    /** Spec R4 §3.3: the type alone. Every other column is kept, so switching back restores everything. */
+    @Query("UPDATE entry SET type = :type WHERE id = :id")
+    suspend fun setType(id: Long, type: String): Int
 
     /** Writes the whole counter group in one UPDATE. */
     @Query(

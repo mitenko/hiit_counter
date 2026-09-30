@@ -10,9 +10,12 @@ import android.util.Log
 import androidx.core.app.ServiceCompat
 import com.mitenko.hiitcounter.domain.RunStatus
 import com.mitenko.hiitcounter.domain.TimerController
+import com.mitenko.hiitcounter.domain.VoicePolicy
 import com.mitenko.hiitcounter.domain.WakeLockPolicy
 import com.mitenko.hiitcounter.domain.model.Phase
 import com.mitenko.hiitcounter.domain.model.TimerState
+import com.mitenko.hiitcounter.platform.AndroidCueSpeaker
+import com.mitenko.hiitcounter.platform.CueSpeaker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +39,9 @@ class TimerService : Service() {
     private lateinit var notifications: WorkoutNotifications
     private var wakeLock: PowerManager.WakeLock? = null
     private var started = false
+
+    /** The run's voice (spec R4 §5): created for a voice run, shut down when it ends or the service stops. */
+    private var speaker: CueSpeaker? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -112,6 +118,8 @@ class TimerService : Service() {
         scope.launch {
             // collectLatest: a new PREPARING/RUNNING status cancels a pending DONE-grace stop.
             controller.status.collectLatest { status ->
+                // Spec R4 §5: before any delay below, so DONE and IDLE shut the speaker down at once.
+                syncSpeaker(VoicePolicy.speakerWanted(status, controller.snapshot))
                 if (status == RunStatus.IDLE || status == RunStatus.DONE) {
                     // DONE: wait out the grace period (so the Finished triple tone can still play
                     // with the screen off) before releasing the wake lock; IDLE releases at once.
@@ -156,6 +164,25 @@ class TimerService : Service() {
         wakeLock = null
     }
 
+    /**
+     * Creates the speaker for a voice run (the snapshot is set before PREPARING is emitted, so it is
+     * frozen here) and shuts it down otherwise. Initialisation is asynchronous; until it succeeds
+     * the speaker reports unavailable and CuePlayer says nothing.
+     */
+    private fun syncSpeaker(wanted: Boolean) {
+        if (wanted && speaker == null) {
+            speaker = AndroidCueSpeaker(this).also { cuePlayer.speaker = it }
+        } else if (!wanted) {
+            shutdownSpeaker()
+        }
+    }
+
+    private fun shutdownSpeaker() {
+        cuePlayer.speaker = null
+        speaker?.shutdown()
+        speaker = null
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Keep running when the app is swiped away; the notification is the way back in.
         super.onTaskRemoved(rootIntent)
@@ -163,6 +190,7 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         releaseWakeLock()
+        shutdownSpeaker()
         cuePlayer.release()
         scope.cancel()
         super.onDestroy()

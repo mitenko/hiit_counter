@@ -102,4 +102,16 @@
     <string name="info_last_check_in">When you last pressed Start. The window and penalty are measured from this. Clear it to make the next check-in count as your first.</string>
     <string name="info_sound">Beeps for the countdown and at each phase change.</string>
     <string name="info_vibration">Vibrates at each phase change, including with the screen off.</string>
+
+    <!-- Check-in-only entries, Check in / Start and the Voice cue (spec R4 §6, verbatim) -->
+    <string name="check_in">Check in</string>
+    <string name="checked_in">Checked in ✓</string>
+    <string name="type">Type</string>
+    <string name="type_workout">Workout</string>
+    <string name="type_check_in">Check-in only</string>
+    <string name="streak_n">Streak %1$d</string>
+    <string name="voice">Voice</string>
+    <string name="voice_unavailable">Voice not available on this device</string>
+    <string name="info_type">Workout entries run a timer and count reps. Check-in only entries just record that you did it, with streaks. Switching keeps all your values.</string>
+    <string name="info_voice">Says the number of reps as each work set starts.</string>
 </resources>

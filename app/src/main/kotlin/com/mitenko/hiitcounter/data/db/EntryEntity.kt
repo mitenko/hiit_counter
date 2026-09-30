@@ -15,6 +15,11 @@ data class EntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val position: Int,
+    /**
+     * WORKOUT or CHECK_IN (spec R4 §3.2), added in schema v3 as TEXT NOT NULL DEFAULT 'WORKOUT'.
+     * A plain string: EntryMapping reads an unknown value as WORKOUT (plan Spec note 5).
+     */
+    @ColumnInfo(defaultValue = "WORKOUT") val type: String = "WORKOUT",
     @ColumnInfo(name = "prepare_sec") val prepareSec: Int,
     val sets: Int,
     @ColumnInfo(name = "work_sec") val workSec: Int,
@@ -31,6 +36,8 @@ data class EntryEntity(
     @ColumnInfo(name = "penalty_hours_per_rep") val penaltyHoursPerRep: Double,
     @ColumnInfo(name = "cue_sound") val cueSound: Boolean,
     @ColumnInfo(name = "cue_vibration") val cueVibration: Boolean,
+    /** The Voice cue (spec R4 §3.2), added in schema v3 as INTEGER NOT NULL DEFAULT 0. */
+    @ColumnInfo(name = "cue_voice", defaultValue = "0") val cueVoice: Boolean = false,
     val total: Int?,
     @ColumnInfo(name = "best_streak") val bestStreak: Int,
     @ColumnInfo(name = "current_streak") val currentStreak: Int,

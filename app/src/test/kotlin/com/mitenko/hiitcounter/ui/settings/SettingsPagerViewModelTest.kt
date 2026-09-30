@@ -1,6 +1,7 @@
 package com.mitenko.hiitcounter.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
 import com.mitenko.hiitcounter.testutil.testEntry
@@ -35,5 +36,14 @@ class SettingsPagerViewModelTest {
         runCurrent()
         assertTrue(vm.missing.value)
         assertNull(vm.name.value)
+    }
+
+    @Test
+    fun `exposes the entry type and follows a change`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, name = "Burpees")))
+        val vm = SettingsPagerViewModel(handle, repo)
+        assertEquals(EntryType.WORKOUT, vm.type.value)
+        repo.setType(1, EntryType.CHECK_IN)
+        assertEquals(EntryType.CHECK_IN, vm.type.value)
     }
 }

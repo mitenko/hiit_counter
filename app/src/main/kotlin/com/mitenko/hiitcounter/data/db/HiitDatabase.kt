@@ -6,11 +6,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2). Schemas are exported
- * to app/schemas and committed. Every migration is registered in the builder (StorageModule), and
- * there is no destructive fallback.
+ * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2), version 3 adds
+ * `entry.type` and `entry.cue_voice` (R4 §3.2). Schemas are exported to app/schemas and committed.
+ * Every migration is registered in the builder (StorageModule), and there is no destructive fallback.
  */
-@Database(entities = [EntryEntity::class, MetaEntity::class], version = 2, exportSchema = true)
+@Database(entities = [EntryEntity::class, MetaEntity::class], version = 3, exportSchema = true)
 abstract class HiitDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun metaDao(): MetaDao
@@ -34,6 +34,18 @@ abstract class HiitDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+        /** Spec R4 §3.2, verbatim: existing entries become Workouts with the voice off. */
+        internal val MIGRATION_2_3_SQL = listOf(
+            "ALTER TABLE entry ADD COLUMN type TEXT NOT NULL DEFAULT 'WORKOUT'",
+            "ALTER TABLE entry ADD COLUMN cue_voice INTEGER NOT NULL DEFAULT 0",
+        )
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_3_SQL.forEach { db.execSQL(it) }
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }
