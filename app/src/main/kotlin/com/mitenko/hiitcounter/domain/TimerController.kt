@@ -25,6 +25,8 @@ data class WorkoutSnapshot(
     val entryName: String,
     val timing: TimingConfig,
     val cues: CueConfig,
+    /** False for a Timer only entry (spec revision 8): no reps are counted or shown; the centre and voice use the set number. */
+    val countsReps: Boolean = true,
 )
 
 enum class RunStatus { IDLE, PREPARING, RUNNING, DONE }
@@ -169,13 +171,15 @@ class TimerController(
     }
 
     /**
-     * Spec R4 §5: a WORK start carries that set's entry of [repsPerSet]. The engine publishes the
-     * set's first state just before its PhaseStart, so [state] already names the starting set.
+     * Spec R4 §5, amended by spec revision 8: a WORK start carries that set's entry of
+     * [repsPerSet], or the set number itself when the run's snapshot has `countsReps = false`
+     * (Timer only). The engine publishes the set's first state just before its PhaseStart, so
+     * [state] already names the starting set.
      */
     private fun withReps(cue: Cue, repsPerSet: List<Int>): Cue {
         if (cue !is Cue.PhaseStart || cue.phase != Phase.WORK) return cue
         val set = _state.value?.set ?: return cue
-        return cue.copy(reps = repsPerSet.getOrNull(set - 1))
+        return cue.copy(reps = if (snapshot?.countsReps == false) set else repsPerSet.getOrNull(set - 1))
     }
 
     /** Clears the run but deliberately not [lastEntryId]. */

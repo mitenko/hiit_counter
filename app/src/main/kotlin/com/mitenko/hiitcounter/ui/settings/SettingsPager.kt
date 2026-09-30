@@ -67,7 +67,8 @@ internal fun SettingsPage.tabIndex(pages: List<SettingsPage>): Int = pages.index
  * HorizontalPager. Each page keeps its own ViewModel, keyed on this back-stack entry, so each has
  * its own saved-state draft and AutoSaver (see the R3 plan's layout decision). This route only hosts
  * them. It flushes the three auto-saving pages on every page change and on every exit: back, ←,
- * ON_STOP and an onEntryGone pop (§6.2). A check-in-only entry shows only Progression · Current (R4 §4.6).
+ * ON_STOP and an onEntryGone pop (§6.2). Every entry shows all four tabs (spec revision 8); a
+ * Timer only entry's Progression stays window-only and Current stays total-less (R4 §4.6).
  */
 @Composable
 fun SettingsPagerRoute(

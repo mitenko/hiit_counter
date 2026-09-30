@@ -10,7 +10,6 @@ import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.data.EntryRepository
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
-import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.platform.VoiceAvailability
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
 import com.mitenko.hiitcounter.ui.common.SettingsPageLayout
@@ -46,11 +45,8 @@ class CuesSettingsViewModel @Inject constructor(
     private val mutex = Mutex()
 
     init {
-        viewModelScope.launch {
-            // A check-in-only entry has no Cues tab (R4 §4.6), so skip the throwaway engine; voiceAvailable stays null.
-            if (repo.entry(entryId).first()?.type == EntryType.CHECK_IN) return@launch
-            _voiceAvailable.value = voice.check()
-        }
+        // Spec revision 8: every entry has a Cues tab, so the throwaway engine check always runs.
+        viewModelScope.launch { _voiceAvailable.value = voice.check() }
     }
 
     fun setSound(on: Boolean) = edit { it.copy(sound = on) }

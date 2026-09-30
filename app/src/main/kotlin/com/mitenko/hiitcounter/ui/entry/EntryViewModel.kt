@@ -32,7 +32,7 @@ import javax.inject.Inject
 
 data class EntryUiState(
     val name: String = "",
-    /** Spec R4 §4.1–4.2: a Workout shows the rep table and both buttons; a check-in-only entry shows the streak rows and Check in. */
+    /** Spec R4 §4.1–4.2, amended by spec revision 8: a Workout shows the rep table; a Timer only entry shows the streak rows. Both show Check in and Start. */
     val type: EntryType = EntryType.WORKOUT,
     val reps: List<Int> = emptyList(),
     val total: Int = 0,
@@ -142,10 +142,9 @@ class EntryViewModel @Inject constructor(
 
     private suspend fun startWorkout() {
         val entry = repo.entry(entryId).first() ?: throw EntryNotFound(entryId)
-        // A check-in-only entry has no Start (spec R4 §4.1); guard it here too in case it's ever called anyway.
-        if (entry.type != EntryType.WORKOUT) return
-        // Frozen at Start (spec §7.1): the run never reads the entry again.
-        if (!controller.prepare(WorkoutSnapshot(entry.id, entry.name, entry.timing, entry.cues))) {
+        // Frozen at Start (spec §7.1): the run never reads the entry again. A Timer only entry
+        // (spec revision 8) runs the same flow with countsReps = false: no reps are counted or shown.
+        if (!controller.prepare(WorkoutSnapshot(entry.id, entry.name, entry.timing, entry.cues, countsReps = entry.type == EntryType.WORKOUT))) {
             transient.update { it.copy(error = "A workout is already starting") }
             return
         }

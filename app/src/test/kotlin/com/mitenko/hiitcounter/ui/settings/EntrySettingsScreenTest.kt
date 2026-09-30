@@ -139,11 +139,11 @@ class EntrySettingsScreenTest {
     }
 
     @Test
-    fun `a check-in-only entry hides the Timing and Cues rows`() {
+    fun `a Timer only entry shows the Timing and Cues rows again`() {
         show(EntrySettingsUiState(name = "Stretch", type = EntryType.CHECK_IN))
-        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Check-in only")
-        compose.onNodeWithTag("page_TIMING").assertDoesNotExist()
-        compose.onNodeWithTag("page_CUES").assertDoesNotExist()
+        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Timer only")
+        compose.onNodeWithTag("page_TIMING").assertExists()
+        compose.onNodeWithTag("page_CUES").assertExists()
         compose.onNodeWithTag("page_PROGRESSION").assertExists()
         compose.onNodeWithTag("page_CURRENT").assertExists()
     }

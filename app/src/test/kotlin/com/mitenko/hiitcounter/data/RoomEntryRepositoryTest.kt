@@ -515,7 +515,7 @@ class RoomEntryRepositoryTest {
     }
 
     @Test
-    fun `a check-in-only check-in moves the day and streaks and never touches the total`() = runTest {
+    fun `a Timer only check-in moves the day and streaks and never touches the total`() = runTest {
         val r = repo()
         val a = r.create("Stretch", EntryType.CHECK_IN)
         db.entryDao().setCounter(a, total = null, bestStreak = 0, currentStreak = 0, holdCount = 2, lastCheckIn = null)

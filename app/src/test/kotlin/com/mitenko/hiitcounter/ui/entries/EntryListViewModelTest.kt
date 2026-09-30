@@ -138,7 +138,7 @@ class EntryListViewModelTest {
     }
 
     @Test
-    fun `a check-in-only row carries its type and current streak`() = runTest {
+    fun `a Timer only row carries its type and current streak`() = runTest {
         val repo = FakeEntryRepository(
             listOf(
                 testEntry(

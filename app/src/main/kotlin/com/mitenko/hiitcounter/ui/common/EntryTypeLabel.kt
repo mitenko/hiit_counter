@@ -4,7 +4,7 @@ import androidx.annotation.StringRes
 import com.mitenko.hiitcounter.R
 import com.mitenko.hiitcounter.domain.model.EntryType
 
-/** An entry type's user-facing name (spec R4 §6): "Workout" or "Check-in only". */
+/** An entry type's user-facing name (spec R4 §6, amended by spec revision 8): "Workout" or "Timer only". */
 @get:StringRes
 val EntryType.label: Int
     get() = when (this) {

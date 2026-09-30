@@ -204,7 +204,7 @@ class CurrentStateViewModel @Inject constructor(
 }
 
 /**
- * The Current page inside the pager (spec R3 §4). Without [showTotal] (a check-in-only entry,
+ * The Current page inside the pager (spec R3 §4). Without [showTotal] (a Timer only entry,
  * R4 §4.6) the total row is hidden; the draft keeps the stored total, so saves write it back
  * unchanged and the hold count is kept (plan Spec note 8).
  */

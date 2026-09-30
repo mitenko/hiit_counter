@@ -231,21 +231,30 @@ class EntryViewModelTest {
     }
 
     @Test
-    fun `onStart does nothing for a check-in-only entry`() = runTest {
+    fun `Start on a Timer only entry runs the timer with countsReps false and checks in streak-only`() = runTest {
         val habit = FakeEntryRepository(
-            listOf(testEntry(1, "Stretch", type = EntryType.CHECK_IN)),
+            listOf(
+                testEntry(
+                    1, "Stretch", type = EntryType.CHECK_IN,
+                    counter = CounterState(total = 65, bestStreak = 24, currentStreak = 4, lastCheckIn = Instant.parse("2026-09-23T12:55:00Z")),
+                ),
+            ),
         )
         val h = harness(repository = habit)
         runCurrent()
         h.vm.onStart()
         runCurrent()
-        assertEquals(0, h.starter.calls)
-        assertNull(h.controller.snapshot)
-        assertEquals(RunStatus.IDLE, h.controller.status.value)
+        assertEquals(1, h.starter.calls)
+        assertEquals(1, habit.checkInCalls)
+        assertEquals(RunStatus.RUNNING, h.controller.status.value)
+        assertEquals(WorkoutSnapshot(1L, "Stretch", TimingConfig(), CueConfig(), countsReps = false), h.controller.snapshot)
+        // Streak-only: the total never moves for a Timer only check-in.
+        assertEquals(65, habit.find(1).counter.total)
+        assertEquals(5, habit.find(1).counter.currentStreak)
     }
 
     @Test
-    fun `a check-in-only entry checks in without changing its total`() = runTest {
+    fun `a Timer only entry checks in without changing its total`() = runTest {
         val habit = FakeEntryRepository(
             listOf(
                 testEntry(
