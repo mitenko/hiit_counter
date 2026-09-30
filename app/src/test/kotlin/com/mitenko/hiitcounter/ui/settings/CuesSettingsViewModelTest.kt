@@ -2,6 +2,7 @@ package com.mitenko.hiitcounter.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
 import com.mitenko.hiitcounter.domain.model.CueConfig
+import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.FakeVoiceAvailability
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
@@ -61,5 +62,14 @@ class CuesSettingsViewModelTest {
         assertEquals(1, voice.checks)
         vm.setVoice(true)
         assertEquals(CueConfig(voice = true), repo.find(1).cues)
+    }
+
+    @Test
+    fun `the voice availability check also runs for a Timer only entry`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, type = EntryType.CHECK_IN)))
+        val voice = FakeVoiceAvailability(available = true)
+        val vm = CuesSettingsViewModel(handle, repo, voice)
+        assertEquals(true, vm.voiceAvailable.value)
+        assertEquals(1, voice.checks)
     }
 }

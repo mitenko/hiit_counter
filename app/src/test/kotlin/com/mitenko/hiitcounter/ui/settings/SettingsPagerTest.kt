@@ -219,10 +219,10 @@ class SettingsPagerTest {
     }
 
     @Test
-    fun `a check-in-only entry shows only the Progression and Current tabs`() {
+    fun `a Timer only entry shows all four tabs, with Progression window-only and Current total-less`() {
         show(initial = SettingsPage.CURRENT, repo = checkInRepo())
-        tab(SettingsPage.TIMING).assertDoesNotExist()
-        tab(SettingsPage.CUES).assertDoesNotExist()
+        tab(SettingsPage.TIMING).assertIsDisplayed()
+        tab(SettingsPage.CUES).assertIsDisplayed()
         tab(SettingsPage.CURRENT).assertIsSelected()
         compose.onNodeWithTag("value_Best streak").assertIsDisplayed()
         compose.onNodeWithTag("value_Current total").assertDoesNotExist()
@@ -233,9 +233,9 @@ class SettingsPagerTest {
     }
 
     @Test
-    fun `a hidden page argument opens the first visible tab`() {
+    fun `a Timer only entry opens directly on the Timing tab too`() {
         show(initial = SettingsPage.TIMING, repo = checkInRepo())
-        tab(SettingsPage.PROGRESSION).assertIsSelected()
-        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
+        tab(SettingsPage.TIMING).assertIsSelected()
+        compose.onNodeWithTag("value_SETS").assertIsDisplayed()
     }
 }

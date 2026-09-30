@@ -122,7 +122,7 @@ class EntrySettingsScreenTest {
     fun `the type row opens a radio dialog and only OK with a new type saves it`() {
         val chosen = mutableListOf<EntryType>()
         show(onSetType = { chosen += it })
-        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Workout")
+        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Counter")
         compose.onNodeWithContentDescription("About Type").assertExists()
         compose.onNodeWithTag("type").performClick()
         compose.onNodeWithTag("type_option_CHECK_IN").performClick()
@@ -139,11 +139,11 @@ class EntrySettingsScreenTest {
     }
 
     @Test
-    fun `a check-in-only entry hides the Timing and Cues rows`() {
+    fun `a Timer only entry shows the Timing and Cues rows again`() {
         show(EntrySettingsUiState(name = "Stretch", type = EntryType.CHECK_IN))
-        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Check-in only")
-        compose.onNodeWithTag("page_TIMING").assertDoesNotExist()
-        compose.onNodeWithTag("page_CUES").assertDoesNotExist()
+        compose.onNodeWithTag("type_value", useUnmergedTree = true).assertTextEquals("Timer Only")
+        compose.onNodeWithTag("page_TIMING").assertExists()
+        compose.onNodeWithTag("page_CUES").assertExists()
         compose.onNodeWithTag("page_PROGRESSION").assertExists()
         compose.onNodeWithTag("page_CURRENT").assertExists()
     }

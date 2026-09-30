@@ -65,4 +65,30 @@ class TimerUiMapperTest {
             assertEquals("Kettlebell Lunges", TimerUiMapper.map(state(phase, set = 1, left = 5, duration = 10), "Kettlebell Lunges").entryName)
         }
     }
+
+    @Test
+    fun `a Timer only run shows the set number instead of reps, on work and between sets`() {
+        val work = TimerUiMapper.map(state(Phase.WORK, set = 3, left = 15, duration = 20), "Stretch", countsReps = false)
+        assertEquals(3, work.centerNumber)
+        assertFalse(work.centerDimmed)
+        assertEquals("Work, set 3 of 8", work.description)
+
+        val rest = TimerUiMapper.map(state(Phase.REST, set = 4, left = 10, duration = 10), "Stretch", countsReps = false)
+        assertEquals(4, rest.centerNumber)
+        assertTrue(rest.centerDimmed)
+        assertEquals("Rest, next set 4 of 8", rest.description)
+
+        val prepare = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10), "Stretch", countsReps = false)
+        assertEquals(1, prepare.centerNumber)
+        assertEquals("Get ready, set 1 of 8", prepare.description)
+    }
+
+    @Test
+    fun `a Timer only run shows no rep value on DONE`() {
+        val done = TimerUiMapper.map(state(Phase.DONE, set = 8, left = 0, duration = 0), "Stretch", countsReps = false)
+        assertEquals("DONE", done.label)
+        assertNull(done.centerNumber)
+        assertTrue(done.done)
+        assertEquals("Done", done.description)
+    }
 }

@@ -109,7 +109,7 @@ class EntryScreenTest {
     }
 
     @Test
-    fun `a check-in-only entry shows the streak rows and one Check in`() {
+    fun `a Timer only entry shows the streak rows and both Check in and Start`() {
         show(state.copy(type = EntryType.CHECK_IN, checkedInToday = false))
         compose.onNodeWithTag("rep_0").assertDoesNotExist()
         compose.onNodeWithText("Total Reps").assertDoesNotExist()
@@ -117,8 +117,8 @@ class EntryScreenTest {
         compose.onNodeWithText("Best CI Streak").assertExists()
         compose.onNodeWithText("Curr CI Streak").assertExists()
         compose.onNodeWithText("Today").assertExists()
-        compose.onNodeWithTag("start").assertDoesNotExist()
         compose.onNodeWithTag("check_in").assertIsEnabled()
+        compose.onNodeWithTag("start").performScrollTo().assertIsEnabled()
     }
 
     @Test

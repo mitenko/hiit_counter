@@ -67,11 +67,8 @@ enum class SettingsPage(@StringRes val label: Int, @StringRes val tab: Int) {
     CUES(R.string.settings_cues, R.string.settings_cues);
 
     companion object {
-        /** Spec R4 §4.5–4.6: a check-in-only entry has no timer and no cues, so only Progression and Current remain. */
-        fun visibleFor(type: EntryType): List<SettingsPage> = when (type) {
-            EntryType.WORKOUT -> entries.toList()
-            EntryType.CHECK_IN -> listOf(PROGRESSION, CURRENT)
-        }
+        /** Spec revision 8: every entry, Workout or Timer only, shows all four pages. */
+        fun visibleFor(type: EntryType): List<SettingsPage> = entries.toList()
     }
 }
 
@@ -205,7 +202,7 @@ fun EntrySettingsScreen(
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var choosingType by rememberSaveable { mutableStateOf(false) }
     SettingsScaffold(title = state.name, onBack = onBack) {
-        // Spec R4 §4.5: the Type row sits above the page rows, and a check-in-only entry has no Timing or Cues.
+        // Spec R4 §4.5, amended by spec revision 8: the Type row sits above the page rows; every entry shows all four.
         TypeRow(state.type) { choosingType = true }
         SettingsPage.visibleFor(state.type).forEach { page ->
             ListRow(stringResource(page.label), tag = "page_${page.name}") { onOpen(page) }
@@ -268,7 +265,7 @@ fun EntrySettingsScreen(
     }
 }
 
-/** "Type" over "Workout" or "Check-in only", with its ⓘ as a separate target (spec R4 §4.5, R3 §7.1). */
+/** "Type" over "Workout" or "Timer only", with its ⓘ as a separate target (spec R4 §4.5, R3 §7.1). */
 @Composable
 private fun TypeRow(type: EntryType, onClick: () -> Unit) {
     val title = stringResource(R.string.type)

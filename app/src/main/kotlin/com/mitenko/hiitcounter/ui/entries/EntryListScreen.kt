@@ -279,7 +279,7 @@ private fun EntryRowItem(
         Column(Modifier.weight(1f)) {
             Text(row.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                // Spec R4 §4.3: a Workout reads "Reps N", a check-in-only entry "Streak N".
+                // Spec R4 §4.3: a Workout reads "Reps N", a Timer only entry "Streak N".
                 if (row.type == EntryType.CHECK_IN) stringResource(R.string.streak_n, row.streak) else stringResource(R.string.reps_n, row.reps),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -297,7 +297,7 @@ private fun EntryRowItem(
     }
 }
 
-/** Workout | Check-in only (spec R4 §4.4). Each segment is tagged `type_<TYPE>`. */
+/** Workout | Timer only (spec R4 §4.4). Each segment is tagged `type_<TYPE>`. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EntryTypeChoice(selected: EntryType, onSelect: (EntryType) -> Unit) {
