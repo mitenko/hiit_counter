@@ -10,6 +10,7 @@ As you develop, refine the instructions here.
 - **Multi-entry revision (approved, amends v1):** `docs/superpowers/specs/2026-09-25-multi-entry-design.md` — read both.
 - **Settings pager revision (approved, amends both):** `docs/superpowers/specs/2026-09-28-settings-pager-design.md` — read all three.
 - **Check-in / voice revision (approved, amends all three):** `docs/superpowers/specs/2026-09-29-checkin-voice-design.md` — read all four.
+- **Drag-to-reorder (approved, amends R2 §7.3):** `docs/superpowers/specs/2026-09-29-drag-reorder-design.md` — ≡ handles replace Reorder mode.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

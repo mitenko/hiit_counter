@@ -8,14 +8,15 @@ import com.mitenko.hiitcounter.domain.Clock
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
 import com.mitenko.hiitcounter.domain.model.EntryType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -43,7 +44,6 @@ class EntryListViewModel @Inject constructor(
     private val clock: Clock,
 ) : ViewModel() {
     private val refresh = MutableStateFlow(0)
-    private val _reorderMode = MutableStateFlow(false)
 
     /** Loading until the repository first emits; it waits for the migration, so Empty never races the import (spec §7.3). */
     val uiState: StateFlow<EntryListUiState> = combine(repo.entries, refresh) { entries, _ ->
@@ -67,25 +67,10 @@ class EntryListViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryListUiState.Loading)
 
-    val reorderMode: StateFlow<Boolean> = _reorderMode.asStateFlow()
-
-    init {
-        // Reorder mode ends when the list becomes empty (the toggle disappears with the last row).
-        viewModelScope.launch { repo.entries.collect { if (it.isEmpty()) _reorderMode.value = false } }
-    }
-
     /** Re-evaluates "Checked in today" when the list resumes, e.g. after midnight. */
     fun onResume() {
         refresh.update { it + 1 }
     }
-
-    fun toggleReorder() {
-        _reorderMode.update { !it }
-    }
-
-    fun moveUp(id: Long) = move(id, -1)
-
-    fun moveDown(id: Long) = move(id, +1)
 
     /**
      * Creates with defaults and the chosen [type] (spec R4 §4.4) and reports the new id for
@@ -103,11 +88,17 @@ class EntryListViewModel @Inject constructor(
         }
     }
 
-    /** The repository clamps the target inside its transaction, so rapid taps never act on a stale list. */
-    private fun move(id: Long, delta: Int) {
+    /**
+     * The repository clamps the target inside its transaction, so rapid taps never act on a stale
+     * list. Also persists a drag-and-drop reorder; a delta of 0 (dropped where it started) writes
+     * nothing. Runs in withContext(NonCancellable), matching checkIn/setType: a drop that lands
+     * right as the screen leaves composition still finishes its write.
+     */
+    fun move(id: Long, delta: Int) {
+        if (delta == 0) return
         viewModelScope.launch {
             try {
-                repo.moveBy(id, delta)
+                withContext(NonCancellable) { repo.moveBy(id, delta) }
             } catch (e: EntryNotFound) {
                 Log.w(TAG, "Move of a deleted entry ignored", e)
             }

@@ -1,5 +1,6 @@
 package com.mitenko.hiitcounter.ui.entries
 
+import androidx.lifecycle.viewModelScope
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeClock
@@ -7,6 +8,7 @@ import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
 import com.mitenko.hiitcounter.testutil.testEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -67,36 +69,49 @@ class EntryListViewModelTest {
     }
 
     @Test
-    fun `reorder mode toggles`() = runTest {
-        val vm = vm(FakeEntryRepository())
-        assertFalse(vm.reorderMode.value)
-        vm.toggleReorder()
-        assertTrue(vm.reorderMode.value)
-        vm.toggleReorder()
-        assertFalse(vm.reorderMode.value)
-    }
-
-    @Test
-    fun `reorder mode ends when the list becomes empty`() = runTest {
-        val repo = FakeEntryRepository(listOf(testEntry(1)))
-        val vm = vm(repo)
-        vm.toggleReorder()
-        assertTrue(vm.reorderMode.value)
-        repo.delete(1)
-        runCurrent()
-        assertEquals(EntryListUiState.Empty, vm.uiState.value)
-        assertFalse(vm.reorderMode.value)
-    }
-
-    @Test
-    fun `move up and down call moveBy one step at a time`() = runTest {
+    fun `move calls moveBy once with the given delta`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1), testEntry(2), testEntry(3)))
         val vm = vm(repo)
-        vm.moveUp(2)
-        vm.moveDown(1)
+        vm.move(1, 2)
         runCurrent()
-        assertEquals(listOf(2L to -1, 1L to 1), repo.moves)
+        assertEquals(listOf(1L to 2), repo.moves)
         assertEquals(listOf(2L, 3L, 1L), repo.state.value.map { it.id })
+    }
+
+    @Test
+    fun `move with a delta of 0 writes nothing`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1), testEntry(2)))
+        val vm = vm(repo)
+        vm.move(1, 0)
+        runCurrent()
+        assertTrue(repo.moves.isEmpty())
+        assertEquals(listOf(1L, 2L), repo.state.value.map { it.id })
+    }
+
+    @Test
+    fun `move on a deleted entry does not throw and the state stays consistent`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1), testEntry(2)))
+        val vm = vm(repo)
+        repo.delete(2)
+        runCurrent()
+        vm.move(2, 1)
+        runCurrent()
+        assertEquals(listOf(1L), (vm.uiState.value as EntryListUiState.Items).rows.map { it.id })
+    }
+
+    @Test
+    fun `move survives the viewModelScope being cancelled mid-write`() = runTest {
+        // Not ready: repo.moveBy suspends on readiness.await(), giving a real suspension point to
+        // cancel at, matching the checkIn/setType pattern (spec: a user-confirmed write finishes
+        // even if its scope is cancelled first).
+        val repo = FakeEntryRepository(listOf(testEntry(1), testEntry(2)), ready = false)
+        val vm = vm(repo)
+        vm.move(1, 1)
+        runCurrent()
+        vm.viewModelScope.cancel()
+        repo.readiness.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(1L to 1), repo.moves)
     }
 
     @Test
