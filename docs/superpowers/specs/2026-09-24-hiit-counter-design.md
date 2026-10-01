@@ -43,7 +43,7 @@ Single user, single workout, fully offline. No accounts, no sync, no history log
 | Async | Kotlin Coroutines / Flow |
 | minSdk / compile & targetSdk | 26 (Android 8.0) / pinned in the implementation plan to the current stable SDK installed locally |
 | Toolchain | AGP, Kotlin, Compose BOM, Hilt, JDK — exact versions pinned in `gradle/libs.versions.toml` (chosen at plan time against current stable releases; never "latest") |
-| Package | `com.mitenko.hiitcounter` |
+| Package | `com.mitenko.repkit` (renamed from `com.mitenko.hiitcounter` on 2026-10-01, before the first release and the Firebase registration) |
 | Build | Gradle Kotlin DSL + version catalog (`libs.versions.toml`), single `:app` module |
 | Orientation | Portrait-locked |
 | CI | GitHub Actions: unit tests + lint on push/PR |
@@ -51,7 +51,7 @@ Single user, single workout, fully offline. No accounts, no sync, no history log
 ## 4. Architecture
 
 ```
-app/src/main/kotlin/com/mitenko/hiitcounter/
+app/src/main/kotlin/com/mitenko/repkit/
 ├─ domain/                 pure Kotlin, no Android imports
 │  ├─ model/               CounterState, ProgressionConfig, TimingConfig, CueConfig, TimerState, Phase
 │  ├─ RepProgression.kt    check-in rules (§6)

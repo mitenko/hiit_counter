@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mitenko.hiitcounter"
+    namespace = "com.mitenko.repkit"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.mitenko.hiitcounter"
+        applicationId = "com.mitenko.repkit"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
