@@ -28,8 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.CalendarDay
-import com.mitenko.repkit.domain.MonthGrid
-import com.mitenko.repkit.domain.calendarMonths
+import com.mitenko.repkit.domain.calendarWeeks
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.ui.common.DateFormats
 import java.time.DayOfWeek
@@ -39,52 +38,50 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * The Timer only calendar (spec R6 §4.2, placed by rev 9 §3 in the chart area): month blocks,
- * oldest first, from [start] to [end] (today), scrolling vertically inside the chart area. A
+ * The Timer only calendar (spec R6 §4.2, placed by rev 9 §3 in the chart area; rev 15): one
+ * weekday header, then unbroken Monday-first weeks from [start] to [end] (today), oldest first,
+ * scrolling vertically inside the chart area. A month label sits above the first row and above
+ * each row where a month begins, so a week that spans a month end stays on one line. A
  * checked-in day is a filled primary circle, any other in-range day a hollow one, and an
  * out-of-range day is blank. Screen readers get the summary, not the grid (plan Spec note 20).
  */
 @Composable
 fun CheckInCalendar(points: List<CheckInPoint>, start: Instant, end: Instant, zone: ZoneId, modifier: Modifier = Modifier) {
-    val months = remember(points, start, end, zone) { calendarMonths(points, start, end, zone) }
-    val checkedDays = months.sumOf { month -> month.weeks.sumOf { week -> week.count { it?.checkedIn == true } } }
+    val weeks = remember(points, start, end, zone) { calendarWeeks(points, start, end, zone) }
+    val checkedDays = weeks.sumOf { week -> week.days.count { it.checkedIn } }
     val description = pluralStringResource(R.plurals.calendar_desc, checkedDays, checkedDays)
-    // Plan Spec note 20: opens at the newest month; the first layout clamps the value to the real maximum.
+    // Plan Spec note 20: opens at the newest week; the first layout clamps the value to the real maximum.
     val scroll = rememberScrollState(initial = Int.MAX_VALUE)
-    Column(
-        modifier
-            .fillMaxSize()
-            .testTag("calendar")
-            .semantics { contentDescription = description }
-            .verticalScroll(scroll),
-    ) {
-        months.forEach { MonthBlock(it) }
-    }
-}
-
-@Composable
-private fun MonthBlock(grid: MonthGrid) {
-    Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-        Text(
-            DateFormats.monthYear(grid.month),
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        Column(Modifier.clearAndSetSemantics { }) {
-            Row(Modifier.fillMaxWidth()) {
-                DayOfWeek.entries.forEach { day ->
+    Column(modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp).clearAndSetSemantics { }) {
+            DayOfWeek.entries.forEach { day ->
+                Text(
+                    day.getDisplayName(TextStyle.NARROW, Locale.ENGLISH),
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .testTag("calendar")
+                .semantics { contentDescription = description }
+                .verticalScroll(scroll),
+        ) {
+            weeks.forEach { week ->
+                week.month?.let { month ->
                     Text(
-                        day.getDisplayName(TextStyle.NARROW, Locale.ENGLISH),
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        DateFormats.monthYear(month),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                     )
                 }
-            }
-            grid.weeks.forEach { week ->
-                Row(Modifier.fillMaxWidth()) {
-                    week.forEach { day -> DayCell(day, Modifier.weight(1f)) }
+                Row(Modifier.fillMaxWidth().clearAndSetSemantics { }) {
+                    week.days.forEach { day -> DayCell(day, Modifier.weight(1f)) }
                 }
             }
         }
@@ -92,9 +89,9 @@ private fun MonthBlock(grid: MonthGrid) {
 }
 
 @Composable
-private fun DayCell(day: CalendarDay?, modifier: Modifier = Modifier) {
+private fun DayCell(day: CalendarDay, modifier: Modifier = Modifier) {
     Box(modifier.height(36.dp), contentAlignment = Alignment.Center) {
-        if (day != null && day.inRange) {
+        if (day.inRange) {
             val circle = Modifier.size(28.dp)
             Box(
                 if (day.checkedIn) {

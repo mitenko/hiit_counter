@@ -162,24 +162,32 @@ class HistoryTest {
     }
 
     @Test
-    fun `calendarMonths lays each month out in Monday-first weeks`() {
-        val sep = calendarMonths(emptyList(), at("2026-09-01T00:00:00Z"), at("2026-09-30T12:00:00Z"), utc).single()
-        assertEquals(YearMonth.of(2026, 9), sep.month)
-        assertEquals(5, sep.weeks.size)
-        assertTrue(sep.weeks.all { it.size == 7 })
-        assertNull(sep.weeks[0][0]) // 1 Sep 2026 is a Tuesday
-        assertEquals(LocalDate.of(2026, 9, 1), sep.weeks[0][1]?.date)
-        assertEquals(listOf(28, 29, 30), sep.weeks[4].filterNotNull().map { it.date.dayOfMonth })
-        assertTrue(sep.weeks.all { week -> week[0] == null || week[0]!!.date.dayOfWeek == DayOfWeek.MONDAY })
+    fun `calendarWeeks runs unbroken Monday-first weeks across a month end`() {
+        // 21 Sep 2026 is a Monday; the week of 28 Sep holds 28, 29, 30 and 1, 2, 3, 4 Oct on one row.
+        val weeks = calendarWeeks(emptyList(), at("2026-09-21T10:00:00Z"), at("2026-10-01T12:00:00Z"), utc)
+        assertEquals(2, weeks.size)
+        assertTrue(weeks.all { it.days.size == 7 && it.days[0].date.dayOfWeek == DayOfWeek.MONDAY })
+        assertEquals(listOf(28, 29, 30, 1, 2, 3, 4), weeks[1].days.map { it.date.dayOfMonth })
+        assertEquals(listOf(true, true, true, true, false, false, false), weeks[1].days.map { it.inRange })
     }
 
     @Test
-    fun `calendarMonths marks checked-in days and the days inside the range`() {
+    fun `calendarWeeks labels the first row and each row where a month begins`() {
+        val weeks = calendarWeeks(emptyList(), at("2026-08-28T10:00:00Z"), at("2026-10-01T12:00:00Z"), utc)
+        // 28 Aug is a Friday: rows start 24 Aug, 31 Aug (holds 1 Sep), 7, 14, 21, 28 Sep (holds 1 Oct).
+        assertEquals(
+            listOf(YearMonth.of(2026, 8), YearMonth.of(2026, 9), null, null, null, YearMonth.of(2026, 10)),
+            weeks.map { it.month },
+        )
+        assertEquals(LocalDate.of(2026, 8, 24), weeks[0].days[0].date)
+        assertTrue(weeks[0].days.take(4).none { it.inRange }) // 24–27 Aug are before the range
+    }
+
+    @Test
+    fun `calendarWeeks marks checked-in days only inside the range`() {
         val points = listOf(point("2026-09-23T12:00:00Z"), point("2026-09-25T12:00:00Z"), point("2026-10-02T08:00:00Z"))
-        val months = calendarMonths(points, at("2026-09-24T10:00:00Z"), at("2026-10-02T09:00:00Z"), utc)
-        fun day(month: Int, day: Int) =
-            months.flatMap { it.weeks.flatten() }.filterNotNull().single { it.date == LocalDate.of(2026, month, day) }
-        assertEquals(listOf(YearMonth.of(2026, 9), YearMonth.of(2026, 10)), months.map { it.month })
+        val weeks = calendarWeeks(points, at("2026-09-24T10:00:00Z"), at("2026-10-02T09:00:00Z"), utc)
+        fun day(month: Int, day: Int) = weeks.flatMap { it.days }.single { it.date == LocalDate.of(2026, month, day) }
         assertEquals(CalendarDay(LocalDate.of(2026, 9, 23), checkedIn = false, inRange = false), day(9, 23)) // a point, but before the range
         assertEquals(CalendarDay(LocalDate.of(2026, 9, 24), checkedIn = false, inRange = true), day(9, 24))
         assertEquals(CalendarDay(LocalDate.of(2026, 9, 25), checkedIn = true, inRange = true), day(9, 25))
@@ -188,9 +196,10 @@ class HistoryTest {
     }
 
     @Test
-    fun `calendarMonths runs oldest month first in the given zone`() {
-        val months = calendarMonths(emptyList(), at("2026-06-10T16:00:00Z"), thursday, la)
-        assertEquals((6..9).map { YearMonth.of(2026, it) }, months.map { it.month })
-        assertTrue(calendarMonths(emptyList(), thursday, at("2026-09-01T00:00:00Z"), la).isEmpty())
+    fun `calendarWeeks uses the given zone and is empty for a reversed range`() {
+        val weeks = calendarWeeks(emptyList(), at("2026-06-10T16:00:00Z"), thursday, la)
+        assertEquals(YearMonth.of(2026, 6), weeks.first().month)
+        assertEquals(listOf(7, 8, 9).map { YearMonth.of(2026, it) }, weeks.drop(1).mapNotNull { it.month })
+        assertTrue(calendarWeeks(emptyList(), thursday, at("2026-09-01T00:00:00Z"), la).isEmpty())
     }
 }

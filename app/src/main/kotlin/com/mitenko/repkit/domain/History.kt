@@ -115,30 +115,39 @@ fun nearestPoint(tapX: Float, xs: List<Float>, thresholdPx: Float): Int? {
  */
 data class CalendarDay(val date: LocalDate, val checkedIn: Boolean, val inRange: Boolean)
 
-/** One month block: Monday-first rows of 7 cells; null cells belong to the neighbouring months. */
-data class MonthGrid(val month: YearMonth, val weeks: List<List<CalendarDay?>>)
+/**
+ * One calendar row, Monday to Sunday (spec rev 15): weeks run on unbroken across month ends.
+ * [month] is the label shown above this row: the first row's month, then the month of any 1st
+ * that falls inside the range in this row; null for every other row.
+ */
+data class CalendarWeek(val days: List<CalendarDay>, val month: YearMonth?)
 
 /**
- * Month blocks from [start]'s month to [end]'s month, oldest first (spec R6 §3.4), in [zone].
+ * Continuous Monday-first weeks covering [start]..[end], oldest first, in [zone] (spec R6 §3.4,
+ * amended rev 15). Days outside the range are kept (inRange = false) so every row has 7 cells.
  * Empty when [end] falls on a day before [start].
  */
-fun calendarMonths(points: List<CheckInPoint>, start: Instant, end: Instant, zone: ZoneId): List<MonthGrid> {
+fun calendarWeeks(points: List<CheckInPoint>, start: Instant, end: Instant, zone: ZoneId): List<CalendarWeek> {
     val first = start.atZone(zone).toLocalDate()
     val last = end.atZone(zone).toLocalDate()
     if (last.isBefore(first)) return emptyList()
     val checked = points.mapTo(HashSet()) { it.at.atZone(zone).toLocalDate() }
-    val lastMonth = YearMonth.from(last)
-    return generateSequence(YearMonth.from(first)) { it.plusMonths(1) }
-        .takeWhile { !it.isAfter(lastMonth) }
-        .map { month ->
-            val lead = month.atDay(1).dayOfWeek.value - DayOfWeek.MONDAY.value
-            val days = (1..month.lengthOfMonth()).map { d ->
-                val date = month.atDay(d)
-                val inRange = !date.isBefore(first) && !date.isAfter(last)
-                CalendarDay(date, checkedIn = inRange && date in checked, inRange = inRange)
+    val monday = first.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val sunday = last.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+    return generateSequence(monday) { it.plusDays(1) }
+        .takeWhile { !it.isAfter(sunday) }
+        .map { date ->
+            val inRange = !date.isBefore(first) && !date.isAfter(last)
+            CalendarDay(date, checkedIn = inRange && date in checked, inRange = inRange)
+        }
+        .chunked(7)
+        .mapIndexed { index, days ->
+            val label = if (index == 0) {
+                YearMonth.from(first)
+            } else {
+                days.firstOrNull { it.inRange && it.date.dayOfMonth == 1 }?.let { YearMonth.from(it.date) }
             }
-            val cells: List<CalendarDay?> = List(lead) { null } + days
-            MonthGrid(month, cells.chunked(7).map { week -> week + List(7 - week.size) { null } })
+            CalendarWeek(days, label)
         }
         .toList()
 }
