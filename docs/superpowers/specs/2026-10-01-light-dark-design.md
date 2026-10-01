@@ -18,7 +18,7 @@ The app followed the phone's dark theme unconditionally (v1 §3). This adds a li
 
 - `HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content)` (`ui/theme/Theme.kt`) picks `DarkScheme` (unchanged) or the new `LightScheme`.
 - **LightScheme:**
-  - `primary` `0xFF4C7A29` (a darker Work green, about 5.1:1 against white text and 4.8:1 on the light background; `onPrimary` white) — stays visually distinct from the unchanged amber `HiitColors.Rest`, so work/rest reads are still easy to tell apart.
+  - `primary` `0xFF00796B` (a darker teal, about 5.3:1 against white text; `onPrimary` white). The accent is teal in both schemes (user, 2026-10-01: the lime green did not sit well with the dark theme); dark `primary` is `0xFF4DB6AC` (about 8.6:1 against black). `primaryContainer`/`secondaryContainer` are teal tints so selected chips are not the Material default lavender. The timer keeps `HiitColors.Work` green for the work phase, so work/rest still read green/amber.
   - `secondary` `0xFF0277BD` (a darker SetRing blue).
   - `background` / `surface` `0xFFF7F9F8` (near-white).
   - `surfaceContainer` `0xFFE9EEEC` (light grey, for cards), `surfaceContainerHighest` `0xFFDCE3E0` (slightly darker, for the dragged-card state).
