@@ -18,8 +18,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.testutil.FakeClock
@@ -34,13 +36,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class EntrySettingsScreenTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val tmp = TemporaryFolder()
 
     private fun show(
         state: EntrySettingsUiState = EntrySettingsUiState(name = "Burpees"),
@@ -102,7 +107,10 @@ class EntrySettingsScreenTest {
         val repo = FakeEntryRepository(listOf(testEntry(1, "Burpees")))
         val controller = TimerController(MainScope()) { 0L }
         val settingsVm = EntrySettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, controller)
-        val listVm = EntryListViewModel(repo, FakeClock())
+        val preferences = AppPreferences(
+            PreferenceDataStoreFactory.create(scope = MainScope(), produceFile = { File(tmp.root, "app.preferences_pb") }),
+        )
+        val listVm = EntryListViewModel(repo, FakeClock(), preferences)
         var copied by mutableStateOf(false)
         compose.setContent {
             HiitTheme {

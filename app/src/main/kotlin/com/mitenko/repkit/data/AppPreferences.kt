@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.mitenko.repkit.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -31,10 +33,31 @@ class AppPreferences(private val store: DataStore<Preferences>) {
         store.edit { it[NOTIFICATION_ASKED] = true }
     }
 
+    /** Spec rev 14 §1: defaults to SYSTEM when absent, and an unrecognised stored value also reads as SYSTEM. */
+    val themeMode: Flow<ThemeMode> = store.data
+        .catch { e ->
+            if (e is IOException) {
+                Log.e(TAG, "App preferences read failed", e)
+                emit(emptyPreferences())
+            } else {
+                throw e
+            }
+        }
+        .map { prefs ->
+            prefs[THEME_MODE]?.let { stored ->
+                runCatching { ThemeMode.valueOf(stored) }.getOrNull()
+            } ?: ThemeMode.SYSTEM
+        }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        store.edit { it[THEME_MODE] = mode.name }
+    }
+
     companion object {
         /** `app.preferences_pb` via `preferencesDataStoreFile(FILE_NAME)`. */
         const val FILE_NAME = "app"
         val NOTIFICATION_ASKED = booleanPreferencesKey("notification_permission_asked")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
         private const val TAG = "AppPreferences"
     }
 }

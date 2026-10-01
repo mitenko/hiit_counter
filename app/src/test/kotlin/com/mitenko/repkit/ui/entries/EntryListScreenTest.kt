@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.ui.theme.HiitTheme
+import com.mitenko.repkit.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -52,10 +54,15 @@ class EntryListScreenTest {
         onOpen: (Long) -> Unit = {},
         onMove: (Long, Int) -> Unit = { _, _ -> },
         onCreate: (String, EntryType) -> Unit = { _, _ -> },
+        themeMode: ThemeMode = ThemeMode.SYSTEM,
+        onSetThemeMode: (ThemeMode) -> Unit = {},
     ) {
         compose.setContent {
             HiitTheme {
-                EntryListScreen(state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate)
+                EntryListScreen(
+                    state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate,
+                    themeMode = themeMode, onSetThemeMode = onSetThemeMode,
+                )
             }
         }
     }
@@ -382,6 +389,40 @@ class EntryListScreenTest {
         val title = compose.onNodeWithTag("title").fetchSemanticsNode().boundsInRoot
         val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
         assertEquals(root.center.x, title.center.x, 0.5f)
+    }
+
+    @Test
+    fun `the top bar has an Appearance gear button at least 48 dp, and the title stays centred`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithContentDescription("Appearance")
+            .assertWidthIsEqualTo(48.dp)
+            .assertHeightIsEqualTo(48.dp)
+        val title = compose.onNodeWithTag("title").fetchSemanticsNode().boundsInRoot
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        assertEquals(root.center.x, title.center.x, 0.5f)
+    }
+
+    @Test
+    fun `tapping Appearance shows the three options with the current one selected`() {
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.DARK)
+        compose.onNodeWithContentDescription("Appearance").performClick()
+        compose.onNodeWithText("Appearance").assertExists()
+        compose.onNodeWithText("System default").assertExists()
+        compose.onNodeWithText("Light").assertExists()
+        compose.onNodeWithText("Dark").assertExists()
+        compose.onNodeWithTag("theme_DARK").assertIsSelected().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("theme_SYSTEM").assertIsNotSelected()
+        compose.onNodeWithTag("theme_LIGHT").assertIsNotSelected()
+    }
+
+    @Test
+    fun `choosing an option in the Appearance dialog calls the setter and closes the dialog`() {
+        var chosen: ThemeMode? = null
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.SYSTEM, onSetThemeMode = { chosen = it })
+        compose.onNodeWithContentDescription("Appearance").performClick()
+        compose.onNodeWithTag("theme_LIGHT").performClick()
+        assertEquals(ThemeMode.LIGHT, chosen)
+        compose.onNodeWithText("Light").assertDoesNotExist()
     }
 
     @Test

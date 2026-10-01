@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +28,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -46,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -60,12 +65,14 @@ import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
+import com.mitenko.repkit.ui.theme.ThemeMode
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @Composable
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
@@ -75,6 +82,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onOpenEntry = onOpenEntry,
         onMove = vm::move,
         onCreate = { name, type -> vm.create(name, type, onCreated) },
+        themeMode = themeMode,
+        onSetThemeMode = vm::setThemeMode,
     )
 }
 
@@ -85,15 +94,26 @@ fun EntryListScreen(
     onOpenEntry: (Long) -> Unit,
     onMove: (Long, Int) -> Unit,
     onCreate: (String, EntryType) -> Unit,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onSetThemeMode: (ThemeMode) -> Unit = {},
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
+    var showAppearance by rememberSaveable { mutableStateOf(false) }
     val loading = state is EntryListUiState.Loading
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            // Spec rev 9 §2: "REPKIT" centred, and nothing else in the bar (R5 removed Reorder).
+            // Spec rev 9 §2: "REPKIT" centred. Spec rev 14 §5 adds the Appearance ⚙ at the right;
+            // it's overlaid rather than laid out in a Row, so the title (plain Box-centred) stays
+            // exactly centred regardless of the icon.
             Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("title"))
+                IconButton(
+                    onClick = { showAppearance = true },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(48.dp).testTag("appearance"),
+                ) {
+                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.appearance))
+                }
             }
         },
         floatingActionButton = {
@@ -129,6 +149,49 @@ fun EntryListScreen(
             onDismiss = { naming = false },
             extra = { EntryTypeChoice(type, onSelect = { type = it }) },
         )
+    }
+    if (showAppearance) {
+        AppearanceDialog(
+            current = themeMode,
+            onSelect = { mode ->
+                showAppearance = false
+                onSetThemeMode(mode)
+            },
+            onDismiss = { showAppearance = false },
+        )
+    }
+}
+
+/** Spec rev 14 §5: System / Light / Dark, saved immediately on tap, closing the dialog. */
+@Composable
+private fun AppearanceDialog(current: ThemeMode, onSelect: (ThemeMode) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.appearance)) },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
+                ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
+                ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+@Composable
+private fun ThemeOptionRow(mode: ThemeMode, label: Int, current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    val selected = mode == current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, onClick = { onSelect(mode) }, role = Role.RadioButton)
+            .testTag("theme_${mode.name}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
     }
 }
 

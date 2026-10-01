@@ -1,6 +1,8 @@
 package com.mitenko.repkit.ui.entries
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.viewModelScope
+import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
@@ -8,8 +10,10 @@ import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
+import com.mitenko.repkit.ui.theme.ThemeMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -20,19 +24,33 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EntryListViewModelTest {
     @get:Rule val main = MainDispatcherRule()
+    @get:Rule val tmp = TemporaryFolder()
 
     private val clock = FakeClock(instant = Instant.parse("2026-09-24T15:00:00Z")) // 08:00 PDT
     private val checkedInThisMorning = Instant.parse("2026-09-24T14:00:00Z")    // 07:00 PDT
 
-    private fun TestScope.vm(repo: FakeEntryRepository) = EntryListViewModel(repo, clock).also { vm ->
-        backgroundScope.launch { vm.uiState.collect {} }
-        runCurrent()
-    }
+    private var preferencesFileCount = 0
+
+    private fun TestScope.preferences() = AppPreferences(
+        PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { File(tmp.root, "app${preferencesFileCount++}.preferences_pb") },
+        ),
+    )
+
+    private fun TestScope.vm(repo: FakeEntryRepository, preferences: AppPreferences = preferences()) =
+        EntryListViewModel(repo, clock, preferences).also { vm ->
+            backgroundScope.launch { vm.uiState.collect {} }
+            backgroundScope.launch { vm.themeMode.collect {} }
+            runCurrent()
+        }
 
     @Test
     fun `loading until migration readiness, then empty`() = runTest {
@@ -211,5 +229,20 @@ class EntryListViewModelTest {
         val r = row(vm)
         assertEquals(1, r.weekCount)
         assertEquals(TileData(count = 1, week = List(7) { it == 3 }, spark = listOf(SparkPoint(27, 48))), r.tile)
+    }
+
+    @Test
+    fun `themeMode defaults to SYSTEM`() = runTest {
+        assertEquals(ThemeMode.SYSTEM, vm(FakeEntryRepository()).themeMode.value)
+    }
+
+    @Test
+    fun `setThemeMode writes through to preferences and updates themeMode`() = runTest {
+        val preferences = preferences()
+        val vm = vm(FakeEntryRepository(), preferences)
+        vm.setThemeMode(ThemeMode.DARK)
+        runCurrent()
+        assertEquals(ThemeMode.DARK, vm.themeMode.value)
+        assertEquals(ThemeMode.DARK, preferences.themeMode.first())
     }
 }

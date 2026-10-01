@@ -117,6 +117,12 @@
     <string name="cue_voice_on">Voice on</string>
     <string name="cue_voice_off">Voice off</string>
 
+    <!-- Appearance (spec rev 14 §5): the ⚙ in the entry list's top bar -->
+    <string name="appearance">Appearance</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
     <!-- History and the UI refresh (spec R6 §5 as kept by rev 9 §5; counts as plurals) -->
     <string name="week_count">%1$d× this week</string>
     <plurals name="tile_desc">

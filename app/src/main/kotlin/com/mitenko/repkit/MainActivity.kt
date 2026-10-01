@@ -1,28 +1,50 @@
 package com.mitenko.repkit
 
+import android.graphics.Color.TRANSPARENT
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.ui.navigation.HiitNavHost
 import com.mitenko.repkit.ui.theme.HiitTheme
+import com.mitenko.repkit.ui.theme.ThemeMode
+import com.mitenko.repkit.ui.theme.isDark
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var controller: TimerController
+    @Inject lateinit var preferences: AppPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            HiitTheme {
+            // Spec rev 14 §4: the Appearance choice (default SYSTEM) decides the effective theme.
+            val themeMode by preferences.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
+            val darkTheme = isDark(themeMode, isSystemInDarkTheme())
+
+            // Status/navigation bar icons follow the effective theme too - not just the phone's own
+            // night mode - since a manual Light/Dark override can disagree with it.
+            LaunchedEffect(darkTheme) {
+                val style = if (darkTheme) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+
+            HiitTheme(darkTheme = darkTheme) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.safeDrawingPadding()) { HiitNavHost(controller) }
                 }

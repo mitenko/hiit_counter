@@ -1,5 +1,8 @@
 <resources>
+    <!-- Spec rev 14 §4: matches LightScheme.background, to avoid a black flash before Compose
+         starts. values-night/themes.xml keeps the original black for the phone's own dark setting;
+         a manual in-app Light/Dark override can't affect this pre-Compose window (documented, accepted). -->
     <style name="Theme.HiitCounter" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">#FFF7F9F8</item>
     </style>
 </resources>
