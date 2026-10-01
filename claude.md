@@ -19,6 +19,7 @@ As you develop, refine the instructions here.
 - **Week circles (approved, rev 11, amends rev 9 §2):** `docs/superpowers/specs/2026-10-01-week-circles-design.md` — the Timer Only tile's graph is 7 lettered circles (M T W T F S S) for the calendar week instead of 28 day-dots.
 - **Check-in highlight (approved, rev 12, amends rev 9 §3):** `docs/superpowers/specs/2026-10-01-checkin-highlight-design.md` — the reps column's changed cells pop and flash (primary/error) after a check-in, with a reduced-motion fallback and a TalkBack announcement.
 - **Light and dark colour schemes (approved, rev 14, amends v1 §3 and rev 9 §2):** `docs/superpowers/specs/2026-10-01-light-dark-design.md` — the app follows the phone's theme by default; an Appearance ⚙ in the entry list's top bar offers System / Light / Dark. The timer screen stays dark in both modes (deliberate, overturnable).
+- **Calendar weeks (approved, rev 15, amends R6 §3.4/§4.2):** `docs/superpowers/specs/2026-10-01-calendar-weeks-design.md` — the Timer Only calendar is unbroken Monday-first weeks under one weekday header, with a month label above the row where each month starts.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").
