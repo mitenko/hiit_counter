@@ -94,7 +94,7 @@
     <string name="info_starting_total">The rep total you do on your first check-in, and again after Reset progress. It must be between the floor and the cap.</string>
     <string name="info_floor">The lowest your rep total can fall to, however long you\'re away.</string>
     <string name="info_cap">The highest your rep total can climb to. At the cap, on-time check-ins keep the total where it is.</string>
-    <string name="info_hold">When on, your total pauses at each hold for a few check-ins before climbing again.</string>
+    <string name="info_hold">Say you get to 8×10 (80) reps, and you don\'t really want to go to 81 the next day. Well, you can hold the count at 80 for as many days as you want. You can set multiple holds for your progression.</string>
     <string name="info_hold_at">The rep total where the hold happens. It needs to be at or above the floor and below the cap.</string>
     <string name="info_hold_for">How many check-ins you stay at hold at before going up again. The day you first reach it counts. 0 skips the hold.</string>
     <string name="info_window">Check in within this many hours of your last check-in to count as on time: your streak continues (and, for Counter entries, your total goes up by one).</string>
