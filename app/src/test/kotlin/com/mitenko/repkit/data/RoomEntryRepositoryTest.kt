@@ -11,6 +11,7 @@ import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import com.mitenko.repkit.testutil.FakeClock
@@ -137,11 +138,11 @@ class RoomEntryRepositoryTest {
         val r = repo()
         val a = r.create("Burpees")
         db.entryDao().setCounter(a, total = 64, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
-        r.setProgression(a, ProgressionConfig(holdFor = 2))
+        r.setProgression(a, ProgressionConfig(holds = listOf(Hold(64, 2))))
         val e = r.entry(a).first()!!
         assertEquals(0, e.counter.holdCount)
         assertEquals(64, e.counter.total)
-        assertEquals(2, e.progression.holdFor)
+        assertEquals(listOf(Hold(64, 2)), e.progression.holds)
     }
 
     @Test
@@ -151,6 +152,9 @@ class RoomEntryRepositoryTest {
         expectThrows<IllegalArgumentException> { r.setTiming(a, TimingConfig(sets = 0)) }
         expectThrows<IllegalArgumentException> { r.setTiming(a, TimingConfig(sets = 20, workSec = 3599)) }
         expectThrows<IllegalArgumentException> { r.setProgression(a, ProgressionConfig(floor = 80, cap = 60)) }
+        // Rev 16 §3: a hold's hard ranges apply with the switch off too, so the stored list always decodes.
+        expectThrows<IllegalArgumentException> { r.setProgression(a, ProgressionConfig(holds = listOf(Hold(0, 4)), hold = false)) }
+        expectThrows<IllegalArgumentException> { r.setProgression(a, ProgressionConfig(holds = listOf(Hold(64, -1)), hold = false)) }
         val e = r.entry(a).first()!!
         assertEquals(TimingConfig(), e.timing)
         assertEquals(ProgressionConfig(), e.progression)
@@ -390,12 +394,12 @@ class RoomEntryRepositoryTest {
         val a = r.create("Burpees")
         r.setProgression(a, ProgressionConfig(startingTotal = 64))
         assertEquals(1, r.checkIn(a, clock).state.holdCount)
-        r.setProgression(a, ProgressionConfig(startingTotal = 64, holdFor = 2))
+        r.setProgression(a, ProgressionConfig(startingTotal = 64, holds = listOf(Hold(64, 2))))
         val e = r.entry(a).first()!!
         assertEquals(0, e.counter.holdCount)
         assertEquals(64, e.counter.total)
         assertEquals(clock.instant, e.counter.lastCheckIn)
-        assertEquals(2, e.progression.holdFor)
+        assertEquals(listOf(Hold(64, 2)), e.progression.holds)
     }
 
     @Test
@@ -423,9 +427,9 @@ class RoomEntryRepositoryTest {
             r.setProgression(a, p)
             return r.entry(a).first()!!.counter.holdCount
         }
-        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66)))
-        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66, holdFor = 3)))
-        assertEquals(0, holdCountAfter(ProgressionConfig(holdAt = 66, holdFor = 3, hold = false)))
+        assertEquals(0, holdCountAfter(ProgressionConfig(holds = listOf(Hold(66, 4)))))
+        assertEquals(0, holdCountAfter(ProgressionConfig(holds = listOf(Hold(66, 3)))))
+        assertEquals(0, holdCountAfter(ProgressionConfig(holds = listOf(Hold(66, 3)), hold = false)))
         assertFalse(r.entry(a).first()!!.progression.hold)
     }
 
@@ -640,5 +644,47 @@ class RoomEntryRepositoryTest {
         gate.complete(Unit)
         assertTrue(history.await().isEmpty())
         assertTrue(recent.await().isEmpty())
+    }
+    @Test
+    fun `saving holds round trips and mirrors the first hold into the legacy columns`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        assertEquals("64:4", db.entryDao().get(a)!!.holds)
+        val holds = listOf(Hold(64, 4), Hold(56, 3))
+        r.setProgression(a, ProgressionConfig(holds = holds))
+        assertEquals(holds, r.entry(a).first()!!.progression.holds)
+        val row = db.entryDao().get(a)!!
+        assertEquals(Triple("64:4,56:3", 64, 4), Triple(row.holds, row.holdAt, row.holdFor))
+        r.setProgression(a, ProgressionConfig(holds = emptyList()))
+        assertEquals(emptyList<Hold>(), r.entry(a).first()!!.progression.holds)
+        assertEquals(Triple("-", 64, 4), db.entryDao().get(a)!!.let { Triple(it.holds, it.holdAt, it.holdFor) })
+    }
+
+    @Test
+    fun `setProgression resets the hold count only as holdResetNeeded says`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val two = ProgressionConfig(holds = listOf(Hold(56, 3), Hold(64, 4)))
+        suspend fun holdCountAfter(p: ProgressionConfig): Int {
+            db.entryDao().setCounter(a, total = 64, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+            r.setProgression(a, p)
+            return r.entry(a).first()!!.counter.holdCount
+        }
+        assertEquals(0, holdCountAfter(two))                                      // a hold added
+        assertEquals(3, holdCountAfter(two.copy(cap = 80, windowHours = 30)))     // same active holds
+        assertEquals(0, holdCountAfter(two.copy(cap = 60, windowHours = 30)))     // 64 switched off by the cap
+        assertEquals(0, holdCountAfter(two.copy(holds = two.holds.reversed())))   // reordered
+        assertEquals(0, holdCountAfter(two.copy(holds = listOf(Hold(64, 4)))))    // a hold removed
+    }
+
+    @Test
+    fun `duplicate copies the holds`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val holds = listOf(Hold(56, 3), Hold(64, 4))
+        r.setProgression(a, ProgressionConfig(holds = holds, hold = false))
+        val copy = r.duplicate(a)
+        assertEquals(holds, r.entry(copy).first()!!.progression.holds)
+        assertEquals("56:3,64:4", db.entryDao().get(copy)!!.holds)
     }
 }

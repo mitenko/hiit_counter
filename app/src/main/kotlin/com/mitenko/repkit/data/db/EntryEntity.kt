@@ -28,8 +28,15 @@ data class EntryEntity(
     @ColumnInfo(name = "starting_total") val startingTotal: Int,
     val floor: Int,
     val cap: Int,
+    /** Legacy (spec rev 16 §5): mirrors the first hold (64 when there is none). Read only when [holds] is "". */
     @ColumnInfo(name = "hold_at") val holdAt: Int,
+    /** Legacy (spec rev 16 §5): mirrors the first hold (4 when there is none). Read only when [holds] is "". */
     @ColumnInfo(name = "hold_for") val holdFor: Int,
+    /**
+     * The holds list (spec rev 16 §5), added in schema v5 as TEXT NOT NULL DEFAULT '' and encoded
+     * by HoldsCodec. "" (never written by v5 code) means "read the legacy hold_at / hold_for".
+     */
+    @ColumnInfo(defaultValue = "") val holds: String,
     /** The Hold switch (spec R3 §5.2), added in schema v2 as INTEGER NOT NULL DEFAULT 1. */
     @ColumnInfo(name = "hold_enabled", defaultValue = "1") val holdEnabled: Boolean = true,
     @ColumnInfo(name = "window_hours") val windowHours: Int,

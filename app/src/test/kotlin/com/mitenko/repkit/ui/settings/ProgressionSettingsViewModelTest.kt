@@ -2,7 +2,9 @@ package com.mitenko.repkit.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
 import com.mitenko.repkit.domain.Field
+import com.mitenko.repkit.domain.HoldField
 import com.mitenko.repkit.domain.model.CounterState
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
@@ -29,12 +31,12 @@ class ProgressionSettingsViewModelTest {
     fun `a hold at change auto-saves after 400 ms and resets the hold count`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 64, holdCount = 2))))
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
-        vm.update { it.copy(holdAt = 66, holdFor = 3) }
+        vm.update { it.copy(holds = listOf(Hold(66, 3))) }
         advanceTimeBy(399)
         assertEquals(ProgressionConfig(), repo.find(1).progression)
         advanceTimeBy(1)
         runCurrent()
-        assertEquals(ProgressionConfig(holdAt = 66, holdFor = 3), repo.find(1).progression)
+        assertEquals(ProgressionConfig(holds = listOf(Hold(66, 3))), repo.find(1).progression)
         assertEquals(0, repo.find(1).counter.holdCount)
     }
 
@@ -91,30 +93,30 @@ class ProgressionSettingsViewModelTest {
 
     @Test
     fun `the hold switch saves at once and keeps the hidden values`() = runTest {
-        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holdAt = 66, holdFor = 3))))
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holds = listOf(Hold(66, 3))))))
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
         vm.updateNow { it.copy(hold = false) }
         runCurrent()
-        assertEquals(ProgressionConfig(holdAt = 66, holdFor = 3, hold = false), repo.find(1).progression)
+        assertEquals(ProgressionConfig(holds = listOf(Hold(66, 3)), hold = false), repo.find(1).progression)
         vm.updateNow { it.copy(hold = true) }
         runCurrent()
-        assertEquals(ProgressionConfig(holdAt = 66, holdFor = 3), repo.find(1).progression)
+        assertEquals(ProgressionConfig(holds = listOf(Hold(66, 3))), repo.find(1).progression)
         assertEquals(2, repo.progressionWrites)
     }
 
     @Test
     fun `with the hold off the hold checks and hint are skipped`() = runTest {
-        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holdFor = 0))))
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holds = listOf(Hold(64, 0))))))
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
-        assertTrue(Field.HOLD_AT in vm.validation.value.hints)
+        assertEquals(mapOf(0 to "Hold disabled"), vm.validation.value.holdHints)
         vm.updateNow { it.copy(hold = false) }
-        assertTrue(vm.validation.value.hints.isEmpty())
-        vm.update { it.copy(holdAt = 80) } // hidden, and at or above the cap: it would give the hint with the hold on
-        assertTrue(vm.validation.value.hints.isEmpty())
+        assertTrue(vm.validation.value.holdHints.isEmpty())
+        vm.update { it.copy(holds = listOf(Hold(80, 0))) } // hidden, and at or above the cap: it would give the hint with the hold on
+        assertTrue(vm.validation.value.holdHints.isEmpty())
         vm.flush()
         runCurrent()
         assertEquals(SaveStatus.SAVED, vm.status.value)
-        assertEquals(ProgressionConfig(holdAt = 80, holdFor = 0, hold = false), repo.find(1).progression)
+        assertEquals(ProgressionConfig(holds = listOf(Hold(80, 0)), hold = false), repo.find(1).progression)
     }
 
     @Test
@@ -139,5 +141,65 @@ class ProgressionSettingsViewModelTest {
         vm.flush()
         runCurrent()
         assertTrue(vm.missing.value)
+    }
+    private val two = ProgressionConfig(holds = listOf(Hold(56, 3), Hold(64, 4)))
+
+    @Test
+    fun `adding and removing a hold save at once`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = two)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.addHold()
+        runCurrent()
+        assertEquals(listOf(Hold(56, 3), Hold(64, 4), Hold(68, 4)), repo.find(1).progression.holds)
+        vm.removeHold(0)
+        runCurrent()
+        assertEquals(listOf(Hold(64, 4), Hold(68, 4)), repo.find(1).progression.holds)
+        assertEquals(2, repo.progressionWrites)
+    }
+
+    @Test
+    fun `a stepper change then a remove within 400 ms is one write with both changes`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = two)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.update { it.updateHold(1) { h -> h.copy(forCount = 5) } }
+        advanceTimeBy(200)
+        vm.removeHold(0)
+        runCurrent()
+        assertEquals(1, repo.progressionWrites)
+        assertEquals(listOf(Hold(64, 5)), repo.find(1).progression.holds)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(1, repo.progressionWrites)
+    }
+
+    @Test
+    fun `removing the last hold leaves an empty list and the switch on`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.removeHold(0)
+        runCurrent()
+        assertEquals(ProgressionConfig(holds = emptyList()), repo.find(1).progression)
+    }
+
+    @Test
+    fun `a duplicate hold at is never saved`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = two)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.updateNow { it.updateHold(1) { h -> h.copy(at = 56) } }
+        runCurrent()
+        assertEquals(mapOf(1 to mapOf(HoldField.AT to "Already a hold at 56")), vm.validation.value.holdErrors)
+        assertEquals(SaveStatus.INVALID, vm.status.value)
+        assertEquals(0, repo.progressionWrites)
+        assertEquals(two, repo.find(1).progression)
+    }
+
+    @Test
+    fun `the holds are restored from the saved state handle`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = two)))
+        val first = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        first.update { it.copy(cap = 40, holds = listOf(Hold(56, 3), Hold(60, 2), Hold(64, 4))) } // invalid: never saved
+        val restored = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        assertEquals(listOf(Hold(56, 3), Hold(60, 2), Hold(64, 4)), restored.draft.value!!.holds)
+        assertEquals(SaveStatus.INVALID, restored.status.value)
     }
 }

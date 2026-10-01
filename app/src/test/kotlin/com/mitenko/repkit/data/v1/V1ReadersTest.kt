@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.mutablePreferencesOf
 import com.mitenko.repkit.data.StoredCounter
 import com.mitenko.repkit.data.entryEntity
 import com.mitenko.repkit.domain.model.CueConfig
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import org.junit.Assert.assertEquals
@@ -51,7 +52,7 @@ class V1ReadersTest {
             entryEntity(
                 "Workout", 0,
                 TimingConfig(5, 6, 30, 15, 60),
-                ProgressionConfig(50, 40, 80, 70, 3, 30, 12.5),
+                ProgressionConfig(50, 40, 80, listOf(Hold(70, 3)), 30, 12.5),
                 CueConfig(sound = false, vibration = true),
                 StoredCounter(total = 65, bestStreak = 24, currentStreak = 4, holdCount = 2, lastCheckIn = 1_790_000_000_123L),
             ),
@@ -81,5 +82,12 @@ class V1ReadersTest {
     fun `a v1 hold_for of 0 imports as the hold switched off with hold for 4`() {
         assertEquals(ProgressionConfig(hold = false), prefs { it[V1Keys.HOLD_FOR] = 0 }.readV1Progression())
         assertFalse(v1Entry(prefs { it[V1Keys.HOLD_FOR] = 0 }, emptyPreferences()).holdEnabled)
+    }
+
+    @Test
+    fun `a v1 hold imports as a one-item list`() {
+        val p = prefs { it[V1Keys.HOLD_AT] = 70; it[V1Keys.HOLD_FOR] = 3 }
+        assertEquals(listOf(Hold(70, 3)), p.readV1Progression().holds)
+        assertEquals("70:3", v1Entry(p, emptyPreferences()).holds)
     }
 }

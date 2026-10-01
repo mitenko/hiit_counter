@@ -6,15 +6,24 @@ import java.time.Instant
 
 enum class Field {
     PREPARE, SETS, WORK, REST, COOLDOWN, TOTAL_DURATION,
-    STARTING_TOTAL, FLOOR, CAP, HOLD_AT, HOLD_FOR, WINDOW_HOURS, PENALTY_RATE,
+    STARTING_TOTAL, FLOOR, CAP, HOLDS, WINDOW_HOURS, PENALTY_RATE,
     TOTAL, BEST_STREAK, CURRENT_STREAK, LAST_CHECK_IN,
 }
 
+/** A field of one hold in [ProgressionConfig.holds] (spec rev 16 §3). */
+enum class HoldField { AT, FOR }
+
+/**
+ * [holdErrors] and [holdHints] are keyed by the hold's index in [ProgressionConfig.holds]; a hint
+ * belongs to the hold's Hold at row (spec rev 16 §3).
+ */
 data class ValidationResult(
     val errors: Map<Field, String> = emptyMap(),
     val hints: Map<Field, String> = emptyMap(),
+    val holdErrors: Map<Int, Map<HoldField, String>> = emptyMap(),
+    val holdHints: Map<Int, String> = emptyMap(),
 ) {
-    val isValid: Boolean get() = errors.isEmpty()
+    val isValid: Boolean get() = errors.isEmpty() && holdErrors.isEmpty()
 }
 
 /** Settings validation — spec §10. */
@@ -40,16 +49,28 @@ object SettingsValidator {
         if (c.floor < 1) e[Field.FLOOR] = "Must be at least 1"
         if (c.startingTotal < c.floor) e[Field.STARTING_TOTAL] = "Must be ≥ floor"
         if (c.cap < c.startingTotal) e[Field.CAP] = "Must be ≥ starting total"
-        // Spec R3 §5.1: with the Hold switch off, the hidden hold values can't block a save.
-        if (c.hold) {
-            if (c.holdAt < 1) e[Field.HOLD_AT] = "Must be at least 1"
-            if (c.holdFor < 0) e[Field.HOLD_FOR] = "Must be 0 or more"
-        }
         if (c.windowHours < 1) e[Field.WINDOW_HOURS] = "Must be at least 1"
         if (!(c.penaltyHoursPerRep > 0.0) || !c.penaltyHoursPerRep.isFinite()) e[Field.PENALTY_RATE] = "Must be greater than 0"
-        val hints = if (c.hold && Field.HOLD_AT !in e && !c.holdEnabled) mapOf(Field.HOLD_AT to "Hold disabled") else emptyMap()
-        return ValidationResult(e, hints)
+        // Rev 16 §3: each hold's hard ranges hold whatever the switch says, so a stored list always decodes.
+        val holdErrors = mutableMapOf<Int, MutableMap<HoldField, String>>()
+        c.holds.forEachIndexed { i, h ->
+            if (h.at < 1) holdErrors.getOrPut(i, ::mutableMapOf)[HoldField.AT] = "Must be at least 1"
+            if (h.forCount < 0) holdErrors.getOrPut(i, ::mutableMapOf)[HoldField.FOR] = "Must be 0 or more"
+        }
+        // Spec R3 §5.1: with the Hold switch off, the hidden hold values can't otherwise block a save.
+        if (!c.hold) return ValidationResult(e, holdErrors = holdErrors)
+        if (c.holds.size > ProgressionConfig.MAX_HOLDS) e[Field.HOLDS] = "At most ${ProgressionConfig.MAX_HOLDS} holds"
+        val holdHints = mutableMapOf<Int, String>()
+        val seen = mutableSetOf<Int>()
+        c.holds.forEachIndexed { i, h ->
+            // Spec rev 16 §3: the later duplicate carries the error.
+            if (h.at >= 1 && !seen.add(h.at)) holdErrors.getOrPut(i, ::mutableMapOf)[HoldField.AT] = "Already a hold at ${h.at}"
+            if (i !in holdErrors && !c.isActive(h)) holdHints[i] = HOLD_DISABLED
+        }
+        return ValidationResult(e, holdErrors = holdErrors, holdHints = holdHints)
     }
+
+    const val HOLD_DISABLED = "Hold disabled"
 
     fun currentState(
         total: Int,

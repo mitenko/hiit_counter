@@ -73,7 +73,13 @@ class SettingsPagerTest {
     private fun text(@StringRes id: Int): String = ApplicationProvider.getApplicationContext<Context>().getString(id)
 
     /** A labelled row and its info text (spec R3 §7.2). [scrolls] is false for the TOTAL footer. */
-    private class InfoRow(@StringRes val label: Int, @StringRes val info: Int, val scrolls: Boolean = true)
+    private class InfoRow(
+        @StringRes val label: Int,
+        @StringRes val info: Int,
+        val scrolls: Boolean = true,
+        /** The spoken name when it differs from the visible label (each hold's rows, rev 16 §6). */
+        val describedAs: String? = null,
+    )
 
     private val rows = mapOf(
         SettingsPage.TIMING to listOf(
@@ -89,8 +95,8 @@ class SettingsPagerTest {
             InfoRow(R.string.floor, R.string.info_floor),
             InfoRow(R.string.cap, R.string.info_cap),
             InfoRow(R.string.hold, R.string.info_hold),
-            InfoRow(R.string.hold_at, R.string.info_hold_at),
-            InfoRow(R.string.hold_for, R.string.info_hold_for),
+            InfoRow(R.string.hold_at, R.string.info_hold_at, describedAs = "Hold 1 at"),
+            InfoRow(R.string.hold_for, R.string.info_hold_for, describedAs = "Hold 1 for"),
             InfoRow(R.string.window_hours, R.string.info_window),
             InfoRow(R.string.penalty_rate, R.string.info_penalty_rate),
         ),
@@ -190,7 +196,7 @@ class SettingsPagerTest {
             tab(page).performClick()
             list.forEach { row ->
                 val label = text(row.label)
-                val tag = compose.onNodeWithContentDescription("About $label")
+                val tag = compose.onNodeWithContentDescription("About ${row.describedAs ?: label}")
                 (if (row.scrolls) tag.performScrollTo() else tag).performClick()
                 compose.onNodeWithTag("info_title").assertTextEquals(label)
                 compose.onNodeWithTag("info_text").assertTextEquals(text(row.info))
@@ -205,7 +211,7 @@ class SettingsPagerTest {
         rows.forEach { (page, list) ->
             tab(page).performClick()
             list.forEach { row ->
-                compose.onNodeWithContentDescription("About ${text(row.label)}")
+                compose.onNodeWithContentDescription("About ${row.describedAs ?: text(row.label)}")
                     .assertWidthIsAtLeast(48.dp)
                     .assertHeightIsAtLeast(48.dp)
             }

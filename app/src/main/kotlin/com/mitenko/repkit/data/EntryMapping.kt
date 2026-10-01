@@ -11,6 +11,7 @@ import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import java.time.Instant
@@ -61,8 +62,7 @@ internal fun EntryEntity.progression(): ProgressionConfig {
         startingTotal = checked(id, "starting_total", startingTotal, d.startingTotal) { it >= 1 },
         floor = checked(id, "floor", floor, d.floor) { it >= 1 },
         cap = checked(id, "cap", cap, d.cap) { it >= 1 },
-        holdAt = checked(id, "hold_at", holdAt, d.holdAt) { it >= 1 },
-        holdFor = checked(id, "hold_for", holdFor, d.holdFor) { it >= 0 },
+        holds = storedHolds(),
         windowHours = checked(id, "window_hours", windowHours, d.windowHours) { it >= 1 },
         penaltyHoursPerRep = checked(id, "penalty_hours_per_rep", penaltyHoursPerRep, d.penaltyHoursPerRep) {
             it > 0.0 && it.isFinite()
@@ -73,6 +73,29 @@ internal fun EntryEntity.progression(): ProgressionConfig {
     if (SettingsValidator.progression(c).isValid) return c
     Log.w(TAG, "Entry $id: progression inconsistent ($c); using default progression")
     return d
+}
+
+/**
+ * Spec rev 16 §5: the holds column, or for "" (a row v5 code never wrote) the legacy hold_at /
+ * hold_for as a one-item list. Bad items are dropped (text with no good item reads as the default
+ * hold), then later duplicates and holds past the 8th, so the list alone never fails the group check
+ * and resets the rest of the progression.
+ */
+private fun EntryEntity.storedHolds(): List<Hold> {
+    if (holds.isEmpty()) return listOf(legacyHold())
+    val decoded = checked(id, "holds", HoldsCodec.decode(holds), listOf(ProgressionConfig.DEFAULT_HOLD)) { it != null }!!
+    val repaired = decoded.distinctBy { it.at }.take(ProgressionConfig.MAX_HOLDS)
+    if (HoldsCodec.encode(repaired) != holds) Log.w(TAG, "Entry $id: repaired holds=$holds to $repaired")
+    return repaired
+}
+
+/** The single hold of the legacy hold_at / hold_for columns, repaired per field. */
+private fun EntryEntity.legacyHold(): Hold {
+    val d = ProgressionConfig.DEFAULT_HOLD
+    return Hold(
+        at = checked(id, "hold_at", holdAt, d.at) { it >= 1 },
+        forCount = checked(id, "hold_for", holdFor, d.forCount) { it >= 0 },
+    )
 }
 
 internal fun EntryEntity.counter(startingTotal: Int): CounterState = CounterState(
@@ -115,6 +138,10 @@ internal data class StoredCounter(
     val lastCheckIn: Long? = null,
 )
 
+/** Rev 16 §5: the legacy hold_at / hold_for columns mirror the first hold (64 / 4 for an empty list). */
+internal val ProgressionConfig.legacyHold: Hold
+    get() = holds.firstOrNull() ?: ProgressionConfig.DEFAULT_HOLD
+
 /** A row for insertion (id assigned by Room). The defaults give a fresh entry with an untouched counter. */
 internal fun entryEntity(
     name: String,
@@ -136,8 +163,9 @@ internal fun entryEntity(
     startingTotal = progression.startingTotal,
     floor = progression.floor,
     cap = progression.cap,
-    holdAt = progression.holdAt,
-    holdFor = progression.holdFor,
+    holds = HoldsCodec.encode(progression.holds),
+    holdAt = progression.legacyHold.at,
+    holdFor = progression.legacyHold.forCount,
     holdEnabled = progression.hold,
     windowHours = progression.windowHours,
     penaltyHoursPerRep = progression.penaltyHoursPerRep,

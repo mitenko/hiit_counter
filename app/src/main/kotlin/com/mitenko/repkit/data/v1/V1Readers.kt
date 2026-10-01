@@ -11,6 +11,7 @@ import com.mitenko.repkit.data.db.EntryEntity
 import com.mitenko.repkit.data.entryEntity
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.model.CueConfig
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 
@@ -73,8 +74,13 @@ internal fun Preferences.readV1Progression(): ProgressionConfig {
         startingTotal = valid(V1Keys.STARTING_TOTAL, d.startingTotal) { it >= 1 },
         floor = valid(V1Keys.FLOOR, d.floor) { it >= 1 },
         cap = valid(V1Keys.CAP, d.cap) { it >= 1 },
-        holdAt = valid(V1Keys.HOLD_AT, d.holdAt) { it >= 1 },
-        holdFor = valid(V1Keys.HOLD_FOR, d.holdFor) { it >= 0 },
+        // Rev 16 §5: v1's single hold imports as a one-item list.
+        holds = listOf(
+            Hold(
+                at = valid(V1Keys.HOLD_AT, ProgressionConfig.DEFAULT_HOLD.at) { it >= 1 },
+                forCount = valid(V1Keys.HOLD_FOR, ProgressionConfig.DEFAULT_HOLD.forCount) { it >= 0 },
+            ),
+        ),
         windowHours = valid(V1Keys.WINDOW_HOURS, d.windowHours) { it >= 1 },
         penaltyHoursPerRep = valid(V1Keys.PENALTY_HOURS_PER_REP, d.penaltyHoursPerRep) { it > 0.0 && it.isFinite() },
     )
@@ -85,7 +91,8 @@ internal fun Preferences.readV1Progression(): ProgressionConfig {
         d
     }
     // Spec R3 §5.2: v1's hold_for = 0 meant "hold off"; it imports as the switch off with hold_for back at 4.
-    return if (valid.holdFor == 0) valid.copy(hold = false, holdFor = d.holdFor) else valid
+    val only = valid.holds.single()
+    return if (only.forCount == 0) valid.copy(hold = false, holds = listOf(only.copy(forCount = ProgressionConfig.DEFAULT_HOLD.forCount))) else valid
 }
 
 internal fun Preferences.readV1Cues(): CueConfig =

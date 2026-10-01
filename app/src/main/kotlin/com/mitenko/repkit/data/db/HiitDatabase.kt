@@ -8,10 +8,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /**
  * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2), version 3 adds
  * `entry.type` and `entry.cue_voice` (R4 §3.2), version 4 adds the `check_in` history table
- * (R6 §3.1). Schemas are exported to app/schemas and committed. Every migration is registered in
+ * (R6 §3.1), version 5 adds `entry.holds` (rev 16 §5). Schemas are exported to app/schemas and committed. Every migration is registered in
  * the builder (StorageModule), and there is no destructive fallback.
  */
-@Database(entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class], version = 4, exportSchema = true)
+@Database(entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class], version = 5, exportSchema = true)
 abstract class HiitDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun metaDao(): MetaDao
@@ -70,6 +70,21 @@ abstract class HiitDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        /**
+         * Spec rev 16 §5, verbatim: each row's single hold becomes a one-item list. The legacy
+         * hold_at / hold_for columns stay (check_in's foreign key rules out a table rebuild).
+         */
+        internal val MIGRATION_4_5_SQL = listOf(
+            "ALTER TABLE entry ADD COLUMN holds TEXT NOT NULL DEFAULT ''",
+            "UPDATE entry SET holds = hold_at || ':' || hold_for",
+        )
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_4_5_SQL.forEach { db.execSQL(it) }
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }

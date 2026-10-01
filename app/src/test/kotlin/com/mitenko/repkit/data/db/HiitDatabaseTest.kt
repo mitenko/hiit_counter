@@ -241,7 +241,76 @@ class HiitDatabaseTest {
         buildList { while (moveToNext()) add(listOf(getLong(0), getLong(1), if (isNull(2)) null else getInt(2))) }
     }
 
+    @Test
+    fun `schema v5 is exported with holds defaulting to the empty string`() {
+        val json = File("schemas/com.mitenko.repkit.data.db.HiitDatabase/5.json").readText()
+        assertTrue(Regex("\"version\"\\s*:\\s*5").containsMatchIn(json))
+        assertTrue(json.contains("`holds` TEXT NOT NULL DEFAULT ''"))
+        // The legacy columns stay (rev 16 §5): check_in's foreign key rules out a table rebuild.
+        assertTrue(json.contains("`hold_at` INTEGER NOT NULL, `hold_for` INTEGER NOT NULL"))
+    }
+
+    @Test
+    fun `the 4 to 5 migration SQL copies each row's hold into holds and keeps every other column`() {
+        // Runs everywhere (no file-based helper), so Windows also covers the rev 16 §5 SQL.
+        val raw = SQLiteDatabase.create(null)
+        try {
+            raw.execSQL(V3_ENTRY_TABLE) // v4 didn't change the entry table
+            v4Rows.forEach { raw.execSQL(it) }
+            val before = raw.rawQuery(ALL_QUERY, null).allColumns()
+            HiitDatabase.MIGRATION_4_5_SQL.forEach { raw.execSQL(it) }
+            assertEquals(MIGRATED_HOLDS, raw.rawQuery(HOLDS_QUERY, null).holdsColumn())
+            assertEquals(before, raw.rawQuery(ALL_QUERY, null).allColumns(except = "holds"))
+            // What Room's schema check compares with 5.json: type, NOT NULL and the '' default.
+            val info = raw.rawQuery("PRAGMA table_info(entry)", null).allColumns().single { it["name"] == "holds" }
+            assertEquals(listOf<Any?>("TEXT", 1L, "''"), listOf(info["type"], info["notnull"], info["dflt_value"]))
+        } finally {
+            raw.close()
+        }
+    }
+
+    @Test
+    fun `migration 4 to 5 validates through MigrationTestHelper`() {
+        // Same Windows guard as the checks above: androidx.sqlite 2.6.1 mishandles backslash paths. CI runs it.
+        assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+        helper.createDatabase(MIGRATION_DB_5, 4).use { db -> v4Rows.forEach { db.execSQL(it) } }
+        helper.runMigrationsAndValidate(MIGRATION_DB_5, 5, true, HiitDatabase.MIGRATION_4_5).use { db ->
+            assertEquals(MIGRATED_HOLDS, db.query(HOLDS_QUERY).holdsColumn())
+        }
+    }
+
+    /** v4 rows: the default hold, a custom hold with the switch off, and a hold for 0. */
+    private val v4Rows = listOf(
+        v3Row(1, "WORKOUT", total = "65", lastCheckIn = "1790000000000"),
+        v3Row(2, "CHECK_IN", total = "NULL", lastCheckIn = "NULL").replace(", 64, 4, 1, 36,", ", 56, 3, 0, 36,"),
+        v3Row(3, "WORKOUT", total = "60", lastCheckIn = "NULL").replace(", 64, 4, 1, 36,", ", 70, 0, 1, 36,"),
+    )
+
+    private fun Cursor.holdsColumn(): List<String> = use { buildList { while (moveToNext()) add(getString(0)) } }
+
+    /** Every column of every row, by name, optionally leaving one out. */
+    private fun Cursor.allColumns(except: String? = null): List<Map<String, Any?>> = use {
+        buildList {
+            while (moveToNext()) {
+                add(
+                    columnNames.withIndex().filter { it.value != except }.associate { (i, name) ->
+                        name to when (getType(i)) {
+                            Cursor.FIELD_TYPE_NULL -> null
+                            Cursor.FIELD_TYPE_INTEGER -> getLong(i)
+                            Cursor.FIELD_TYPE_FLOAT -> getDouble(i)
+                            else -> getString(i)
+                        }
+                    },
+                )
+            }
+        }
+    }
+
     private companion object {
+        const val MIGRATION_DB_5 = "migration-4-5"
+        const val ALL_QUERY = "SELECT * FROM entry ORDER BY id"
+        const val HOLDS_QUERY = "SELECT holds FROM entry ORDER BY id"
+        val MIGRATED_HOLDS = listOf("64:4", "56:3", "70:0")
         const val MIGRATION_DB = "migration-1-2"
         const val HOLD_QUERY = "SELECT id, hold_enabled, hold_for FROM entry ORDER BY id"
         const val MIGRATION_DB_3 = "migration-2-3"

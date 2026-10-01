@@ -6,6 +6,7 @@ import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import com.mitenko.repkit.testutil.testEntity
@@ -43,7 +44,7 @@ class EntryMappingTest {
             Entry(
                 id = 7, name = "Burpees", position = 2,
                 timing = TimingConfig(5, 6, 30, 15, 60),
-                progression = ProgressionConfig(50, 40, 80, 70, 3, 30, 12.5),
+                progression = ProgressionConfig(50, 40, 80, listOf(Hold(70, 3)), 30, 12.5),
                 cues = CueConfig(sound = false, vibration = true),
                 counter = CounterState(65, 24, 4, Instant.ofEpochMilli(1_790_000_000_123), 2),
             ),
@@ -69,7 +70,7 @@ class EntryMappingTest {
     fun `progression fields are repaired per field`() {
         val p = testEntity().copy(penaltyHoursPerRep = Double.NaN, holdFor = -1, windowHours = 30).toDomain().progression
         assertEquals(19.5, p.penaltyHoursPerRep, 0.0)
-        assertEquals(4, p.holdFor)
+        assertEquals(listOf(Hold(64, 4)), p.holds)
         assertEquals(30, p.windowHours)
     }
 
@@ -116,7 +117,7 @@ class EntryMappingTest {
     fun `hold_enabled maps to the hold switch and back`() {
         val off = testEntity().copy(holdEnabled = false).toDomain().progression
         assertEquals(ProgressionConfig(hold = false), off)
-        assertFalse(off.holdEnabled)
+        assertTrue(off.activeHolds.isEmpty())
         assertTrue(testEntity().toDomain().progression.hold)
         assertFalse(entryEntity("Burpees", 0, progression = ProgressionConfig(hold = false)).holdEnabled)
         assertTrue(entryEntity("Burpees", 0).holdEnabled)
@@ -150,5 +151,53 @@ class EntryMappingTest {
     fun `a check-in row maps to a point`() {
         assertEquals(CheckInPoint(Instant.ofEpochMilli(1_790_000_000_123), 62), CheckInEntity(1, 7, 1_790_000_000_123, 62).toPoint())
         assertNull(CheckInEntity(2, 7, 1_000, null).toPoint().total)
+    }
+    @Test
+    fun `holds read from the holds column, and the empty default reads the legacy columns`() {
+        val legacy = testEntity().copy(holdAt = 70, holdFor = 3)
+        assertEquals("", legacy.holds)
+        assertEquals(listOf(Hold(70, 3)), legacy.toDomain().progression.holds)
+        assertEquals(listOf(Hold(56, 3), Hold(64, 4)), legacy.copy(holds = "56:3,64:4").toDomain().progression.holds)
+        assertEquals(emptyList<Hold>(), legacy.copy(holds = "-").toDomain().progression.holds)
+    }
+
+    @Test
+    fun `unparseable holds read as the default hold`() {
+        val p = testEntity().copy(holdAt = 70, holdFor = 3, holds = "56:x", cap = 80).toDomain().progression
+        assertEquals(listOf(Hold(64, 4)), p.holds)
+        assertEquals(80, p.cap)
+    }
+
+    @Test
+    fun `one garbage item among good ones is dropped and the rest of the progression kept`() {
+        val p = testEntity().copy(holds = "56:3,x:1,64:4", cap = 80, windowHours = 30).toDomain().progression
+        assertEquals(listOf(Hold(56, 3), Hold(64, 4)), p.holds)
+        assertEquals(80, p.cap)
+        assertEquals(30, p.windowHours)
+    }
+
+    @Test
+    fun `a stored duplicate keeps the first and the rest of the progression`() {
+        val p = testEntity().copy(holds = "64:4,56:3,64:2", holdEnabled = true, cap = 80).toDomain().progression
+        assertEquals(listOf(Hold(64, 4), Hold(56, 3)), p.holds)
+        assertTrue(p.hold)
+        assertEquals(80, p.cap)
+    }
+
+    @Test
+    fun `more than eight stored holds keep the first eight and the rest of the progression`() {
+        val nine = (0 until 9).map { Hold(50 + it, 1) }
+        val p = testEntity().copy(holds = HoldsCodec.encode(nine), cap = 80).toDomain().progression
+        assertEquals(nine.take(8), p.holds)
+        assertEquals(80, p.cap)
+    }
+
+    @Test
+    fun `holds are written in order and mirrored into the legacy columns`() {
+        val row = entryEntity("Burpees", 0, progression = ProgressionConfig(holds = listOf(Hold(56, 3), Hold(64, 4))))
+        assertEquals(Triple("56:3,64:4", 56, 3), Triple(row.holds, row.holdAt, row.holdFor))
+        val empty = entryEntity("Burpees", 0, progression = ProgressionConfig(holds = emptyList()))
+        assertEquals(Triple("-", 64, 4), Triple(empty.holds, empty.holdAt, empty.holdFor))
+        assertEquals(emptyList<Hold>(), empty.toDomain().progression.holds)
     }
 }
