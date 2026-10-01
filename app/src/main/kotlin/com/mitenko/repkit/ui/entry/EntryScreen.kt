@@ -1,7 +1,11 @@
 package com.mitenko.repkit.ui.entry
 
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
@@ -41,11 +46,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,11 +66,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.EntryType
+import kotlinx.coroutines.launch
 
 @Composable
 fun EntryRoute(onBack: () -> Unit, onOpenSettings: () -> Unit, onEntryGone: () -> Unit, vm: EntryViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val missing by vm.missing.collectAsStateWithLifecycle()
+    // Paused while this screen isn't started (spec revision 12 §3): a highlight set while away
+    // (e.g. Start navigated to the timer) just waits here and plays once collection resumes.
+    val highlight by vm.highlight.collectAsStateWithLifecycle()
     LaunchedEffect(missing) { if (missing) onEntryGone() }
     LifecycleResumeEffect(vm) {
         vm.onResume()
@@ -70,6 +85,7 @@ fun EntryRoute(onBack: () -> Unit, onOpenSettings: () -> Unit, onEntryGone: () -
     EntryScreen(
         state, onBack = onBack, onStart = vm::onStart, onCheckIn = vm::onCheckIn,
         onOpenSettings = onOpenSettings, onDismissError = vm::dismissError,
+        highlight = highlight, onHighlightShown = vm::highlightShown,
     )
 }
 
@@ -87,6 +103,8 @@ fun EntryScreen(
     onCheckIn: () -> Unit,
     onOpenSettings: () -> Unit,
     onDismissError: () -> Unit,
+    highlight: Highlight? = null,
+    onHighlightShown: () -> Unit = {},
 ) {
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.error) {
@@ -113,7 +131,7 @@ fun EntryScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).testTag("entry_name"),
                 )
-                IconButton(onClick = onOpenSettings, enabled = !state.starting, modifier = Modifier.testTag("settings")) {
+                IconButton(onClick = onOpenSettings, enabled = !state.starting && !state.checkingIn, modifier = Modifier.testTag("settings")) {
                     Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings))
                 }
             }
@@ -123,7 +141,7 @@ fun EntryScreen(
                 Spacer(Modifier.height(12.dp))
                 RangeSwitch(range, onSelect = { range = it })
                 Spacer(Modifier.height(16.dp))
-                CentreRow(state, range)
+                CentreRow(state, range, highlight, onHighlightShown)
                 Spacer(Modifier.height(12.dp))
                 // Spec rev 9 §3: replaces the Best/Curr CI Streak rows, for both types.
                 Text(
@@ -199,7 +217,7 @@ private val HistoryRange.label: Int
  * Workout's reps column sits on the right. The empty states sit in the chart area (plan Spec note 17).
  */
 @Composable
-private fun CentreRow(state: EntryUiState, range: HistoryRange) {
+private fun CentreRow(state: EntryUiState, range: HistoryRange, highlight: Highlight?, onHighlightShown: () -> Unit) {
     val view = remember(state.points, range, state.now, state.zone) {
         HistoryLayout.rangeView(state.points, range, state.now, state.zone)
     }
@@ -216,7 +234,7 @@ private fun CentreRow(state: EntryUiState, range: HistoryRange) {
                 }
             }
         }
-        if (state.type == EntryType.WORKOUT) RepsColumn(state.reps)
+        if (state.type == EntryType.WORKOUT) RepsColumn(state.reps, highlight, onHighlightShown)
     }
 }
 
@@ -224,37 +242,137 @@ private fun CentreRow(state: EntryUiState, range: HistoryRange) {
  * Spec rev 9 §3 and plan Spec note 18: a Workout's per-set reps, top to bottom, in the old table
  * cells' style. It scrolls only past [RepsColumnLayout.VISIBLE_ROWS] sets, and it's one node for
  * screen readers: "Reps per set: 9, 8, 8, …".
+ *
+ * Spec revision 12 §3: after a check-in, the cells whose value changed pop and flash. [highlight]
+ * is a one-shot event — [onHighlightShown] consumes it right away so a later recomposition with a
+ * cleared (null) highlight can't drop the animation; a locally remembered copy of the event is what
+ * the cells and the announcement actually key off, and it survives that clearing.
  */
 @Composable
-private fun RepsColumn(reps: List<Int>) {
+private fun RepsColumn(reps: List<Int>, highlight: Highlight?, onHighlightShown: () -> Unit) {
     val line = MaterialTheme.colorScheme.outline
     val description = stringResource(R.string.reps_per_set_desc, RepsColumnLayout.spoken(reps))
     val scrollState = rememberScrollState()
-    Column(
-        Modifier
-            .width(REPS_COLUMN_WIDTH)
-            .height(ChartInsets.height)
-            .semantics(mergeDescendants = true) { contentDescription = description }
-            .then(if (RepsColumnLayout.scrolls(reps.size)) Modifier.verticalScroll(scrollState) else Modifier)
-            .testTag("reps_column"),
-    ) {
-        reps.forEachIndexed { index, value ->
-            Text(
-                "$value",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ChartInsets.height / RepsColumnLayout.VISIBLE_ROWS)
-                    .border(0.5.dp, line)
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .testTag("rep_$index"),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.titleSmall,
-            )
+
+    var active by remember { mutableStateOf<Highlight?>(null) }
+    LaunchedEffect(highlight?.id) {
+        if (highlight != null) {
+            active = highlight
+            onHighlightShown()
         }
+    }
+
+    Box {
+        Column(
+            Modifier
+                .width(REPS_COLUMN_WIDTH)
+                .height(ChartInsets.height)
+                .semantics(mergeDescendants = true) { contentDescription = description }
+                .then(if (RepsColumnLayout.scrolls(reps.size)) Modifier.verticalScroll(scrollState) else Modifier)
+                .testTag("reps_column"),
+        ) {
+            reps.forEachIndexed { index, value ->
+                RepCell(index, value, active?.changes?.get(index), active?.id, line)
+            }
+        }
+        ChangeAnnouncement(active, reps)
     }
 }
 
+/**
+ * One cell's pop-and-fade (spec revision 12 §3): primary on a gain, error on a drop. Keyed on
+ * [highlightId] rather than [change] itself, so the same cell changing the same way twice in a
+ * row (e.g. gaining a rep two check-ins running) still replays the animation.
+ */
+@Composable
+private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, highlightId: Int?, borderColor: Color) {
+    val reducedMotion = reducedMotionEnabled()
+    val scale = remember { Animatable(1f) }
+    val colorFraction = remember { Animatable(0f) }
+    var active by remember { mutableStateOf(false) }
+    LaunchedEffect(highlightId) {
+        if (change == null) return@LaunchedEffect
+        active = true
+        try {
+            // Reduced motion (spec revision 12 §3): skip the scale pop, keep only the colour fade.
+            if (!reducedMotion) {
+                launch {
+                    scale.animateTo(1.15f, tween(POP_HALF_MS))
+                    scale.animateTo(1f, tween(POP_HALF_MS))
+                }
+            }
+            colorFraction.snapTo(1f)
+            colorFraction.animateTo(0f, tween(FADE_MS))
+        } finally {
+            // A cancelled animation (e.g. a new highlight arriving, or leaving the screen) must
+            // still clear "increased"/"decreased" rather than stranding it on this cell.
+            active = false
+        }
+    }
+    val tint: Color? = when (change) {
+        RepsColumnLayout.Change.UP -> MaterialTheme.colorScheme.primary
+        RepsColumnLayout.Change.DOWN -> MaterialTheme.colorScheme.error
+        null -> null
+    }
+    Text(
+        "$value",
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ChartInsets.height / RepsColumnLayout.VISIBLE_ROWS)
+            .scale(scale.value)
+            .then(if (tint != null) Modifier.background(tint.copy(alpha = HIGHLIGHT_ALPHA * colorFraction.value)) else Modifier)
+            .border(0.5.dp, borderColor)
+            .wrapContentHeight(Alignment.CenterVertically)
+            .testTag("rep_$index")
+            .then(
+                if (active) {
+                    Modifier.semantics {
+                        stateDescription = if (change == RepsColumnLayout.Change.UP) "increased" else "decreased"
+                    }
+                } else {
+                    Modifier
+                },
+            ),
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.titleSmall,
+    )
+}
+
+/**
+ * TalkBack announcement (spec revision 12 §3): a polite live region that names the single changed
+ * set, or counts them when several changed (e.g. after a miss). Invisible — it exists for
+ * accessibility services, not sighted users.
+ */
+@Composable
+private fun ChangeAnnouncement(active: Highlight?, reps: List<Int>) {
+    val message = when {
+        active == null -> ""
+        active.changes.size == 1 -> {
+            val (index, _) = active.changes.entries.first()
+            stringResource(R.string.reps_changed_one, index + 1, reps.getOrElse(index) { 0 })
+        }
+        else -> stringResource(R.string.reps_changed_many, active.changes.size)
+    }
+    Text(
+        message,
+        modifier = Modifier
+            .size(1.dp)
+            .testTag("reps_announcement")
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}
+
+/** Settings → Accessibility → Remove animations (spec revision 12 §3): read once per composition. */
+@Composable
+private fun reducedMotionEnabled(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    return remember { Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
+}
+
 private val REPS_COLUMN_WIDTH = 56.dp
+private const val POP_HALF_MS = 150
+private const val FADE_MS = 1200
+private const val HIGHLIGHT_ALPHA = 0.35f
 
 @Composable
 private fun EmptyText(@StringRes text: Int) {

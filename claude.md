@@ -17,6 +17,7 @@ As you develop, refine the instructions here.
 - **UI refresh (approved, rev 9, amends R6 §4.1–4.2, R2 §7.3–7.5, R3 §4, R5 and rev 8):** `docs/superpowers/specs/2026-09-30-ui-refresh-design.md` — rounded list tiles with "X× this week" and a tile graph, a chart-centred entry screen (no History screen), card-style settings and icon tabs.
 - **Timer skip (approved, rev 10, amends v1 §8 and §9.2, and rev 8 §4.2):** `docs/superpowers/specs/2026-10-01-timer-skip-design.md` — ⏩/⏪ skip forward/back either side of Pause, and the Timer Only centre/voice count the sets down instead of up.
 - **Week circles (approved, rev 11, amends rev 9 §2):** `docs/superpowers/specs/2026-10-01-week-circles-design.md` — the Timer Only tile's graph is 7 lettered circles (M T W T F S S) for the calendar week instead of 28 day-dots.
+- **Check-in highlight (approved, rev 12, amends rev 9 §3):** `docs/superpowers/specs/2026-10-01-checkin-highlight-design.md` — the reps column's changed cells pop and flash (primary/error) after a check-in, with a reduced-motion fallback and a TalkBack announcement.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

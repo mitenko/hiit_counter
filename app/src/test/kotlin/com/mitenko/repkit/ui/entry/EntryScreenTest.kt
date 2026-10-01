@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasScrollAction
@@ -60,11 +61,14 @@ class EntryScreenTest {
         onStart: () -> Unit = {},
         onSettings: () -> Unit = {},
         onCheckIn: () -> Unit = {},
+        highlight: Highlight? = null,
+        onHighlightShown: () -> Unit = {},
     ) {
         compose.setContent {
             HiitTheme {
                 EntryScreen(
                     s, onBack = onBack, onStart = onStart, onCheckIn = onCheckIn, onOpenSettings = onSettings, onDismissError = {},
+                    highlight = highlight, onHighlightShown = onHighlightShown,
                 )
             }
         }
@@ -106,6 +110,12 @@ class EntryScreenTest {
         show(state.copy(starting = true))
         compose.onNodeWithTag("start").assertIsNotEnabled()
         compose.onNodeWithTag("back").assertIsNotEnabled()
+        compose.onNodeWithTag("settings").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `settings is also disabled while a check-in is in flight`() {
+        show(state.copy(checkingIn = true))
         compose.onNodeWithTag("settings").assertIsNotEnabled()
     }
 
@@ -267,5 +277,61 @@ class EntryScreenTest {
         // it still opens at its end (today) instead of keeping FOUR_WEEKS's old scroll position.
         val all = compose.onNodeWithTag("calendar").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
         assertEquals(all.maxValue(), all.value(), 0.5f)
+    }
+
+    @Test
+    fun `after a highlight event, the changed cell reports its state and the others don't`() {
+        compose.mainClock.autoAdvance = false
+        show(state, highlight = Highlight(id = 1, changes = mapOf(1 to RepsColumnLayout.Change.UP)))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithTag("rep_1", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "increased"))
+        compose.onNodeWithTag("rep_0", useUnmergedTree = true)
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+    }
+
+    @Test
+    fun `a decreased cell reports its state too`() {
+        compose.mainClock.autoAdvance = false
+        show(state, highlight = Highlight(id = 1, changes = mapOf(0 to RepsColumnLayout.Change.DOWN, 7 to RepsColumnLayout.Change.DOWN)))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithTag("rep_0", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "decreased"))
+        compose.onNodeWithTag("rep_7", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "decreased"))
+    }
+
+    @Test
+    fun `the TalkBack announcement names the one changed set`() {
+        compose.mainClock.autoAdvance = false
+        show(state, highlight = Highlight(id = 1, changes = mapOf(1 to RepsColumnLayout.Change.UP)))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithText("Set 2 now 8 reps").assertExists()
+    }
+
+    @Test
+    fun `the TalkBack announcement counts several changed sets`() {
+        compose.mainClock.autoAdvance = false
+        show(state, highlight = Highlight(id = 1, changes = mapOf(0 to RepsColumnLayout.Change.DOWN, 7 to RepsColumnLayout.Change.DOWN)))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithText("2 sets changed").assertExists()
+    }
+
+    @Test
+    fun `a highlight event is consumed once shown`() {
+        compose.mainClock.autoAdvance = false
+        var shown = 0
+        show(state, highlight = Highlight(id = 1, changes = mapOf(1 to RepsColumnLayout.Change.UP)), onHighlightShown = { shown++ })
+        compose.mainClock.advanceTimeBy(50)
+        assertEquals(1, shown)
+    }
+
+    @Test
+    fun `a Timer only entry has no column and no highlight`() {
+        val timerOnly = state.copy(type = EntryType.CHECK_IN, points = listOf(c.copy(total = null)))
+        show(timerOnly, highlight = Highlight(id = 1, changes = mapOf(0 to RepsColumnLayout.Change.UP)))
+        compose.onNodeWithTag("reps_column").assertDoesNotExist()
+        compose.onNodeWithTag("rep_0", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Set 1 now 9 reps").assertDoesNotExist()
     }
 }

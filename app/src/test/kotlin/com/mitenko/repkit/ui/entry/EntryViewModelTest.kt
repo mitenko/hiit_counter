@@ -29,6 +29,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -321,5 +322,87 @@ class EntryViewModelTest {
         h.vm.onResume()
         runCurrent()
         assertEquals(clock.instant, h.vm.uiState.value.now)
+    }
+
+    @Test
+    fun `check in on a Counter entry emits a highlight with the right index and UP`() = runTest {
+        val h = harness()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+        h.vm.onCheckIn()
+        runCurrent()
+        // 65 -> 66 reps across 8 sets: [9,8,8,8,8,8,8,8] -> [9,9,8,8,8,8,8,8], only index 1 gains.
+        assertEquals(mapOf(1 to RepsColumnLayout.Change.UP), h.vm.highlight.value?.changes)
+    }
+
+    @Test
+    fun `a check-in after a miss emits DOWN for the right indices`() = runTest {
+        val h = harness()
+        runCurrent()
+        // ~80h after the last check-in: a miss with penalty 2, so 65 -> 63.
+        clock.instant = Instant.parse("2026-09-26T20:55:00Z")
+        h.vm.onCheckIn()
+        runCurrent()
+        // [9,8,8,8,8,8,8,8] -> [8,8,8,8,8,8,8,7]: the first and last sets drop.
+        assertEquals(mapOf(0 to RepsColumnLayout.Change.DOWN, 7 to RepsColumnLayout.Change.DOWN), h.vm.highlight.value?.changes)
+    }
+
+    @Test
+    fun `AlreadyToday emits nothing`() = runTest {
+        val h = harness()
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertNotNull(h.vm.highlight.value)
+        h.vm.highlightShown()
+        h.vm.onCheckIn() // same day: AlreadyToday, writes nothing
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `highlightShown clears it`() = runTest {
+        val h = harness()
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertNotNull(h.vm.highlight.value)
+        h.vm.highlightShown()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `opening or resuming the screen emits no highlight`() = runTest {
+        val h = harness()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+        h.vm.onResume()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `start also emits a highlight for the check-in it performs`() = runTest {
+        val h = harness()
+        runCurrent()
+        h.vm.onStart()
+        runCurrent()
+        assertEquals(mapOf(1 to RepsColumnLayout.Change.UP), h.vm.highlight.value?.changes)
+    }
+
+    @Test
+    fun `a sets change mid check-in bails without a highlight`() = runTest {
+        val h = harness()
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        repo.checkInGate = gate
+        h.vm.onCheckIn() // captures "before" with 8 sets
+        runCurrent()
+        // The set count changes while the check-in is still in flight.
+        repo.state.update { list -> list.map { if (it.id == 1L) it.copy(timing = it.timing.copy(sets = 5)) else it } }
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertNull(h.vm.highlight.value)
     }
 }

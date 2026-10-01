@@ -139,6 +139,10 @@
         <item quantity="other">%1$d check-in days</item>
     </plurals>
 
+    <!-- Check-in highlight announcement (spec revision 12 §3) -->
+    <string name="reps_changed_one">Set %1$d now %2$d reps</string>
+    <string name="reps_changed_many">%1$d sets changed</string>
+
     <!-- Icon-only settings tabs: their content descriptions (spec rev 9 §5; tab_current is R3's, reused) -->
     <string name="tab_timing">Timing</string>
     <string name="tab_progression">Progression</string>
