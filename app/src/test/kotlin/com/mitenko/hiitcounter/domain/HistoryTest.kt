@@ -80,18 +80,49 @@ class HistoryTest {
     }
 
     @Test
-    fun `dayDots marks each window day that has a point, oldest first`() {
+    fun `weekDays on a Monday marks only today, ignoring a future point in the same week`() {
         val points = listOf(
-            point("2026-08-27T20:00:00Z"), // Thu 27 Aug: before the window
-            point("2026-08-28T07:00:00Z"), // Fri 28 Aug 00:00 PDT: the first day
-            point("2026-09-10T16:00:00Z"), // day 13
-            point("2026-09-10T23:00:00Z"), // the same day again
-            point("2026-09-24T14:00:00Z"), // today
+            point("2026-09-21T07:00:00Z"), // Mon 21 Sep 00:00 PDT: today
+            point("2026-09-23T12:00:00Z"), // Wed 23 Sep: later this week - must be forced false
         )
-        val dots = dayDots(points, thursday, la)
-        assertEquals(28, dots.size)
-        assertEquals(listOf(0, 13, 27), dots.indices.filter { dots[it] })
-        assertTrue(dayDots(emptyList(), thursday, la).none { it })
+        assertEquals(listOf(true, false, false, false, false, false, false), weekDays(points, mondayMidnight, la))
+    }
+
+    @Test
+    fun `weekDays on a Sunday can mark every day of the week`() {
+        val sunday = at("2026-09-27T20:00:00Z") // Sun 27 Sep 13:00 PDT
+        val points = listOf(
+            point("2026-09-21T07:00:00Z"), // Mon
+            point("2026-09-24T14:00:00Z"), // Thu
+            point("2026-09-27T19:00:00Z"), // Sun (today) 12:00 PDT
+        )
+        assertEquals(listOf(true, false, false, true, false, false, true), weekDays(points, sunday, la))
+    }
+
+    @Test
+    fun `weekDays ignores a check-in from last week`() {
+        val points = listOf(point("2026-09-21T06:59:00Z")) // Sun 20 Sep 23:59 PDT: last week
+        assertTrue(weekDays(points, thursday, la).none { it })
+    }
+
+    @Test
+    fun `weekDays counts two points on the same day once`() {
+        val points = listOf(
+            point("2026-09-23T12:00:00Z"), // Wed 23 Sep
+            point("2026-09-23T20:00:00Z"), // the same day again
+        )
+        assertEquals(listOf(false, false, true, false, false, false, false), weekDays(points, thursday, la))
+    }
+
+    @Test
+    fun `weekDays in the week DST ends treats the 25-hour day as one calendar day`() {
+        val sundayNoonPst = at("2026-11-01T20:00:00Z") // Sun 1 Nov 12:00 PST: the week's last day
+        val points = listOf(
+            point("2026-10-26T07:00:00Z"), // Mon 26 Oct 00:00 PDT
+            point("2026-11-01T08:30:00Z"), // Sun 1 Nov 01:30 PDT: before the 2 am fallback
+            point("2026-11-01T10:00:00Z"), // Sun 1 Nov 02:00 PST: after the fallback, same calendar day
+        )
+        assertEquals(listOf(true, false, false, false, false, false, true), weekDays(points, sundayNoonPst, la))
     }
 
     @Test

@@ -182,10 +182,11 @@ class EntryListViewModelTest {
     }
 
     @Test
-    fun `a row carries the tile window's count, day-dots and sparkline`() = runTest {
+    fun `a row carries the tile window's count, this week's days and sparkline`() = runTest {
         val tile = row(vm(withHistory())).tile
         assertEquals(4, tile.count)
-        assertEquals(listOf(2, 23, 24, 26), tile.days.indices.filter { tile.days[it] })
+        // Mon (p2) and Wed (p3) are this week; p0 and p1 (last week and before) are not.
+        assertEquals(listOf(0, 2), tile.week.indices.filter { tile.week[it] })
         assertEquals(listOf(SparkPoint(2, 58), SparkPoint(23, 60), SparkPoint(24, 61), SparkPoint(26, 62)), tile.spark)
     }
 
@@ -198,7 +199,7 @@ class EntryListViewModelTest {
         val r = row(vm)
         assertEquals(0, r.weekCount)
         assertEquals(3, r.tile.count) // 30 Aug has left the window (1 Sep – 28 Sep)
-        assertEquals(listOf(19, 20, 22), r.tile.days.indices.filter { r.tile.days[it] })
+        assertEquals(TileData.NO_WEEK, r.tile.week) // the new week has no check-ins yet
     }
 
     @Test
@@ -209,6 +210,6 @@ class EntryListViewModelTest {
         runCurrent()
         val r = row(vm)
         assertEquals(1, r.weekCount)
-        assertEquals(TileData(count = 1, days = List(28) { it == 27 }, spark = listOf(SparkPoint(27, 48))), r.tile)
+        assertEquals(TileData(count = 1, week = List(7) { it == 3 }, spark = listOf(SparkPoint(27, 48))), r.tile)
     }
 }

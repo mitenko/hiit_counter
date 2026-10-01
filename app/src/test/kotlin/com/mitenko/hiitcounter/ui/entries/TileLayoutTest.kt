@@ -18,16 +18,16 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `tile counts the window's points, marks their days and indexes the sparkline`() {
+    fun `tile counts the window's points, marks this week's days and indexes the sparkline`() {
         val points = listOf(
             CheckInPoint(Instant.parse("2026-08-27T20:00:00Z"), 47), // before the window
-            CheckInPoint(Instant.parse("2026-08-28T07:00:00Z"), 48), // day 0
-            CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 55), // day 13
-            CheckInPoint(Instant.parse("2026-09-24T14:00:00Z"), null), // today, without a total
+            CheckInPoint(Instant.parse("2026-08-28T07:00:00Z"), 48), // day 0, last week
+            CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 55), // day 13, last week
+            CheckInPoint(Instant.parse("2026-09-24T14:00:00Z"), null), // today (Thu), this week, without a total
         )
         val tile = TileLayout.tile(points, now, la)
         assertEquals(3, tile.count)
-        assertEquals(listOf(0, 13, 27), tile.days.indices.filter { tile.days[it] })
+        assertEquals(listOf(3), tile.week.indices.filter { tile.week[it] }) // Thu is index 3, Monday first
         assertEquals(listOf(SparkPoint(0, 48), SparkPoint(13, 55)), tile.spark)
         assertEquals(TileData(), TileLayout.tile(emptyList(), now, la))
     }
@@ -41,11 +41,9 @@ class TileLayoutTest {
     }
 
     @Test
-    fun `one point or a flat line sits mid-height, no points draw nothing, and day-dots are evenly spaced`() {
+    fun `one point or a flat line sits mid-height, and no points draw nothing`() {
         assertPoint(PlotPoint(19.037037f, 16f), TileLayout.sparkline(listOf(SparkPoint(5, 50)), 96f, 32f, inset = 2f).single())
         assertTrue(TileLayout.sparkline(listOf(SparkPoint(0, 50), SparkPoint(27, 50)), 96f, 32f, inset = 2f).all { it.y == 16f })
         assertTrue(TileLayout.sparkline(emptyList(), 96f, 32f, inset = 2f).isEmpty())
-        assertEquals(1.7142857f, TileLayout.dotX(0, 96f), 0.001f)
-        assertEquals(94.28571f, TileLayout.dotX(27, 96f), 0.001f)
     }
 }
