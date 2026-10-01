@@ -55,7 +55,7 @@ interface EntryRepository {
 
     suspend fun setTiming(id: Long, timing: TimingConfig)
 
-    /** One transaction: holdCount is reset only if holdAt, holdFor or the effective holdEnabled changed (R3 §6.3). */
+    /** One transaction: holdCount is reset only if holdResetNeeded says so (R3 §6.3, rev 16 §4). */
     suspend fun setProgression(id: Long, progression: ProgressionConfig)
 
     suspend fun setCues(id: Long, cues: CueConfig)
@@ -190,7 +190,8 @@ class RoomEntryRepository(
             val old = dao.get(id)?.progression() ?: throw EntryNotFound(id)
             with(progression) {
                 dao.setProgression(
-                    id, startingTotal, floor, cap, holdAt, holdFor, hold, windowHours, penaltyHoursPerRep,
+                    id, startingTotal, floor, cap, HoldsCodec.encode(holds), legacyHold.at, legacyHold.forCount, hold,
+                    windowHours, penaltyHoursPerRep,
                     resetHoldCount = holdResetNeeded(old, progression),
                 )
             }

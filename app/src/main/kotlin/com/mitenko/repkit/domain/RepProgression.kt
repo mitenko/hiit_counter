@@ -59,7 +59,7 @@ object RepProgression {
 
         val hours = hoursSince(last, now)
 
-        // Rule 3: missed. A miss that leaves the total on holdAt restarts the hold.
+        // Rule 3: missed. A miss that leaves the total on an active hold restarts that hold.
         if (hours > config.windowHours) {
             val penalty = max(0, roundHalfUp((hours - 24) / config.penaltyHoursPerRep) - 1)
             val newTotal = max(config.floor, total - penalty)
@@ -79,10 +79,12 @@ object RepProgression {
         val streak = state.currentStreak + 1
         val newTotal: Int
         val holdCount: Int
-        if (config.holdEnabled && total == config.holdAt) {
-            if (state.holdCount >= config.holdFor) {
+        val hold = config.activeHold(total)
+        if (hold != null) {
+            if (state.holdCount >= hold.forCount) {
+                // Done here (hold.at < cap, so +1 stays in range). A hold right above starts on this day.
                 newTotal = total + 1
-                holdCount = 0
+                holdCount = startingHoldCount(newTotal, config)
             } else {
                 newTotal = total
                 holdCount = state.holdCount + 1
@@ -119,7 +121,7 @@ object RepProgression {
     private fun hoursSince(last: Instant, now: Instant): Int =
         roundHalfUp((now.toEpochMilli() - last.toEpochMilli()) / MS_PER_HOUR)
 
-    /** 1 when this check-in is the first performed at the hold value, else 0. */
+    /** 1 when this check-in is the first performed at an active hold's value, else 0 (spec rev 16 §2). */
     private fun startingHoldCount(total: Int, config: ProgressionConfig): Int =
-        if (config.holdEnabled && total == config.holdAt) 1 else 0
+        if (config.activeHold(total) != null) 1 else 0
 }

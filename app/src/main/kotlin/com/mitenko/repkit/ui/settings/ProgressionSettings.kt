@@ -3,8 +3,15 @@ package com.mitenko.repkit.ui.settings
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -13,9 +20,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,11 +36,14 @@ import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.di.ApplicationScope
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldRanges
+import com.mitenko.repkit.domain.HoldField
 import com.mitenko.repkit.domain.PenaltyDraft
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.EntryNotFound
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.newHold
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.IntStepperField
@@ -40,6 +54,7 @@ import com.mitenko.repkit.ui.common.SettingsPageLayout
 import com.mitenko.repkit.ui.common.SwitchRow
 import com.mitenko.repkit.ui.common.ValueInput
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,24 +65,38 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-/** Typed draft (spec R2 §8.1, R3 §5.3): one value per field, the penalty in integer half-hours, and the Hold switch. */
+/**
+ * Typed draft (spec R2 §8.1, R3 §5.3, rev 16 §6): one value per field, the penalty in integer
+ * half-hours, the Hold switch and the list of holds (part of equality, so of the save key).
+ */
 data class ProgressionDraft(
     val startingTotal: Int,
     val floor: Int,
     val cap: Int,
-    val holdAt: Int,
-    val holdFor: Int,
+    val holds: List<Hold>,
     val windowHours: Int,
     val penalty: PenaltyDraft,
     val hold: Boolean,
 ) {
-    fun toConfig() = ProgressionConfig(startingTotal, floor, cap, holdAt, holdFor, windowHours, penalty.hours, hold)
+    fun toConfig() = ProgressionConfig(
+        startingTotal = startingTotal, floor = floor, cap = cap, holds = holds,
+        windowHours = windowHours, penaltyHoursPerRep = penalty.hours, hold = hold,
+    )
+
+    /** Replaces the hold at [index] with [transform] of it. */
+    fun updateHold(index: Int, transform: (Hold) -> Hold) =
+        copy(holds = holds.mapIndexed { i, h -> if (i == index) transform(h) else h })
+
+    /** "+ Add hold" (spec rev 16 §6); the page disables it at [ProgressionConfig.MAX_HOLDS]. */
+    fun withNewHold() = copy(holds = holds + newHold(holds, floor, cap))
+
+    /** ✕ on hold [index]. Removing the last one leaves an empty list; the switch is untouched. */
+    fun withoutHold(index: Int) = copy(holds = holds.filterIndexed { i, _ -> i != index })
 
     companion object {
         fun from(c: ProgressionConfig) = ProgressionDraft(
-            c.startingTotal, c.floor, c.cap, c.holdAt, c.holdFor, c.windowHours, PenaltyDraft.of(c.penaltyHoursPerRep), c.hold,
+            c.startingTotal, c.floor, c.cap, c.holds, c.windowHours, PenaltyDraft.of(c.penaltyHoursPerRep), c.hold,
         )
     }
 }
@@ -121,6 +150,12 @@ class ProgressionSettingsViewModel @Inject constructor(
     /** A dialog OK or the Hold switch: saved at once. */
     fun updateNow(transform: (ProgressionDraft) -> ProgressionDraft) = edit(transform, now = true)
 
+    /** "+ Add hold": saved at once (spec rev 16 §6). */
+    fun addHold() = updateNow { it.withNewHold() }
+
+    /** ✕ on hold [index]: saved at once (spec rev 16 §6). */
+    fun removeHold(index: Int) = updateNow { it.withoutHold(index) }
+
     /** After the confirmation (spec R3 §6.4): the draft becomes the defaults and saves at once. */
     fun resetToDefaults() = updateNow { ProgressionDraft.from(ProgressionConfig()) }
 
@@ -144,8 +179,9 @@ class ProgressionSettingsViewModel @Inject constructor(
     private fun setDraft(d: ProgressionDraft) {
         _draft.value = d
         savedStateHandle[DRAFT_KEY] = intArrayOf(
-            d.startingTotal, d.floor, d.cap, d.holdAt, d.holdFor, d.windowHours, d.penalty.halfHours, if (d.hold) 1 else 0,
+            d.startingTotal, d.floor, d.cap, d.windowHours, d.penalty.halfHours, if (d.hold) 1 else 0,
         )
+        savedStateHandle[HOLDS_KEY] = d.holds.flatMap { listOf(it.at, it.forCount) }.toIntArray()
         savedStateHandle[EXACT_KEY] = d.penalty.exact
     }
 
@@ -153,10 +189,12 @@ class ProgressionSettingsViewModel @Inject constructor(
         const val TAG = "ProgressionSettings"
         const val DRAFT_KEY = "progression_draft"
         const val EXACT_KEY = "progression_penalty_exact"
+        const val HOLDS_KEY = "progression_holds"
 
         fun SavedStateHandle.restoredDraft(): ProgressionDraft? {
             val a = get<IntArray>(DRAFT_KEY) ?: return null
-            return ProgressionDraft(a[0], a[1], a[2], a[3], a[4], a[5], PenaltyDraft(a[6], get<Double>(EXACT_KEY)), a[7] == 1)
+            val holds = get<IntArray>(HOLDS_KEY)?.toList()?.chunked(2) { (at, forCount) -> Hold(at, forCount) } ?: return null
+            return ProgressionDraft(a[0], a[1], a[2], holds, a[3], PenaltyDraft(a[4], get<Double>(EXACT_KEY)), a[5] == 1)
         }
     }
 }
@@ -212,24 +250,34 @@ fun ProgressionPageContent(
                 onDialogUpdate = { f -> onChangeNow { it.copy(cap = f(it.cap)) } },
                 error = errors[Field.CAP], info = stringResource(R.string.info_cap),
             )
-            // Spec R3 §5.3: the switch sits directly above Hold at; off hides both rows but keeps their values.
+            // Spec R3 §5.3, rev 16 §6: the switch sits directly above the holds; off hides the list but keeps its values.
             SwitchRow(
                 stringResource(R.string.hold), draft.hold,
                 onChange = { on -> onChangeNow { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
             )
             AnimatedVisibility(visible = draft.hold) {
                 Column {
-                    IntStepperField(
-                        stringResource(R.string.hold_at), draft.holdAt, FieldRanges.REPS, ValueInput.WHOLE,
-                        onUpdate = { f -> onChange { it.copy(holdAt = f(it.holdAt)) } },
-                        onDialogUpdate = { f -> onChangeNow { it.copy(holdAt = f(it.holdAt)) } },
-                        error = errors[Field.HOLD_AT], hint = validation.hints[Field.HOLD_AT], info = stringResource(R.string.info_hold_at),
-                    )
-                    IntStepperField(
-                        stringResource(R.string.hold_for), draft.holdFor, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
-                        onUpdate = { f -> onChange { it.copy(holdFor = f(it.holdFor)) } },
-                        onDialogUpdate = { f -> onChangeNow { it.copy(holdFor = f(it.holdFor)) } },
-                        error = errors[Field.HOLD_FOR], info = stringResource(R.string.info_hold_for),
+                    draft.holds.forEachIndexed { i, hold ->
+                        val holdErrors = validation.holdErrors[i].orEmpty()
+                        HoldHeader(number = i + 1, onRemove = { onChangeNow { it.withoutHold(i) } })
+                        IntStepperField(
+                            stringResource(R.string.hold_at), hold.at, FieldRanges.REPS, ValueInput.WHOLE,
+                            onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                            onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                            error = holdErrors[HoldField.AT], hint = validation.holdHints[i], info = stringResource(R.string.info_hold_at),
+                            a11yLabel = stringResource(R.string.hold_n_at, i + 1),
+                        )
+                        IntStepperField(
+                            stringResource(R.string.hold_for), hold.forCount, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
+                            onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                            onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                            error = holdErrors[HoldField.FOR], info = stringResource(R.string.info_hold_for),
+                            a11yLabel = stringResource(R.string.hold_n_for, i + 1),
+                        )
+                    }
+                    AddHoldButton(
+                        enabled = draft.holds.size < ProgressionConfig.MAX_HOLDS,
+                        onClick = { onChangeNow { it.withNewHold() } },
                     )
                 }
             }
@@ -268,5 +316,33 @@ fun ProgressionPageContent(
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+/** "Hold N" with its 48 dp ✕ (spec rev 16 §6). */
+@Composable
+private fun HoldHeader(number: Int, onRemove: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(R.string.hold_n, number),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f).padding(start = 4.dp).semantics { heading() },
+        )
+        IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
+            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.remove_hold, number))
+        }
+    }
+}
+
+/** "+ Add hold", at least 48 dp tall (spec rev 16 §6). */
+@Composable
+private fun AddHoldButton(enabled: Boolean, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).heightIn(min = 48.dp).testTag("add_hold"),
+    ) {
+        Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(stringResource(R.string.add_hold), modifier = Modifier.padding(start = 8.dp))
     }
 }

@@ -19,15 +19,16 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 
 /**
- * The ⓘ tag (spec R3 §7.1): a 48 dp button described as "About <title>", separate from the row's
- * own tap target. It opens a dialog with [title], [text] and OK. The glyph is Material's "info
+ * The ⓘ tag (spec R3 §7.1): a 48 dp button described as "About <[describedAs]>" ([title] unless a
+ * row needs a more specific spoken name, rev 16 §6), separate from the row's own tap target. It
+ * opens a dialog with [title], [text] and OK. The glyph is Material's "info
  * outline" as a vector drawable, because material-icons isn't on the classpath.
  */
 @Composable
-fun InfoTag(title: String, text: String, modifier: Modifier = Modifier) {
+fun InfoTag(title: String, text: String, modifier: Modifier = Modifier, describedAs: String = title) {
     var open by rememberSaveable { mutableStateOf(false) }
     IconButton(onClick = { open = true }, modifier = modifier.size(48.dp)) {
-        Icon(painterResource(R.drawable.ic_info), contentDescription = stringResource(R.string.about, title))
+        Icon(painterResource(R.drawable.ic_info), contentDescription = stringResource(R.string.about, describedAs))
     }
     if (open) {
         AlertDialog(

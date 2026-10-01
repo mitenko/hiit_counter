@@ -1,5 +1,6 @@
 package com.mitenko.repkit.domain
 
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import org.junit.Assert.assertEquals
@@ -39,19 +40,68 @@ class SettingsValidatorTest {
         assertEquals(setOf(Field.FLOOR), SettingsValidator.progression(ProgressionConfig(floor = 0)).errorFields())
         assertEquals(setOf(Field.STARTING_TOTAL), SettingsValidator.progression(ProgressionConfig(startingTotal = 40)).errorFields())
         assertEquals(setOf(Field.CAP), SettingsValidator.progression(ProgressionConfig(cap = 47)).errorFields())
-        assertEquals(setOf(Field.HOLD_FOR), SettingsValidator.progression(ProgressionConfig(holdFor = -1)).errorFields())
         assertEquals(setOf(Field.WINDOW_HOURS), SettingsValidator.progression(ProgressionConfig(windowHours = 0)).errorFields())
         assertEquals(setOf(Field.PENALTY_RATE), SettingsValidator.progression(ProgressionConfig(penaltyHoursPerRep = 0.0)).errorFields())
         assertEquals(setOf(Field.PENALTY_RATE), SettingsValidator.progression(ProgressionConfig(penaltyHoursPerRep = Double.NaN)).errorFields())
     }
 
+    private fun holds(vararg h: Hold, hold: Boolean = true) = ProgressionConfig(holds = h.toList(), hold = hold)
+
     @Test
     fun `hold outside floor to cap is allowed with a hint`() {
-        val r = SettingsValidator.progression(ProgressionConfig(holdAt = 80))
+        val r = SettingsValidator.progression(holds(Hold(80, 4)))
         assertTrue(r.isValid)
-        assertTrue(Field.HOLD_AT in r.hints)
-        assertTrue(Field.HOLD_AT in SettingsValidator.progression(ProgressionConfig(holdFor = 0)).hints)
-        assertFalse(Field.HOLD_AT in SettingsValidator.progression(ProgressionConfig()).hints)
+        assertEquals(mapOf(0 to "Hold disabled"), r.holdHints)
+        assertEquals(mapOf(0 to "Hold disabled"), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
+        assertTrue(SettingsValidator.progression(ProgressionConfig()).holdHints.isEmpty())
+    }
+
+    @Test
+    fun `hold errors and hints are per hold`() {
+        val r = SettingsValidator.progression(holds(Hold(56, 3), Hold(0, -1), Hold(40, 2), Hold(64, -1)))
+        assertFalse(r.isValid)
+        assertTrue(r.errors.isEmpty())
+        assertEquals(
+            mapOf(
+                1 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more"),
+                3 to mapOf(HoldField.FOR to "Must be 0 or more"),
+            ),
+            r.holdErrors,
+        )
+        assertEquals(mapOf(2 to "Hold disabled"), r.holdHints)
+    }
+
+    @Test
+    fun `a duplicate hold at is an error on the later duplicate`() {
+        val r = SettingsValidator.progression(holds(Hold(64, 4), Hold(56, 3), Hold(64, 2)))
+        assertFalse(r.isValid)
+        assertEquals(mapOf(2 to mapOf(HoldField.AT to "Already a hold at 64")), r.holdErrors)
+        assertTrue(SettingsValidator.progression(holds(Hold(64, 4), Hold(64, 2), hold = false)).isValid)
+    }
+
+    @Test
+    fun `each hold's hard ranges are checked whatever the switch says`() {
+        val expected = mapOf(0 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more"))
+        val off = SettingsValidator.progression(holds(Hold(0, -1), Hold(64, 4), hold = false))
+        assertFalse(off.isValid)
+        assertEquals(expected, off.holdErrors)
+        assertEquals(expected, SettingsValidator.progression(holds(Hold(0, -1), Hold(64, 4))).holdErrors)
+    }
+
+    @Test
+    fun `at most eight holds`() {
+        val eight = (0 until 8).map { Hold(50 + it, 1) }.toTypedArray()
+        assertTrue(SettingsValidator.progression(holds(*eight)).isValid)
+        val nine = holds(*eight, Hold(60, 1))
+        assertEquals(setOf(Field.HOLDS), SettingsValidator.progression(nine).errorFields())
+        assertTrue(SettingsValidator.progression(nine.copy(hold = false)).isValid)
+    }
+
+    @Test
+    fun `an empty hold list is valid`() {
+        val r = SettingsValidator.progression(holds())
+        assertTrue(r.isValid)
+        assertTrue(r.holdHints.isEmpty())
     }
 
     @Test
@@ -69,13 +119,17 @@ class SettingsValidatorTest {
     }
 
     @Test
-    fun `with the hold switched off the hold checks and hint are skipped`() {
-        val off = SettingsValidator.progression(ProgressionConfig(hold = false, holdAt = 0, holdFor = -1))
+    fun `with the hold switched off the duplicate, count and hint checks are skipped`() {
+        val off = SettingsValidator.progression(holds(Hold(64, 4), Hold(64, 2), Hold(80, 0), *Array(6) { Hold(50 + it, 1) }, hold = false))
         assertTrue(off.isValid)
         assertTrue(off.hints.isEmpty())
-        assertTrue(SettingsValidator.progression(ProgressionConfig(hold = false, holdFor = 0)).hints.isEmpty())
+        assertTrue(off.holdHints.isEmpty())
+        assertTrue(SettingsValidator.progression(holds(Hold(64, 0), hold = false)).holdHints.isEmpty())
         // Switched on, the checks and the hint behave as before.
-        assertEquals(setOf(Field.HOLD_AT, Field.HOLD_FOR), SettingsValidator.progression(ProgressionConfig(holdAt = 0, holdFor = -1)).errorFields())
-        assertTrue(Field.HOLD_AT in SettingsValidator.progression(ProgressionConfig(holdFor = 0)).hints)
+        assertEquals(
+            mapOf(0 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more")),
+            SettingsValidator.progression(holds(Hold(0, -1))).holdErrors,
+        )
+        assertEquals(mapOf(0 to "Hold disabled"), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
     }
 }

@@ -31,7 +31,9 @@ import com.mitenko.repkit.domain.ValueFormat
  * The shared stepper row (spec R2 §8.1): the label on top, with its ⓘ tag when [info] is given
  * (R3 §7.1). Below it, 48 dp −/+ buttons (tap = one step, hold = repeat) sit around a large value
  * that opens the edit dialog when tapped, and an inline error or hint goes beneath. The whole row
- * is one rounded card tagged `card_<label>` (spec rev 9 §4).
+ * is one rounded card tagged `card_<label>` (spec rev 9 §4). [a11yLabel] replaces [label] in the
+ * spoken names (Increase / Decrease / Edit / About) and the test tags, while [label] stays the
+ * visible text; the holds list uses it to tell its rows apart (spec rev 16 §6).
  */
 @Composable
 fun StepperRow(
@@ -43,18 +45,19 @@ fun StepperRow(
     error: String? = null,
     hint: String? = null,
     info: String? = null,
+    a11yLabel: String = label,
 ) {
     // Spec rev 9 §4: 4 dp above and below, so neighbouring cards sit 8 dp apart. No horizontal
     // padding inside: the −/value/+ row needs the full 288 dp at the 320 dp minimum width.
-    SettingsCard(Modifier.padding(vertical = 4.dp).testTag("card_$label")) {
+    SettingsCard(Modifier.padding(vertical = 4.dp).testTag("card_$a11yLabel")) {
         Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             // The ⓘ is its own 48 dp target, separate from the value's tap-to-edit (spec R3 §7.1).
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, style = MaterialTheme.typography.titleMedium)
-                info?.let { InfoTag(title = label, text = it) }
+                info?.let { InfoTag(title = label, text = it, describedAs = a11yLabel) }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                RepeatingIconButton(onMinus, R.drawable.ic_remove, stringResource(R.string.decrease, label))
+                RepeatingIconButton(onMinus, R.drawable.ic_remove, stringResource(R.string.decrease, a11yLabel))
                 Text(
                     valueText,
                     style = MaterialTheme.typography.displaySmall,
@@ -63,10 +66,10 @@ fun StepperRow(
                     color = if (error != null) MaterialTheme.colorScheme.error else Color.Unspecified,
                     modifier = Modifier
                         .widthIn(min = 140.dp)
-                        .clickable(onClickLabel = stringResource(R.string.edit_value, label), onClick = onValueTap)
-                        .testTag("value_$label"),
+                        .clickable(onClickLabel = stringResource(R.string.edit_value, a11yLabel), onClick = onValueTap)
+                        .testTag("value_$a11yLabel"),
                 )
-                RepeatingIconButton(onPlus, R.drawable.ic_add, stringResource(R.string.increase, label))
+                RepeatingIconButton(onPlus, R.drawable.ic_add, stringResource(R.string.increase, a11yLabel))
             }
             (error ?: hint)?.let {
                 Text(
@@ -74,7 +77,7 @@ fun StepperRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp).testTag("support_$label"),
+                    modifier = Modifier.padding(top = 4.dp).testTag("support_$a11yLabel"),
                 )
             }
         }
@@ -100,6 +103,7 @@ fun IntStepperField(
     error: String? = null,
     hint: String? = null,
     info: String? = null,
+    a11yLabel: String = label,
 ) {
     var editing by rememberSaveable { mutableStateOf(false) }
     val time = input == ValueInput.TIME
@@ -113,6 +117,7 @@ fun IntStepperField(
         error = error,
         hint = hint,
         info = info,
+        a11yLabel = a11yLabel,
     )
     if (editing) {
         EditValueDialog<Int>(

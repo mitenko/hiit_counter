@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">REPKIT</string>
     <string name="settings">Settings</string>
     <string name="start">Start</string>
@@ -32,6 +32,14 @@
     <string name="cap">Cap (max)</string>
     <string name="hold_at">Hold at</string>
     <string name="hold_for">Hold for (check-ins)</string>
+    <!-- Multiple holds (spec rev 16 §6) -->
+    <string name="hold_n">Hold %1$d</string>
+    <string name="remove_hold">Remove hold %1$d</string>
+    <string name="add_hold">Add hold</string>
+    <!-- Spoken names for each hold's rows; the visible labels stay hold_at / hold_for -->
+    <string name="hold_n_at">Hold %1$d at</string>
+    <!-- "Hold 2 for" names the second hold; it is not a quantity -->
+    <string name="hold_n_for" tools:ignore="PluralsCandidate">Hold %1$d for</string>
     <string name="window_hours">Check-in window (hours)</string>
     <string name="penalty_rate">Penalty rate (hours per rep)</string>
     <string name="reset_defaults">Reset to defaults</string>
@@ -86,7 +94,7 @@
     <string name="info_starting_total">The rep total you do on your first check-in, and again after Reset progress. It must be between the floor and the cap.</string>
     <string name="info_floor">The lowest your rep total can fall to, however long you\'re away.</string>
     <string name="info_cap">The highest your rep total can climb to. At the cap, on-time check-ins keep the total where it is.</string>
-    <string name="info_hold">When on, your total pauses at hold at for a few check-ins before climbing again.</string>
+    <string name="info_hold">When on, your total pauses at each hold for a few check-ins before climbing again.</string>
     <string name="info_hold_at">The rep total where the hold happens. It needs to be at or above the floor and below the cap.</string>
     <string name="info_hold_for">How many check-ins you stay at hold at before going up again. The day you first reach it counts. 0 skips the hold.</string>
     <string name="info_window">Check in within this many hours of your last check-in to count as on time: your streak continues (and, for Counter entries, your total goes up by one).</string>

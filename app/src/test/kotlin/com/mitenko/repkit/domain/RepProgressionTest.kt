@@ -1,6 +1,7 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.CounterState
+import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -151,7 +152,7 @@ class RepProgressionTest {
 
     @Test
     fun `holdFor of one holds for a single check-in`() {
-        val c = cfg.copy(holdFor = 1)
+        val c = cfg.copy(holds = listOf(Hold(64, 1)))
         val first = check(state(63), hoursLater(24.0), c).state
         val second = check(first, hoursLater(47.0), c).state
         assertEquals(listOf(64 to 1, 65 to 0), listOf(first.totalAndHold(), second.totalAndHold()))
@@ -175,14 +176,93 @@ class RepProgressionTest {
 
     @Test
     fun `disabled hold configurations advance normally`() {
-        assertEquals(65 to 0, check(state(64), hoursLater(24.0), cfg.copy(holdFor = 0)).state.totalAndHold())
-        assertEquals(72 to 0, check(state(71), hoursLater(24.0), cfg.copy(holdAt = 72)).state.totalAndHold())
-        assertEquals(65 to 0, check(state(64), hoursLater(24.0), cfg.copy(holdAt = 40)).state.totalAndHold())
+        assertEquals(65 to 0, check(state(64), hoursLater(24.0), cfg.copy(holds = listOf(Hold(64, 0)))).state.totalAndHold())
+        assertEquals(72 to 0, check(state(71), hoursLater(24.0), cfg.copy(holds = listOf(Hold(72, 4)))).state.totalAndHold())
+        assertEquals(65 to 0, check(state(64), hoursLater(24.0), cfg.copy(holds = listOf(Hold(40, 4)))).state.totalAndHold())
     }
 
     @Test
     fun `hold at the floor restarts after a miss down to the floor`() {
-        assertEquals(48 to 1, check(state(49), hoursLater(84.0), cfg.copy(holdAt = 48)).state.totalAndHold())
+        assertEquals(48 to 1, check(state(49), hoursLater(84.0), cfg.copy(holds = listOf(Hold(48, 4)))).state.totalAndHold())
+    }
+
+    private val twoHolds = cfg.copy(holds = listOf(Hold(56, 3), Hold(64, 4)))
+
+    /** Daily on-time check-ins from [s], returning (total, holdCount) after each. */
+    private fun climb(s: CounterState, days: Int, c: ProgressionConfig): List<Pair<Int, Int>> {
+        var state = s
+        var now = t0
+        return List(days) {
+            now = now.plusSeconds(24 * 3600)
+            state = check(state, now, c).state
+            state.totalAndHold()
+        }
+    }
+
+    @Test
+    fun `two holds are climbed in sequence`() {
+        val expected = listOf(
+            55 to 0, 56 to 1, 56 to 2, 56 to 3, 57 to 0, 58 to 0, 59 to 0, 60 to 0, 61 to 0, 62 to 0, 63 to 0,
+            64 to 1, 64 to 2, 64 to 3, 64 to 4, 65 to 0, 66 to 0,
+        )
+        assertEquals(expected, climb(state(54), expected.size, twoHolds))
+    }
+
+    @Test
+    fun `adjacent holds start the next hold on the day it is reached`() {
+        val c = cfg.copy(holds = listOf(Hold(56, 1), Hold(57, 2)))
+        assertEquals(listOf(56 to 1, 57 to 1, 57 to 2, 58 to 0), climb(state(55), 4, c))
+    }
+
+    @Test
+    fun `a miss landing on the lower hold restarts that hold`() {
+        // 84 h away: round((84 - 24) / 19.5) - 1 = 2 reps lost.
+        assertEquals(56 to 1, check(state(58), hoursLater(84.0), twoHolds).state.totalAndHold())
+        assertEquals(56 to 1, check(state(56, hold = 2), hoursLater(48.0), twoHolds).state.totalAndHold())
+        assertEquals(60 to 0, check(state(62), hoursLater(84.0), twoHolds).state.totalAndHold())
+    }
+
+    @Test
+    fun `a first check-in on any hold starts it`() {
+        val c = twoHolds.copy(startingTotal = 56)
+        assertEquals(56 to 1, check(CounterState(total = 56), t0, c).state.totalAndHold())
+    }
+
+    @Test
+    fun `a hold outside floor to cap is ignored`() {
+        val c = cfg.copy(holds = listOf(Hold(40, 3), Hold(72, 2), Hold(64, 4)))
+        assertEquals(72 to 0, check(state(71), hoursLater(24.0), c).state.totalAndHold())
+        assertEquals(72 to 0, check(state(72), hoursLater(24.0), c).state.totalAndHold())
+        assertEquals(49 to 0, check(state(48), hoursLater(24.0), c).state.totalAndHold())
+        assertEquals(64 to 1, check(state(63), hoursLater(24.0), c).state.totalAndHold())
+    }
+
+    @Test
+    fun `a hold with a count of 0 is ignored`() {
+        val c = cfg.copy(holds = listOf(Hold(56, 0), Hold(64, 4)))
+        assertEquals(listOf(56 to 0, 57 to 0), climb(state(55), 2, c))
+        assertEquals(64 to 1, check(state(63), hoursLater(24.0), c).state.totalAndHold())
+    }
+
+    @Test
+    fun `the switch off ignores every hold`() {
+        val c = twoHolds.copy(hold = false)
+        assertEquals(listOf(56 to 0, 57 to 0), climb(state(55), 2, c))
+        assertEquals(listOf(64 to 0, 65 to 0), climb(state(63), 2, c))
+        assertEquals(56 to 0, check(state(58), hoursLater(84.0), c).state.totalAndHold())
+    }
+
+    @Test
+    fun `an empty list holds nowhere`() {
+        val c = cfg.copy(holds = emptyList())
+        assertEquals(listOf(64 to 0, 65 to 0), climb(state(63), 2, c))
+        assertEquals(64 to 0, check(CounterState(total = 64), t0, c.copy(startingTotal = 64)).state.totalAndHold())
+    }
+
+    @Test
+    fun `duplicate holds use the first match`() {
+        val c = cfg.copy(holds = listOf(Hold(64, 1), Hold(64, 4)))
+        assertEquals(65 to 0, check(state(64, hold = 1), hoursLater(24.0), c).state.totalAndHold())
     }
 
     private fun streaksOnly(s: CounterState, now: Instant) = RepProgression.checkIn(s, cfg, now, zone, countsReps = false)

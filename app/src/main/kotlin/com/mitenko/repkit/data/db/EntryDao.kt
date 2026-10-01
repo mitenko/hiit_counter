@@ -48,9 +48,10 @@ interface EntryDao {
     /**
      * Writes the progression group, resetting hold_count only when [resetHoldCount] is true. The
      * repository decides that with holdResetNeeded inside the same transaction (spec R3 §6.3).
+     * [holds] is the HoldsCodec text; [holdAt] / [holdFor] are its legacy mirror (spec rev 16 §5).
      */
     @Query(
-        "UPDATE entry SET starting_total = :startingTotal, floor = :floor, cap = :cap, hold_at = :holdAt, " +
+        "UPDATE entry SET starting_total = :startingTotal, floor = :floor, cap = :cap, holds = :holds, hold_at = :holdAt, " +
             "hold_for = :holdFor, hold_enabled = :holdEnabled, window_hours = :windowHours, " +
             "penalty_hours_per_rep = :penaltyHoursPerRep, " +
             "hold_count = CASE WHEN :resetHoldCount THEN 0 ELSE hold_count END WHERE id = :id",
@@ -60,6 +61,7 @@ interface EntryDao {
         startingTotal: Int,
         floor: Int,
         cap: Int,
+        holds: String,
         holdAt: Int,
         holdFor: Int,
         holdEnabled: Boolean,
