@@ -42,7 +42,15 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.ui.theme.HiitColors
+import com.mitenko.repkit.ui.theme.HiitTheme
 
+/**
+ * Spec rev 14 §3 (deliberate, overturnable): the timer screen stays dark regardless of the
+ * Appearance choice, for visibility mid-workout. It already hard-codes black/white for its own
+ * text and icons; this wrap only matters for anything that reads [MaterialTheme]'s colour scheme
+ * (currently just the cue toggle row's "on" fill), so that it's still the dark scheme's colours
+ * even when the rest of the app is light.
+ */
 @Composable
 fun TimerScreen(
     ui: TimerUiState,
@@ -54,7 +62,7 @@ fun TimerScreen(
     onToggleSound: () -> Unit,
     onToggleVibration: () -> Unit,
     onToggleVoice: () -> Unit,
-) {
+) = HiitTheme(darkTheme = true) {
     val color = when (ui.tone) {
         PhaseTone.WORK -> HiitColors.Work
         PhaseTone.REST -> HiitColors.Rest

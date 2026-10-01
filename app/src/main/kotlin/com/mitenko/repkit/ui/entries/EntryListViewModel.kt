@@ -3,6 +3,7 @@ package com.mitenko.repkit.ui.entries
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.model.CheckInPoint
@@ -10,6 +11,7 @@ import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.tileWindowStart
 import com.mitenko.repkit.domain.weekCount
+import com.mitenko.repkit.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
@@ -52,8 +54,17 @@ sealed interface EntryListUiState {
 class EntryListViewModel @Inject constructor(
     private val repo: EntryRepository,
     private val clock: Clock,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
     private val refresh = MutableStateFlow(0)
+
+    /** The Appearance choice (spec rev 14 §5), for the ⚙ dialog in the top bar. */
+    val themeMode: StateFlow<ThemeMode> =
+        preferences.themeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { preferences.setThemeMode(mode) }
+    }
 
     /**
      * Spec R6 §3.3: one query for every row's recent points. It restarts on each resume, so the

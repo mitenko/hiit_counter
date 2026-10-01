@@ -1,0 +1,6 @@
+<resources>
+    <!-- Spec rev 14 §4: the original black windowBackground, kept for the phone's own night mode. -->
+    <style name="Theme.HiitCounter" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
