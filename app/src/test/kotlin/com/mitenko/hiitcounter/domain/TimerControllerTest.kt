@@ -163,7 +163,7 @@ class TimerControllerTest {
     }
 
     @Test
-    fun `a Timer only run carries the set number instead of reps, and other phases carry none`() = runTest {
+    fun `a Timer only run carries the countdown of sets remaining instead of reps, and other phases carry none`() = runTest {
         val c = controller()
         val cues = mutableListOf<Cue>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
@@ -173,8 +173,33 @@ class TimerControllerTest {
         advanceTimeBy(240_000)
         runCurrent()
         val starts = cues.filterIsInstance<Cue.PhaseStart>()
-        assertEquals((1..8).toList(), starts.filter { it.phase == Phase.WORK }.map { it.reps })
+        // Voice should match the display (spec revision 10): set 1 of 8 says 8, set 8 says 1.
+        assertEquals((8 downTo 1).toList(), starts.filter { it.phase == Phase.WORK }.map { it.reps })
         assertTrue(starts.filter { it.phase != Phase.WORK }.all { it.reps == null })
+    }
+
+    @Test
+    fun `skip calls are no-ops when not RUNNING`() = runTest {
+        val idle = controller()
+        idle.skipForward() // no snapshot, no engine: must not crash
+        idle.skipBack()
+        assertEquals(RunStatus.IDLE, idle.status.value)
+
+        val preparing = controller()
+        preparing.prepare(snapshot)
+        preparing.skipForward() // PREPARING, not yet RUNNING
+        preparing.skipBack()
+        assertEquals(RunStatus.PREPARING, preparing.status.value)
+        assertNull(preparing.state.value)
+
+        val c = running()
+        advanceTimeBy(240_000)
+        runCurrent()
+        assertEquals(RunStatus.DONE, c.status.value)
+        val doneState = c.state.value
+        c.skipForward() // DONE: must not crash or change state
+        c.skipBack()
+        assertEquals(doneState, c.state.value)
     }
 
     @Test

@@ -48,6 +48,8 @@ fun TimerScreen(
     ui: TimerUiState,
     cues: CueConfig,
     onTogglePause: () -> Unit,
+    onSkipBack: () -> Unit,
+    onSkipForward: () -> Unit,
     onClose: () -> Unit,
     onToggleSound: () -> Unit,
     onToggleVibration: () -> Unit,
@@ -116,16 +118,25 @@ fun TimerScreen(
                 }
             }
             if (!ui.done) {
-                FilledIconButton(
-                    onClick = onTogglePause,
-                    modifier = Modifier.size(72.dp).testTag("pause"),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = color),
-                ) {
-                    Icon(
-                        painterResource(if (ui.paused) R.drawable.ic_play else R.drawable.ic_pause),
-                        contentDescription = stringResource(if (ui.paused) R.string.resume else R.string.pause),
-                        tint = Color.Black,
-                    )
+                // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while paused.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    IconButton(onClick = onSkipBack, modifier = Modifier.size(48.dp).testTag("skip_back")) {
+                        Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = Color.White)
+                    }
+                    FilledIconButton(
+                        onClick = onTogglePause,
+                        modifier = Modifier.size(72.dp).testTag("pause"),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = color),
+                    ) {
+                        Icon(
+                            painterResource(if (ui.paused) R.drawable.ic_play else R.drawable.ic_pause),
+                            contentDescription = stringResource(if (ui.paused) R.string.resume else R.string.pause),
+                            tint = Color.Black,
+                        )
+                    }
+                    IconButton(onClick = onSkipForward, modifier = Modifier.size(48.dp).testTag("skip_forward")) {
+                        Icon(painterResource(R.drawable.ic_skip_forward), contentDescription = stringResource(R.string.skip_forward), tint = Color.White)
+                    }
                 }
             }
         }

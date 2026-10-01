@@ -7,6 +7,8 @@
     <string name="elapsed_label">Elapsed</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
+    <string name="skip_back">Back</string>
+    <string name="skip_forward">Skip forward</string>
     <string name="stop">Stop</string>
     <string name="cancel">Cancel</string>
     <string name="stop_workout_title">Stop workout?</string>

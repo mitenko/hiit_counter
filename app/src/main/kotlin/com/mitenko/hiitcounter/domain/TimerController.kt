@@ -25,7 +25,7 @@ data class WorkoutSnapshot(
     val entryName: String,
     val timing: TimingConfig,
     val cues: CueConfig,
-    /** False for a Timer only entry (spec revision 8): no reps are counted or shown; the centre and voice use the set number. */
+    /** False for a Timer only entry (spec revision 8): no reps are counted or shown; the centre and voice count the sets down (spec revision 10). */
     val countsReps: Boolean = true,
 )
 
@@ -152,6 +152,20 @@ class TimerController(
         e.resume()
     }
 
+    /** Ends the current phase and starts the next, keeping pause (spec revision 10 §4). A no-op unless RUNNING. */
+    fun skipForward() {
+        val e = engine ?: return
+        if (_status.value != RunStatus.RUNNING) return
+        e.skipForward()
+    }
+
+    /** Restarts the current phase, or jumps to the previous one within its first 2 s (spec revision 10 §4). A no-op unless RUNNING. */
+    fun skipBack() {
+        val e = engine ?: return
+        if (_status.value != RunStatus.RUNNING) return
+        e.skipBack()
+    }
+
     /** Ends the workout. The check-in made at Start stands; no DONE, no Finished cue. */
     fun stop() {
         when (_status.value) {
@@ -171,15 +185,16 @@ class TimerController(
     }
 
     /**
-     * Spec R4 §5, amended by spec revision 8: a WORK start carries that set's entry of
-     * [repsPerSet], or the set number itself when the run's snapshot has `countsReps = false`
-     * (Timer only). The engine publishes the set's first state just before its PhaseStart, so
+     * Spec R4 §5, amended by spec revision 8 and revision 10: a WORK start carries that set's
+     * entry of [repsPerSet], or, when the run's snapshot has `countsReps = false` (Timer only),
+     * the countdown of sets remaining including this one (`sets - set + 1`), so the voice matches
+     * the centre number. The engine publishes the set's first state just before its PhaseStart, so
      * [state] already names the starting set.
      */
     private fun withReps(cue: Cue, repsPerSet: List<Int>): Cue {
         if (cue !is Cue.PhaseStart || cue.phase != Phase.WORK) return cue
-        val set = _state.value?.set ?: return cue
-        return cue.copy(reps = if (snapshot?.countsReps == false) set else repsPerSet.getOrNull(set - 1))
+        val s = _state.value ?: return cue
+        return cue.copy(reps = if (snapshot?.countsReps == false) s.sets - s.set + 1 else repsPerSet.getOrNull(s.set - 1))
     }
 
     /** Clears the run but deliberately not [lastEntryId]. */

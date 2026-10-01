@@ -155,15 +155,17 @@ class TimerService : Service() {
     }
 
     private fun acquireWakeLock(timeoutMs: Long) {
-        // A held lock already covers the remaining active time; pause releases it and
-        // resume re-acquires with a fresh timeout (WakeLockPolicy).
-        if (wakeLock?.isHeld == true) return
-        wakeLock = getSystemService(PowerManager::class.java)
+        // Before spec revision 10 a held lock always already covered the remaining active time,
+        // since elapsedSec only ever grew between acquisitions; an early return here was enough.
+        // A skip back can now move elapsedSec backwards, so the lock's existing timeout (set from
+        // a smaller remaining time) could under-run the newly extended one. acquire() on a
+        // non-reference-counted lock just resets its release deadline, so re-asserting it from
+        // every tick's state keeps the held time in sync after both a forward and a backward jump.
+        val lock = wakeLock ?: getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            .apply {
-                setReferenceCounted(false)
-                acquire(timeoutMs)
-            }
+            .apply { setReferenceCounted(false) }
+        lock.acquire(timeoutMs)
+        wakeLock = lock
     }
 
     private fun releaseWakeLock() {

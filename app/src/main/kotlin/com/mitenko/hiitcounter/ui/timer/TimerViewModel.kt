@@ -48,6 +48,10 @@ class TimerViewModel @Inject constructor(
         if (state.paused) controller.resume() else controller.pause()
     }
 
+    fun onSkipForward() = controller.skipForward()
+
+    fun onSkipBack() = controller.skipBack()
+
     fun stop() = controller.stop()
 
     fun leaveDone() = controller.dismissDone()

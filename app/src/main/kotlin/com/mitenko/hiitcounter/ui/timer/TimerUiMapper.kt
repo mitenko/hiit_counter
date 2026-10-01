@@ -25,9 +25,11 @@ data class TimerUiState(
 
 object TimerUiMapper {
     /**
-     * [countsReps] is false for a Timer only run (spec revision 8): the centre shows the current
-     * (or, during REST/PREPARE, upcoming) set number in place of the rep count, and no rep value
-     * appears anywhere, including on DONE.
+     * [countsReps] is false for a Timer only run (spec revision 8, amended by revision 10): the
+     * centre counts the sets down instead of showing reps — `sets - set + 1`, the current (or,
+     * during REST/PREPARE, upcoming) set and every one still to come, including it — and no rep
+     * value appears anywhere, including on DONE. The Voice cue says the same number
+     * (TimerController.withReps).
      */
     fun map(s: TimerState, entryName: String, countsReps: Boolean = true): TimerUiState {
         val inner = if (s.phaseDurationSec > 0) s.phaseSecondsLeft.toFloat() / s.phaseDurationSec else 0f
@@ -51,26 +53,31 @@ object TimerUiMapper {
             done = false,
             description = "",
         )
+        val setsToGo = s.sets - s.set + 1
         return when (s.phase) {
             Phase.WORK -> base.copy(
-                centerNumber = if (countsReps) s.repsThisSet else s.set, tone = PhaseTone.WORK,
+                centerNumber = if (countsReps) s.repsThisSet else setsToGo, tone = PhaseTone.WORK,
                 description = if (countsReps) {
                     "Work, set ${s.set} of ${s.sets}, ${s.repsThisSet} reps"
+                } else if (setsToGo == 1) {
+                    "Work, last set"
                 } else {
-                    "Work, set ${s.set} of ${s.sets}"
+                    "Work, $setsToGo sets to go"
                 },
             )
             Phase.REST -> base.copy(
-                label = "REST", centerNumber = if (countsReps) s.repsThisSet else s.set, centerDimmed = true, tone = PhaseTone.REST,
+                label = "REST", centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true, tone = PhaseTone.REST,
                 description = if (countsReps) {
                     "Rest, next set ${s.set} of ${s.sets}, ${s.repsThisSet} reps"
+                } else if (setsToGo == 1) {
+                    "Rest, last set next"
                 } else {
-                    "Rest, next set ${s.set} of ${s.sets}"
+                    "Rest, next set $setsToGo to go"
                 },
             )
             Phase.PREPARE -> base.copy(
-                label = "GET READY", centerNumber = if (countsReps) s.repsThisSet else s.set, centerDimmed = true,
-                description = if (countsReps) "Get ready, first set ${s.repsThisSet} reps" else "Get ready, set ${s.set} of ${s.sets}",
+                label = "GET READY", centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true,
+                description = if (countsReps) "Get ready, first set ${s.repsThisSet} reps" else if (setsToGo == 1) "Get ready, 1 set" else "Get ready, $setsToGo sets",
             )
             Phase.COOLDOWN -> base.copy(label = "COOLDOWN", description = "Cooldown")
             Phase.DONE -> base.copy(

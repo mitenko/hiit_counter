@@ -67,20 +67,36 @@ class TimerUiMapperTest {
     }
 
     @Test
-    fun `a Timer only run shows the set number instead of reps, on work and between sets`() {
+    fun `a Timer only run counts the sets down, on work and between sets`() {
+        // sets = 8 (see state()); set 3 WORK means 6 sets still to go, including this one.
         val work = TimerUiMapper.map(state(Phase.WORK, set = 3, left = 15, duration = 20), "Stretch", countsReps = false)
-        assertEquals(3, work.centerNumber)
+        assertEquals(6, work.centerNumber)
         assertFalse(work.centerDimmed)
-        assertEquals("Work, set 3 of 8", work.description)
+        assertEquals("Work, 6 sets to go", work.description)
 
+        // set 4 upcoming means 5 to go, including it.
         val rest = TimerUiMapper.map(state(Phase.REST, set = 4, left = 10, duration = 10), "Stretch", countsReps = false)
-        assertEquals(4, rest.centerNumber)
+        assertEquals(5, rest.centerNumber)
         assertTrue(rest.centerDimmed)
-        assertEquals("Rest, next set 4 of 8", rest.description)
+        assertEquals("Rest, next set 5 to go", rest.description)
 
         val prepare = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10), "Stretch", countsReps = false)
-        assertEquals(1, prepare.centerNumber)
-        assertEquals("Get ready, set 1 of 8", prepare.description)
+        assertEquals(8, prepare.centerNumber)
+        assertEquals("Get ready, 8 sets", prepare.description)
+    }
+
+    @Test
+    fun `a Timer only run's last set shows 1 and the singular wording`() {
+        val work = TimerUiMapper.map(state(Phase.WORK, set = 8, left = 15, duration = 20), "Stretch", countsReps = false)
+        assertEquals(1, work.centerNumber)
+        assertEquals("Work, last set", work.description)
+
+        val rest = TimerUiMapper.map(state(Phase.REST, set = 8, left = 10, duration = 10), "Stretch", countsReps = false)
+        assertEquals(1, rest.centerNumber)
+        assertEquals("Rest, last set next", rest.description)
+
+        val prepareOne = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10).copy(sets = 1), "Stretch", countsReps = false)
+        assertEquals("Get ready, 1 set", prepareOne.description)
     }
 
     @Test

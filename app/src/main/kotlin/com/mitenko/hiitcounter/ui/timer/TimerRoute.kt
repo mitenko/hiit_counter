@@ -50,7 +50,7 @@ fun TimerRoute(onExit: () -> Unit, vm: TimerViewModel = hiltViewModel()) {
     ui?.let {
         TimerScreen(
             it, cues ?: CueConfig(),
-            onTogglePause = vm::togglePause, onClose = onClose,
+            onTogglePause = vm::togglePause, onSkipBack = vm::onSkipBack, onSkipForward = vm::onSkipForward, onClose = onClose,
             onToggleSound = vm::toggleSound, onToggleVibration = vm::toggleVibration, onToggleVoice = vm::toggleVoice,
         )
     }
