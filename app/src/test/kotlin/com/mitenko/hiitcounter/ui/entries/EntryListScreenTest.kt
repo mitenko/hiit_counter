@@ -403,6 +403,16 @@ class EntryListScreenTest {
     }
 
     @Test
+    fun `a long name spans the full width above the week count and the graph`() {
+        val name = "Around The World Lunges"
+        show(EntryListUiState.Items(listOf(EntryRow(4, name, 0, checkedInToday = false, type = EntryType.CHECK_IN))))
+        val title = compose.onNodeWithText(name, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val week = compose.onNodeWithTag("week_4", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        // The name's line is above the graph's line, so the graph never narrows it (spec rev 13).
+        assertTrue(title.bottom <= week.top + 0.5f)
+    }
+
+    @Test
     fun `the graph sits just before the drag handle and adds no touch target`() {
         show(EntryListUiState.Items(rows))
         val gap = with(compose.density) { 8.dp.toPx() }

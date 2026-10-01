@@ -98,3 +98,7 @@
 - **Cards.** `surfaceContainer` and `errorContainer` are Material's dark defaults (the theme doesn't override them). Stepper cards have no inner horizontal padding, because the −/value/+ row needs the full width at 320 dp.
 - **Labels.** The type labels are "Counter" and "Timer Only" (PR #12, timer-only spec addendum); this release changes none.
 - **Status line.** `docs/feedback.md`, cited above, isn't in the repo.
+
+## Addendum (2026-10-01, spec revision 13)
+
+The tile name now spans the card's full width, minus the ≡ handle, on its own line. "X× this week" and the tile graphic share the second line, with the graphic at its end. Long names such as "Around The World" are no longer squeezed by the graphic.
