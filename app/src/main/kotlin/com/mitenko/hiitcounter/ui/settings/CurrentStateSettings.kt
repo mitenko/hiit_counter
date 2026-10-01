@@ -2,11 +2,15 @@ package com.mitenko.hiitcounter.ui.settings
 
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -151,13 +156,13 @@ class CurrentStateViewModel @Inject constructor(
      * and an in-flight one lands first. Run in [appScope]: leaving the page (viewModelScope
      * cancelled) can't drop the reset while it waits on the mutex or during the Room call. The
      * post-reset re-read that republishes the draft stays in viewModelScope; it's fine to lose it
-     * once the page is gone.
+     * once the page is gone. [clearHistory] is the dialog's Clear history too (spec R6 §4.3).
      */
-    fun resetProgress() {
+    fun resetProgress(clearHistory: Boolean) {
         saver.cancel()
         appScope.launch {
             try {
-                saver.exclusive { repo.resetProgress(entryId) }
+                saver.exclusive { repo.resetProgress(entryId, clearHistory) }
                 viewModelScope.launch {
                     repo.entry(entryId).first()?.let { e ->
                         val reset = e.counter.toDraft()
@@ -231,7 +236,7 @@ fun CurrentStatePageContent(
     now: () -> Instant,
     onChange: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
     onChangeNow: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
-    onResetProgress: () -> Unit,
+    onResetProgress: (clearHistory: Boolean) -> Unit,
     showTotal: Boolean = true,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
@@ -307,15 +312,33 @@ fun CurrentStatePageContent(
     }
     // Spec R3 §6.4: Reset progress keeps its confirmation and applies at once; the page stays open.
     if (confirmReset) {
+        // Spec R6 §4.3: unchecked each time the dialog opens, kept across rotation while it's open (plan Spec note 24).
+        var clearHistory by rememberSaveable { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text(stringResource(R.string.reset_progress_title)) },
-            text = { Text(stringResource(R.string.reset_progress_body)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.reset_progress_body))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .padding(top = 8.dp)
+                            .toggleable(value = clearHistory, role = Role.Checkbox, onValueChange = { clearHistory = it })
+                            .testTag("clear_history"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = clearHistory, onCheckedChange = null)
+                        Text(stringResource(R.string.clear_history_too), modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmReset = false
-                        onResetProgress()
+                        onResetProgress(clearHistory)
                     },
                     modifier = Modifier.testTag("confirm_reset_progress"),
                 ) { Text(stringResource(R.string.reset)) }

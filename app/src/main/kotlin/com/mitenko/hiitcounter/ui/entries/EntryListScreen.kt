@@ -1,7 +1,7 @@
 package com.mitenko.hiitcounter.ui.entries
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,11 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,11 +91,9 @@ fun EntryListScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            // Spec rev 9 §2: "REPKIT" centred, and nothing else in the bar (R5 removed Reorder).
+            Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("title"))
             }
         },
         floatingActionButton = {
@@ -173,11 +172,16 @@ private fun EntryList(
         localRows = localRows.moved(from.index, to.index)
     }
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
+    // Spec rev 9 §2: cards 16 dp in from the sides and 8 dp apart; the bottom padding keeps the FAB clear.
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         itemsIndexed(localRows, key = { _, row -> row.id }) { index, row ->
             ReorderableItem(reorderableState, key = row.id) { isDragging ->
-                // The divider lives inside ReorderableItem (PR B review), so it moves with its
-                // row during the drag animation instead of staying behind as a fixed sibling.
+                // Spec rev 9 §2: no divider (R5's is removed); the card itself lifts while it's dragged.
                 Column {
                     EntryRowItem(
                         row = row,
@@ -236,7 +240,6 @@ private fun EntryList(
                             }
                         },
                     )
-                    HorizontalDivider()
                 }
             }
         }
@@ -257,45 +260,65 @@ private fun EntryRowItem(
     val checkedDescription = stringResource(R.string.checked_in_today)
     val moveUpLabel = stringResource(R.string.move_up)
     val moveDownLabel = stringResource(R.string.move_down)
-    // Lift feedback while dragging (PR B): the row's background lifts off the list.
-    val background = if (isDragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .background(background)
-            .clickable(onClick = onOpen)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("entry_${row.id}")
-            .semantics {
-                // Accessibility reorder actions (PR B): neither edge offers the wrong direction.
-                customActions = listOfNotNull(
-                    if (canMoveUp) CustomAccessibilityAction(moveUpLabel) { onMoveUp(); true } else null,
-                    if (canMoveDown) CustomAccessibilityAction(moveDownLabel) { onMoveDown(); true } else null,
-                )
-            },
-        verticalAlignment = Alignment.CenterVertically,
+    // Spec rev 9 §2: a rounded surfaceContainer card; the whole card lifts while it's dragged (R5).
+    Surface(
+        shape = TileShape,
+        color = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer,
+        shadowElevation = if (isDragging) 6.dp else 0.dp,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(row.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                // Spec R4 §4.3: a Workout reads "Reps N", a Timer only entry "Streak N".
-                if (row.type == EntryType.CHECK_IN) stringResource(R.string.streak_n, row.streak) else stringResource(R.string.reps_n, row.reps),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .clickable(onClick = onOpen)
+                .padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 8.dp)
+                .testTag("entry_${row.id}")
+                .semantics {
+                    // Accessibility reorder actions (PR B): neither edge offers the wrong direction.
+                    customActions = listOfNotNull(
+                        if (canMoveUp) CustomAccessibilityAction(moveUpLabel) { onMoveUp(); true } else null,
+                        if (canMoveDown) CustomAccessibilityAction(moveDownLabel) { onMoveDown(); true } else null,
+                    )
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                // Spec rev 9 §2: the name, with the ✓ right after it when checked in today.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        row.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (row.checkedInToday) {
+                        Text(
+                            "✓",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = checkedDescription },
+                        )
+                    }
+                }
+                // Spec rev 9 §2: "X× this week" (R6 §3.4's weekCount, shown at 0 too); no rep total or streak.
+                Text(
+                    stringResource(R.string.week_count, row.weekCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // Spec rev 9 §2: the tile graph, 8 dp before the ≡ handle. Decorative: no touch target.
+            TileGraphic(row.type, row.tile, Modifier.padding(horizontal = 8.dp).testTag("tile_${row.id}"))
+            dragHandle()
         }
-        if (row.checkedInToday) {
-            Text(
-                "✓",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 8.dp).semantics { contentDescription = checkedDescription },
-            )
-        }
-        dragHandle()
     }
 }
+
+private val TileShape = RoundedCornerShape(16.dp)
 
 /** Workout | Timer only (spec R4 §4.4). Each segment is tagged `type_<TYPE>`. */
 @OptIn(ExperimentalMaterial3Api::class)

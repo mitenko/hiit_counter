@@ -1,6 +1,7 @@
 package com.mitenko.hiitcounter.ui.entries
 
 import androidx.lifecycle.viewModelScope
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.testutil.FakeClock
@@ -161,5 +162,53 @@ class EntryListViewModelTest {
         vm.create("Burpees") {}
         runCurrent()
         assertEquals(listOf(EntryType.CHECK_IN, EntryType.WORKOUT), repo.state.value.map { it.type })
+    }
+
+    // The class clock is Thu 24 Sep 08:00 PDT: the week starts Mon 21 Sep 00:00 PDT, the tile window Fri 28 Aug.
+    private val p0 = CheckInPoint(Instant.parse("2026-08-30T16:00:00Z"), 58) // Sun 30 Aug: tile day 2
+    private val p1 = CheckInPoint(Instant.parse("2026-09-21T06:30:00Z"), 60) // Sun 20 Sep 23:30 PDT: last week, day 23
+    private val p2 = CheckInPoint(Instant.parse("2026-09-21T07:00:00Z"), 61) // Mon 21 Sep 00:00 PDT: this week, day 24
+    private val p3 = CheckInPoint(Instant.parse("2026-09-23T12:00:00Z"), 62) // Wed 23 Sep: this week, day 26
+
+    private fun withHistory() = FakeEntryRepository(listOf(testEntry(1, "Burpees"))).apply {
+        points.value = mapOf(1L to listOf(p0, p1, p2, p3))
+    }
+
+    private fun row(vm: EntryListViewModel) = (vm.uiState.value as EntryListUiState.Items).rows.single()
+
+    @Test
+    fun `a row counts this week's check-ins from Monday midnight`() = runTest {
+        assertEquals(2, row(vm(withHistory())).weekCount)
+    }
+
+    @Test
+    fun `a row carries the tile window's count, day-dots and sparkline`() = runTest {
+        val tile = row(vm(withHistory())).tile
+        assertEquals(4, tile.count)
+        assertEquals(listOf(2, 23, 24, 26), tile.days.indices.filter { tile.days[it] })
+        assertEquals(listOf(SparkPoint(2, 58), SparkPoint(23, 60), SparkPoint(24, 61), SparkPoint(26, 62)), tile.spark)
+    }
+
+    @Test
+    fun `resume moves the week and the tile window`() = runTest {
+        val vm = vm(withHistory())
+        clock.instant = Instant.parse("2026-09-28T15:00:00Z") // Mon 28 Sep 08:00 PDT
+        vm.onResume()
+        runCurrent()
+        val r = row(vm)
+        assertEquals(0, r.weekCount)
+        assertEquals(3, r.tile.count) // 30 Aug has left the window (1 Sep – 28 Sep)
+        assertEquals(listOf(19, 20, 22), r.tile.days.indices.filter { r.tile.days[it] })
+    }
+
+    @Test
+    fun `a check-in updates the row's count and tile at once`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, "Burpees")))
+        val vm = vm(repo)
+        repo.checkIn(1, clock)
+        runCurrent()
+        val r = row(vm)
+        assertEquals(1, r.weekCount)
+        assertEquals(TileData(count = 1, days = List(28) { it == 27 }, spark = listOf(SparkPoint(27, 48))), r.tile)
     }
 }

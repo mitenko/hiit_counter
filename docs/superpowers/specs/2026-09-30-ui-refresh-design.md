@@ -83,3 +83,18 @@
 
 - This lands together with R6's data layer in one PR: the check_in table, the 3 → 4 migration, seeding, the week count and Clear history too. The R6 plan (`docs/superpowers/plans/2026-09-30-history.md`) is revised so that its screen tasks build this spec instead of R6 §4.1–4.2, and its data tasks stay as written.
 - Project conventions are unchanged: the mitenko identity, no AI attribution, squash to one commit and open a PR, ask before pushing, TDD subtasks, and a phone backup before every install.
+
+## 8. Implementation notes (from the plan, confirmed with the user)
+
+- **Chart summary.** "From A to B" is the first shown total to the last one.
+- **Points without a total.** A Workout's chart and tile sparkline plot only points with a total (a type switch leaves NULL-total points). If none in the range has one, the range reads "No check-ins in this range". The calendar, day-dots, tile count and week count use every point.
+- **Date labels.** Four evenly spaced labels with repeated dates dropped, so a very short axis shows fewer; a zero-length axis shows one label with the point centred. `nearestPoint` ties go to the older point. Tapping elsewhere clears the label within the chart only.
+- **Strings (§5).** Removed after a grep: `reps_n`, `streak_n`, `total_reps`, `last_check_in`, `best_streak`, `current_streak`, `today`. `checked_in_today` stays (the list's ✓ description). `tab_current` "Current" already existed and is reused; `tab_timing`, `tab_progression` and `tab_cues` are new. R6's `reps_week`, `streak_week`, `history` and `history_title` were never added.
+- **Tiles (§2).** At least 72 dp tall; the ✓ sits right after the name; the name and week lines are one line each with an ellipsis; the 96 × 32 dp graph sits 8 dp before ≡. The list still refreshes the week and the tile window on resume (R6 §4.1).
+- **Loading.** Everything below the entry screen's top bar waits for the entry's first emission.
+- **Empty states.** They sit centred in the 240 dp chart area; a Workout's reps column still shows beside them.
+- **Reps column.** 56 × 240 dp, 24 dp cells in the old table style; it scrolls only with more than 10 sets, and reads as one node, "Reps per set: …".
+- **Calendar.** Months oldest first; it opens scrolled to the newest month. In-range days show their number in the circle; the grid is hidden from screen readers, which read the summary.
+- **Cards.** `surfaceContainer` and `errorContainer` are Material's dark defaults (the theme doesn't override them). Stepper cards have no inner horizontal padding, because the −/value/+ row needs the full width at 320 dp.
+- **Labels.** The type labels are "Counter" and "Timer Only" (PR #12, timer-only spec addendum); this release changes none.
+- **Status line.** `docs/feedback.md`, cited above, isn't in the repo.

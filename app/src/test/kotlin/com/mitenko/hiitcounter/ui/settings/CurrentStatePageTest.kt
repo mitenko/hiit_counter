@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -16,6 +18,7 @@ import com.mitenko.hiitcounter.ui.common.SaveStatus
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,7 +33,9 @@ class CurrentStatePageTest {
 
     private var draft by mutableStateOf(CurrentStateViewModel.Draft(65, 24, 4, Instant.parse("2026-09-23T12:00:00Z")))
     private var immediate = 0
-    private var resets = 0
+
+    /** Each reset's Clear history too value, in order. */
+    private val resets = mutableListOf<Boolean>()
 
     private fun show(showTotal: Boolean = true) {
         compose.setContent {
@@ -39,7 +44,7 @@ class CurrentStatePageTest {
                     draft, ValidationResult(), SaveStatus.SAVED, ZoneOffset.UTC, now = { Instant.parse("2026-09-24T12:00:00Z") },
                     onChange = { draft = it(draft) },
                     onChangeNow = { immediate++; draft = it(draft) },
-                    onResetProgress = { resets++ },
+                    onResetProgress = { resets += it },
                     showTotal = showTotal,
                 )
             }
@@ -59,9 +64,30 @@ class CurrentStatePageTest {
         show()
         compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
         compose.onNodeWithText("Reset progress?").assertIsDisplayed()
-        assertEquals(0, resets)
+        assertTrue(resets.isEmpty())
         compose.onNodeWithTag("confirm_reset_progress").performClick()
-        assertEquals(1, resets)
+        assertEquals(listOf(false), resets)
+    }
+
+    @Test
+    fun `Clear history too starts unchecked under the unchanged body, so a reset keeps the history`() {
+        show()
+        compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
+        compose.onNodeWithText("Total returns to the starting total, streaks to 0 and the last check-in is cleared.").assertIsDisplayed()
+        compose.onNodeWithTag("clear_history").assertIsOff()
+        compose.onNodeWithTag("confirm_reset_progress").performClick()
+        assertEquals(listOf(false), resets)
+    }
+
+    @Test
+    fun `checking Clear history too passes it to the reset, and the next dialog starts unchecked again`() {
+        show()
+        compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
+        compose.onNodeWithTag("clear_history").performClick().assertIsOn()
+        compose.onNodeWithTag("confirm_reset_progress").performClick()
+        assertEquals(listOf(true), resets)
+        compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
+        compose.onNodeWithTag("clear_history").assertIsOff()
     }
 
     @Test

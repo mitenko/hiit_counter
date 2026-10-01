@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mitenko.hiitcounter.domain.RunStatus
 import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.domain.WorkoutSnapshot
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CounterState
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
@@ -64,17 +65,15 @@ class EntryViewModelTest {
     }
 
     @Test
-    fun `table shows the entry's distributed reps and sheet-style fields`() = runTest {
+    fun `the state shows the entry's distributed reps, total and streaks`() = runTest {
         val h = harness()
         runCurrent()
         val s = h.vm.uiState.value
         assertEquals("Burpees", s.name)
         assertEquals(listOf(9, 8, 8, 8, 8, 8, 8, 8), s.reps)
         assertEquals(65, s.total)
-        assertEquals("23 Sep 2026, 05:55", s.lastCheckIn)
         assertEquals(24, s.bestStreak)
         assertEquals(4, s.currentStreak)
-        assertEquals("24 Sep 2026", s.today)
         assertFalse(s.checkedInToday)
     }
 
@@ -288,5 +287,39 @@ class EntryViewModelTest {
         h.vm.onCheckIn()
         runCurrent()
         assertTrue(h.vm.missing.value)
+    }
+
+    private val older = CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 60)
+    private val newer = CheckInPoint(Instant.parse("2026-09-23T12:55:00Z"), 65)
+
+    @Test
+    fun `the state carries every point oldest first, with now and the zone`() = runTest {
+        repo.points.value = mapOf(1L to listOf(newer, older))
+        val h = harness()
+        runCurrent()
+        val s = h.vm.uiState.value
+        assertEquals(listOf(older, newer), s.points)
+        assertEquals(clock.instant, s.now)
+        assertEquals(clock.zoneId, s.zone)
+    }
+
+    @Test
+    fun `a check-in adds its point at once`() = runTest {
+        val h = harness()
+        runCurrent()
+        assertTrue(h.vm.uiState.value.points.isEmpty())
+        h.vm.onCheckIn()
+        runCurrent()
+        assertEquals(listOf(CheckInPoint(clock.instant, 66)), h.vm.uiState.value.points)
+    }
+
+    @Test
+    fun `resume re-reads now for the range maths`() = runTest {
+        val h = harness()
+        runCurrent()
+        clock.instant = Instant.parse("2026-09-25T15:00:00Z")
+        h.vm.onResume()
+        runCurrent()
+        assertEquals(clock.instant, h.vm.uiState.value.now)
     }
 }

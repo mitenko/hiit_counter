@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -99,10 +100,23 @@ fun RepeatingIconButton(onClick: () -> Unit, @DrawableRes icon: Int, contentDesc
     }
 }
 
+/** The settings cards' shape (spec rev 9 §4): a 16 dp radius. */
+val SettingsCardShape = RoundedCornerShape(16.dp)
+
+/**
+ * A full-width rounded card on `surfaceContainer` (spec rev 9 §4). It isn't clickable itself: the
+ * row inside keeps its own targets (steppers, tap-to-edit, ⓘ, the switch, the Type value).
+ */
+@Composable
+fun SettingsCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(modifier.fillMaxWidth(), shape = SettingsCardShape, color = MaterialTheme.colorScheme.surfaceContainer, content = content)
+}
+
 /**
  * A labelled switch with the stepper rows' spacing (spec R2 §8.1) and an optional ⓘ after the
- * label (R3 §7.1). The switch is tagged `switch_<label>`. [supportingText] goes under the row,
- * tagged `support_<label>` (the Voice switch's "not available", R4 §4.7).
+ * label (R3 §7.1), in one rounded card tagged `card_<label>` (rev 9 §4). The switch is tagged
+ * `switch_<label>`. [supportingText] goes under the row, tagged `support_<label>` (the Voice
+ * switch's "not available", R4 §4.7).
  */
 @Composable
 fun SwitchRow(
@@ -113,23 +127,26 @@ fun SwitchRow(
     info: String? = null,
     supportingText: String? = null,
 ) {
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
-            info?.let { InfoTag(title = label, text = it) }
-            Spacer(Modifier.weight(1f))
-            Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("switch_$label"))
-        }
-        supportingText?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp).testTag("support_$label"),
-            )
+    // Spec rev 9 §4: 4 dp above and below, so neighbouring cards sit 8 dp apart.
+    SettingsCard(modifier.padding(vertical = 4.dp).testTag("card_$label")) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                info?.let { InfoTag(title = label, text = it) }
+                Spacer(Modifier.weight(1f))
+                Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("switch_$label"))
+            }
+            supportingText?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp).testTag("support_$label"),
+                )
+            }
         }
     }
 }

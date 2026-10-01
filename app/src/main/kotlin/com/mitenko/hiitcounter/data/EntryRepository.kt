@@ -2,6 +2,7 @@ package com.mitenko.hiitcounter.data
 
 import android.util.Log
 import androidx.room.withTransaction
+import com.mitenko.hiitcounter.data.db.CheckInEntity
 import com.mitenko.hiitcounter.data.db.HiitDatabase
 import com.mitenko.hiitcounter.domain.CheckInResult
 import com.mitenko.hiitcounter.domain.Clock
@@ -12,6 +13,7 @@ import com.mitenko.hiitcounter.domain.RepProgression
 import com.mitenko.hiitcounter.domain.SettingsValidator
 import com.mitenko.hiitcounter.domain.counterHoldReset
 import com.mitenko.hiitcounter.domain.holdResetNeeded
+import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.Entry
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
@@ -45,7 +47,7 @@ interface EntryRepository {
     /** Copies the config with a fresh counter and the §5.5 name, appended at the end. */
     suspend fun duplicate(id: Long): Long
 
-    /** Shifts every later row down by one. */
+    /** Shifts every later row down by one and deletes the entry's history (spec R6 §3.2). */
     suspend fun delete(id: Long)
 
     /** Target = (position + delta) clamped to the list bounds; a no-op when it equals the current position. */
@@ -64,14 +66,27 @@ interface EntryRepository {
     /**
      * One transaction using the row's own progression and type: concurrent calls on one entry record
      * exactly one check-in. A Timer only entry keeps its total and hold count (spec R4 §3.1).
+     * Unless the outcome is AlreadyToday, the same transaction logs one history point (spec R6 §3.2).
      */
     suspend fun checkIn(id: Long, clock: Clock): CheckInResult
 
     /** One transaction: holdCount is reset only if the total changed; a stored NULL counts as the starting total (R3 §6.3). */
     suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?)
 
-    /** total NULL, streaks 0, lastCheckIn NULL, holdCount 0. */
-    suspend fun resetProgress(id: Long)
+    /**
+     * total NULL, streaks 0, lastCheckIn NULL, holdCount 0. With [clearHistory], the entry's history
+     * is deleted in the same transaction (spec R6 §3.2).
+     */
+    suspend fun resetProgress(id: Long, clearHistory: Boolean)
+
+    /** Spec R6 §3.3: the entry's points at or after [since] (null means all of them), oldest first. */
+    fun history(id: Long, since: Instant?): Flow<List<CheckInPoint>>
+
+    /**
+     * Spec R6 §3.3: every entry's points at or after [since], keyed by entry id, from one query.
+     * An entry without points is absent from the map.
+     */
+    fun recentCheckIns(since: Instant): Flow<Map<Long, List<CheckInPoint>>>
 }
 
 /** Completes once the v1 import has run (spec §6). */
@@ -91,6 +106,7 @@ class RoomEntryRepository(
     private val validationClock: Clock,
 ) : EntryRepository {
     private val dao = db.entryDao()
+    private val checkIns = db.checkInDao()
 
     override val entries: Flow<List<Entry>> = flow {
         gate.awaitReady()
@@ -135,6 +151,8 @@ class RoomEntryRepository(
         gate.awaitReady()
         db.withTransaction {
             val row = dao.get(id) ?: throw EntryNotFound(id)
+            // Spec R6 §3.2: explicit, so deletion never depends on PRAGMA foreign_keys (the cascade covers it too).
+            checkIns.deleteForEntry(id)
             dao.delete(id)
             dao.shiftPositions(low = row.position + 1, high = Int.MAX_VALUE, delta = -1)
         }
@@ -206,6 +224,8 @@ class RoomEntryRepository(
                 // A Timer only entry never touches its total column, so a NULL total stays NULL (plan Spec note 6).
                 val total = if (countsReps) s.total else row.total
                 dao.setCounter(id, total, s.bestStreak, s.currentStreak, s.holdCount, s.lastCheckIn?.toEpochMilli())
+                // Spec R6 §3.2: at is the new lastCheckIn (now); a Timer only point has no total.
+                checkIns.insert(CheckInEntity(entryId = id, at = now.toEpochMilli(), total = if (countsReps) s.total else null))
             }
             result
         }
@@ -226,10 +246,23 @@ class RoomEntryRepository(
         }
     }
 
-    override suspend fun resetProgress(id: Long) {
+    override suspend fun resetProgress(id: Long, clearHistory: Boolean) {
         gate.awaitReady()
-        found(id, dao.setCounter(id, total = null, bestStreak = 0, currentStreak = 0, holdCount = 0, lastCheckIn = null))
+        db.withTransaction {
+            found(id, dao.setCounter(id, total = null, bestStreak = 0, currentStreak = 0, holdCount = 0, lastCheckIn = null))
+            if (clearHistory) checkIns.deleteForEntry(id)
+        }
     }
+
+    override fun history(id: Long, since: Instant?): Flow<List<CheckInPoint>> = flow {
+        gate.awaitReady()
+        emitAll(checkIns.observeForEntry(id, since?.toEpochMilli() ?: Long.MIN_VALUE))
+    }.map { rows -> rows.map { it.toPoint() } }
+
+    override fun recentCheckIns(since: Instant): Flow<Map<Long, List<CheckInPoint>>> = flow {
+        gate.awaitReady()
+        emitAll(checkIns.observeSince(since.toEpochMilli()))
+    }.map { rows -> rows.groupBy({ it.entryId }, { it.toPoint() }) }
 
     private fun requireName(raw: String): String = when (val check = EntryNames.validate(raw)) {
         is NameCheck.Ok -> check.name

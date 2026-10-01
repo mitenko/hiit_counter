@@ -67,7 +67,8 @@ class SettingsPagerTest {
         }
     }
 
-    private fun tab(page: SettingsPage) = compose.onNodeWithTag("tab_${page.name}")
+    /** Spec rev 9 §4: the tabs are icons, so tests find them by content description (their names). */
+    private fun tab(page: SettingsPage) = compose.onNodeWithContentDescription(text(page.tab))
 
     private fun text(@StringRes id: Int): String = ApplicationProvider.getApplicationContext<Context>().getString(id)
 
@@ -237,5 +238,24 @@ class SettingsPagerTest {
         show(initial = SettingsPage.TIMING, repo = checkInRepo())
         tab(SettingsPage.TIMING).assertIsSelected()
         compose.onNodeWithTag("value_SETS").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the tabs are icons named Timing, Progression, Current and Cues, with no text`() {
+        show()
+        assertEquals(listOf("Timing", "Progression", "Current", "Cues"), SettingsPage.entries.map { text(it.tab) })
+        SettingsPage.entries.forEach { page ->
+            tab(page).assertIsDisplayed()
+            compose.onNodeWithText(text(page.tab)).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `each tab is at least 48 dp and the selected one follows the page`() {
+        show(initial = SettingsPage.CUES)
+        SettingsPage.entries.forEach { tab(it).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp) }
+        tab(SettingsPage.CUES).assertIsSelected()
+        tab(SettingsPage.TIMING).performClick()
+        tab(SettingsPage.TIMING).assertIsSelected()
     }
 }

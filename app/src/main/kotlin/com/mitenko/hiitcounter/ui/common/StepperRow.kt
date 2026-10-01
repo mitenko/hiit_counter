@@ -30,7 +30,8 @@ import com.mitenko.hiitcounter.domain.ValueFormat
 /**
  * The shared stepper row (spec R2 §8.1): the label on top, with its ⓘ tag when [info] is given
  * (R3 §7.1). Below it, 48 dp −/+ buttons (tap = one step, hold = repeat) sit around a large value
- * that opens the edit dialog when tapped, and an inline error or hint goes beneath.
+ * that opens the edit dialog when tapped, and an inline error or hint goes beneath. The whole row
+ * is one rounded card tagged `card_<label>` (spec rev 9 §4).
  */
 @Composable
 fun StepperRow(
@@ -43,35 +44,39 @@ fun StepperRow(
     hint: String? = null,
     info: String? = null,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        // The ⓘ is its own 48 dp target, separate from the value's tap-to-edit (spec R3 §7.1).
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
-            info?.let { InfoTag(title = label, text = it) }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            RepeatingIconButton(onMinus, R.drawable.ic_remove, stringResource(R.string.decrease, label))
-            Text(
-                valueText,
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = if (error != null) MaterialTheme.colorScheme.error else Color.Unspecified,
-                modifier = Modifier
-                    .widthIn(min = 140.dp)
-                    .clickable(onClickLabel = stringResource(R.string.edit_value, label), onClick = onValueTap)
-                    .testTag("value_$label"),
-            )
-            RepeatingIconButton(onPlus, R.drawable.ic_add, stringResource(R.string.increase, label))
-        }
-        (error ?: hint)?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp).testTag("support_$label"),
-            )
+    // Spec rev 9 §4: 4 dp above and below, so neighbouring cards sit 8 dp apart. No horizontal
+    // padding inside: the −/value/+ row needs the full 288 dp at the 320 dp minimum width.
+    SettingsCard(Modifier.padding(vertical = 4.dp).testTag("card_$label")) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // The ⓘ is its own 48 dp target, separate from the value's tap-to-edit (spec R3 §7.1).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                info?.let { InfoTag(title = label, text = it) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                RepeatingIconButton(onMinus, R.drawable.ic_remove, stringResource(R.string.decrease, label))
+                Text(
+                    valueText,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    color = if (error != null) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    modifier = Modifier
+                        .widthIn(min = 140.dp)
+                        .clickable(onClickLabel = stringResource(R.string.edit_value, label), onClick = onValueTap)
+                        .testTag("value_$label"),
+                )
+                RepeatingIconButton(onPlus, R.drawable.ic_add, stringResource(R.string.increase, label))
+            }
+            (error ?: hint)?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp).testTag("support_$label"),
+                )
+            }
         }
     }
 }

@@ -1,7 +1,10 @@
 package com.mitenko.hiitcounter.ui.settings
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,9 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,6 +44,8 @@ import com.mitenko.hiitcounter.domain.model.EntryType
 import com.mitenko.hiitcounter.ui.common.EntryScopedViewModel
 import com.mitenko.hiitcounter.ui.common.InfoTag
 import com.mitenko.hiitcounter.ui.common.NameDialog
+import com.mitenko.hiitcounter.ui.common.SettingsCard
+import com.mitenko.hiitcounter.ui.common.SettingsCardShape
 import com.mitenko.hiitcounter.ui.common.SettingsScaffold
 import com.mitenko.hiitcounter.ui.common.label
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -56,15 +61,15 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * The four per-entry settings pages (spec R2 §7.5). [label] is the Entry Settings row, and [tab]
- * is the pager tab (R3 §4: "Timing · Progression · Current · Cues"). The ordinal is the route's
- * `page` argument.
+ * The four per-entry settings pages (spec R2 §7.5). [label] is the Entry Settings row. The pager
+ * tab is [icon] alone, and [tab] is its content description (spec rev 9 §4; R3 §4's names
+ * "Timing · Progression · Current · Cues"). The ordinal is the route's `page` argument.
  */
-enum class SettingsPage(@StringRes val label: Int, @StringRes val tab: Int) {
-    TIMING(R.string.settings_timing, R.string.settings_timing),
-    PROGRESSION(R.string.settings_progression, R.string.settings_progression),
-    CURRENT(R.string.settings_current_state, R.string.tab_current),
-    CUES(R.string.settings_cues, R.string.settings_cues);
+enum class SettingsPage(@StringRes val label: Int, @StringRes val tab: Int, @DrawableRes val icon: Int) {
+    TIMING(R.string.settings_timing, R.string.tab_timing, R.drawable.ic_tab_timing),
+    PROGRESSION(R.string.settings_progression, R.string.tab_progression, R.drawable.ic_tab_progression),
+    CURRENT(R.string.settings_current_state, R.string.tab_current, R.drawable.ic_tab_current),
+    CUES(R.string.settings_cues, R.string.tab_cues, R.drawable.ic_tab_cues);
 
     companion object {
         /** Spec revision 8: every entry, Workout or Timer only, shows all four pages. */
@@ -202,16 +207,20 @@ fun EntrySettingsScreen(
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var choosingType by rememberSaveable { mutableStateOf(false) }
     SettingsScaffold(title = state.name, onBack = onBack) {
-        // Spec R4 §4.5, amended by spec revision 8: the Type row sits above the page rows; every entry shows all four.
-        TypeRow(state.type) { choosingType = true }
-        SettingsPage.visibleFor(state.type).forEach { page ->
-            ListRow(stringResource(page.label), tag = "page_${page.name}") { onOpen(page) }
-        }
-        ListRow(stringResource(R.string.rename), tag = "rename") { renaming = true }
-        ListRow(stringResource(R.string.duplicate), tag = "duplicate", onClick = onDuplicate)
-        // Busy rule (spec §7.1): disabled with a hint; the ViewModel re-checks at the moment of the call.
-        ListRow(stringResource(R.string.delete), tag = "delete", enabled = !state.busy, color = MaterialTheme.colorScheme.error) {
-            confirmDelete = true
+        // Spec rev 9 §4: every option is a rounded card, 8 dp apart.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Spec R4 §4.5, amended by spec revision 8: the Type row sits above the page rows; every entry shows all four.
+            TypeRow(state.type) { choosingType = true }
+            SettingsPage.visibleFor(state.type).forEach { page ->
+                ListRow(stringResource(page.label), tag = "page_${page.name}") { onOpen(page) }
+            }
+            ListRow(stringResource(R.string.rename), tag = "rename") { renaming = true }
+            ListRow(stringResource(R.string.duplicate), tag = "duplicate", onClick = onDuplicate)
+            // Busy rule (spec §7.1): disabled with a hint; the ViewModel re-checks at the moment of the call.
+            // Spec rev 9 §4: Delete is the same card on errorContainer.
+            ListRow(stringResource(R.string.delete), tag = "delete", enabled = !state.busy, danger = true) {
+                confirmDelete = true
+            }
         }
         if (state.busy) {
             Text(
@@ -265,29 +274,33 @@ fun EntrySettingsScreen(
     }
 }
 
-/** "Type" over "Workout" or "Timer only", with its ⓘ as a separate target (spec R4 §4.5, R3 §7.1). */
+/**
+ * "Type" over "Counter" or "Timer Only", with its ⓘ as a separate target (spec R4 §4.5, R3 §7.1),
+ * in a rounded card tagged `card_type` (rev 9 §4).
+ */
 @Composable
 private fun TypeRow(type: EntryType, onClick: () -> Unit) {
     val title = stringResource(R.string.type)
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(
-            Modifier
-                .weight(1f)
-                .clickable(onClick = onClick)
-                .padding(vertical = 12.dp)
-                .testTag("type"),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(type.label),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.testTag("type_value"),
-            )
+    SettingsCard(Modifier.testTag("card_type")) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+                    .padding(start = 16.dp, top = 12.dp, bottom = 12.dp)
+                    .testTag("type"),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(type.label),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("type_value"),
+                )
+            }
+            InfoTag(title = title, text = stringResource(R.string.info_type))
         }
-        InfoTag(title = title, text = stringResource(R.string.info_type))
     }
-    HorizontalDivider()
 }
 
 /** Two radio options with OK and Cancel (spec R4 §4.5). The pick lives in rememberSaveable until OK. */
@@ -323,24 +336,33 @@ private fun TypeDialog(current: EntryType, onConfirm: (EntryType) -> Unit, onDis
     )
 }
 
+/**
+ * One Entry Settings option as a rounded card button (spec rev 9 §4): full width, at least 56 dp,
+ * `surfaceContainer`, or `errorContainer` when [danger] (Delete). The tag is on the clickable card.
+ */
 @Composable
 private fun ListRow(
     text: String,
     tag: String,
     enabled: Boolean = true,
-    color: Color = Color.Unspecified,
+    danger: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
-        color = if (enabled) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 16.dp)
-            .testTag(tag),
-    )
-    HorizontalDivider()
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = SettingsCardShape,
+        color = if (danger) colors.errorContainer else colors.surfaceContainer,
+        contentColor = if (danger) colors.onErrorContainer else colors.onSurface,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag(tag),
+    ) {
+        Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (enabled) Color.Unspecified else colors.onSurface.copy(alpha = 0.38f),
+            )
+        }
+    }
 }
