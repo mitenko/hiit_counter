@@ -45,11 +45,19 @@ fun rangeStart(range: HistoryRange, now: Instant, zone: ZoneId): Instant? = when
 fun tileWindowStart(now: Instant, zone: ZoneId): Instant =
     today(now, zone).minusDays(TILE_DAYS - 1L).startIn(zone)
 
-/** [TILE_DAYS] values, oldest first: true when that local day has at least one point (spec R6 §3.4). */
-fun dayDots(points: List<CheckInPoint>, now: Instant, zone: ZoneId): List<Boolean> {
-    val first = today(now, zone).minusDays(TILE_DAYS - 1L)
+/**
+ * 7 values, Monday first: true when that local day in the calendar week containing [now] has at
+ * least one point (spec rev 11 §2). A day later in the week than today is simply false, even if a
+ * (shouldn't-happen) future point is passed for it.
+ */
+fun weekDays(points: List<CheckInPoint>, now: Instant, zone: ZoneId): List<Boolean> {
+    val start = weekStart(now, zone).atZone(zone).toLocalDate()
+    val todayDate = today(now, zone)
     val days = points.mapTo(HashSet()) { it.at.atZone(zone).toLocalDate() }
-    return List(TILE_DAYS) { first.plusDays(it.toLong()) in days }
+    return List(7) { i ->
+        val date = start.plusDays(i.toLong())
+        !date.isAfter(todayDate) && date in days
+    }
 }
 
 /** A y axis from [lo] to [hi] in steps of [step] (spec R6 §3.4). */

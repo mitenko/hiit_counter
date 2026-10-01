@@ -146,4 +146,28 @@
 
     <!-- Reset progress: Clear history too (spec R6 §4.3) -->
     <string name="clear_history_too">Clear history too</string>
+
+    <!-- Timer Only tile: this week as lettered circles (spec rev 11 §2) -->
+    <string-array name="week_day_letters">
+        <item>M</item>
+        <item>T</item>
+        <item>W</item>
+        <item>T</item>
+        <item>F</item>
+        <item>S</item>
+        <item>S</item>
+    </string-array>
+    <string-array name="week_day_abbrev">
+        <item>Mon</item>
+        <item>Tue</item>
+        <item>Wed</item>
+        <item>Thu</item>
+        <item>Fri</item>
+        <item>Sat</item>
+        <item>Sun</item>
+    </string-array>
+    <string name="week_check_in_desc">Checked in %1$s this week</string>
+    <string name="week_no_check_in_desc">No check-ins this week</string>
+    <string name="day_checked_in">checked in</string>
+    <string name="day_not_checked_in">not checked in</string>
 </resources>

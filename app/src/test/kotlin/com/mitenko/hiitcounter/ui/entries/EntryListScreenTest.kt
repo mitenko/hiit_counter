@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
@@ -411,6 +413,58 @@ class EntryListScreenTest {
             assertTrue(handle.boundsInRoot.left - tile.boundsInRoot.right <= gap + 0.5f)
             assertFalse(tile.config.contains(SemanticsActions.OnClick))
         }
+    }
+
+    @Test
+    fun `a Timer Only tile shows 7 circles with the week letters in order`() {
+        val tile = TileData(week = listOf(true, false, true, false, false, false, false))
+        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 0, checkedInToday = false, type = EntryType.CHECK_IN, tile = tile))))
+        compose.onNodeWithTag("week_4", useUnmergedTree = true).assertExists()
+        listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { index, letter ->
+            compose.onNodeWithTag("day_4_$index", useUnmergedTree = true).assertTextEquals(letter)
+        }
+    }
+
+    @Test
+    fun `the checked-in days of a Timer Only week report checked in`() {
+        val tile = TileData(week = listOf(true, false, true, false, false, false, false))
+        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 0, checkedInToday = false, type = EntryType.CHECK_IN, tile = tile))))
+        fun stateOf(index: Int) = compose.onNodeWithTag("day_4_$index", useUnmergedTree = true)
+            .fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+        assertEquals("checked in", stateOf(0))
+        assertEquals("not checked in", stateOf(1))
+        assertEquals("checked in", stateOf(2))
+    }
+
+    @Test
+    fun `Counter tiles have no week node and keep their sparkline`() {
+        show(EntryListUiState.Items(rows))
+        for (row in rows) {
+            compose.onNodeWithTag("week_${row.id}", useUnmergedTree = true).assertDoesNotExist()
+            compose.onNodeWithTag("tile_${row.id}", useUnmergedTree = true).assertExists()
+        }
+    }
+
+    @Test
+    fun `a Timer Only tile's week circles announce once, as the summary`() {
+        // The card is clickable, which merges its descendants (spec rev 11 §2): a screen reader
+        // must hear only the week summary, not every circle's own letter and checked-in state.
+        val tile = TileData(week = listOf(true, false, true, false, false, false, false))
+        show(EntryListUiState.Items(listOf(EntryRow(4, "Stretch", 0, checkedInToday = false, type = EntryType.CHECK_IN, tile = tile))))
+        val config = compose.onNodeWithTag("entry_4").fetchSemanticsNode().config
+        val descriptions = config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+        assertTrue(
+            "the merged content description should include the week summary",
+            descriptions.any { it.contains("this week") },
+        )
+        val texts = config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        val stateDescription = config.getOrNull(SemanticsProperties.StateDescription)
+        val forbidden = listOf("M", "T", "W", "F", "S", "checked in", "not checked in")
+        assertTrue("day letters must not leak into the merged text: $texts", texts.none { it in forbidden })
+        assertTrue(
+            "per-circle state must not leak into the merged state description: $stateDescription",
+            stateDescription == null || forbidden.none { stateDescription.contains(it) },
+        )
     }
 
     @Test

@@ -312,7 +312,7 @@ private fun EntryRowItem(
                 )
             }
             // Spec rev 9 §2: the tile graph, 8 dp before the ≡ handle. Decorative: no touch target.
-            TileGraphic(row.type, row.tile, Modifier.padding(horizontal = 8.dp).testTag("tile_${row.id}"))
+            TileGraphic(row.type, row.id, row.tile, Modifier.padding(horizontal = 8.dp))
             dragHandle()
         }
     }

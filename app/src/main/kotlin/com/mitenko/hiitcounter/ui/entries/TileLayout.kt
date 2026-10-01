@@ -1,9 +1,9 @@
 package com.mitenko.hiitcounter.ui.entries
 
 import com.mitenko.hiitcounter.domain.TILE_DAYS
-import com.mitenko.hiitcounter.domain.dayDots
 import com.mitenko.hiitcounter.domain.model.CheckInPoint
 import com.mitenko.hiitcounter.domain.tileWindowStart
+import com.mitenko.hiitcounter.domain.weekDays
 import com.mitenko.hiitcounter.ui.common.PlotPoint
 import java.time.Instant
 import java.time.ZoneId
@@ -13,17 +13,18 @@ import java.time.temporal.ChronoUnit
 data class SparkPoint(val day: Int, val total: Int)
 
 /**
- * A tile's graph data (spec rev 9 §2). [count] is the check-ins in the 28-day window, for the
- * content description. [days] are the 28 day-dots, oldest first. [spark] is the Workout sparkline:
- * the window's points that have a total, oldest first (plan Spec note 9).
+ * A tile's graph data (spec rev 9 §2, amended rev 11 §2). [count] is the check-ins in the 28-day
+ * window, for the Workout content description. [week] are this calendar week's 7 days, Monday
+ * first, for the Timer Only week circles. [spark] is the Workout sparkline: the window's points
+ * that have a total, oldest first (plan Spec note 9).
  */
 data class TileData(
     val count: Int = 0,
-    val days: List<Boolean> = NO_DAYS,
+    val week: List<Boolean> = NO_WEEK,
     val spark: List<SparkPoint> = emptyList(),
 ) {
     companion object {
-        val NO_DAYS: List<Boolean> = List(TILE_DAYS) { false }
+        val NO_WEEK: List<Boolean> = List(7) { false }
     }
 }
 
@@ -35,7 +36,7 @@ object TileLayout {
         val firstDay = start.atZone(zone).toLocalDate()
         return TileData(
             count = window.size,
-            days = dayDots(window, now, zone),
+            week = weekDays(window, now, zone),
             spark = window.mapNotNull { p ->
                 val day = ChronoUnit.DAYS.between(firstDay, p.at.atZone(zone).toLocalDate()).toInt()
                 p.total?.takeIf { day in 0 until TILE_DAYS }?.let { SparkPoint(day, it) }
@@ -60,7 +61,4 @@ object TileLayout {
             PlotPoint(x, y)
         }
     }
-
-    /** The centre x of day-dot [index] of [TILE_DAYS] across [width]. */
-    fun dotX(index: Int, width: Float): Float = width * (index + 0.5f) / TILE_DAYS
 }
