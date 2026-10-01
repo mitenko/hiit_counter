@@ -13,4 +13,23 @@ object RepsColumnLayout {
 
     /** What screen readers hear after "Reps per set: " (spec rev 9 §3). */
     fun spoken(reps: List<Int>): String = reps.joinToString(", ")
+
+    /** A per-set rep change after a check-in (spec revision 12 §3): up on a gain, down on a drop. */
+    enum class Change { UP, DOWN }
+
+    /**
+     * Every index whose value differs between [before] and [after] (spec revision 12 §3). A size
+     * mismatch (the set count changed) reports no change at all, rather than a misaligned diff.
+     */
+    fun changedSets(before: List<Int>, after: List<Int>): Map<Int, Change> {
+        if (before.size != after.size) return emptyMap()
+        return buildMap {
+            for (i in before.indices) {
+                when {
+                    after[i] > before[i] -> put(i, Change.UP)
+                    after[i] < before[i] -> put(i, Change.DOWN)
+                }
+            }
+        }
+    }
 }

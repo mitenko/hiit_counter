@@ -3,7 +3,9 @@ package com.mitenko.repkit.ui.entry
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mitenko.repkit.data.EntryRepository
+import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
+import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RepDistributor
 import com.mitenko.repkit.domain.RunStatus
 import com.mitenko.repkit.domain.ServiceStatus
@@ -58,6 +60,12 @@ data class EntryUiState(
     val zone: ZoneId = ZoneOffset.UTC,
 )
 
+/**
+ * A one-shot check-in highlight (spec revision 12 §3): [id] increases on every event, so the UI's
+ * `LaunchedEffect` keys replay even when the changed indices repeat.
+ */
+data class Highlight(val id: Int, val changes: Map<Int, RepsColumnLayout.Change>)
+
 @HiltViewModel
 class EntryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -70,6 +78,12 @@ class EntryViewModel @Inject constructor(
 
     private val transient = MutableStateFlow(Transient())
     private val refresh = MutableStateFlow(0)
+
+    private val _highlight = MutableStateFlow<Highlight?>(null)
+
+    /** Set after a check-in that changed reps (spec revision 12 §3); consumed once via [highlightShown]. */
+    val highlight: StateFlow<Highlight?> = _highlight
+    private var highlightSeq = 0
 
     val uiState: StateFlow<EntryUiState> =
         combine(repo.entry(entryId).filterNotNull(), repo.history(entryId, since = null), transient, refresh) { entry, points, tr, _ ->
@@ -103,6 +117,11 @@ class EntryViewModel @Inject constructor(
         transient.update { it.copy(error = null) }
     }
 
+    /** Consumes the pending highlight once the UI has started playing it. */
+    fun highlightShown() {
+        _highlight.value = null
+    }
+
     /**
      * Spec R4 §4.1: Check in on its own. Ignored while a check-in or a start is in flight. The
      * repository call runs NonCancellable, so leaving the screen can't drop a check-in that has
@@ -111,10 +130,13 @@ class EntryViewModel @Inject constructor(
     fun onCheckIn() {
         val t = transient.value
         if (t.checkingIn || t.starting) return
+        val type = uiState.value.type
+        val before = uiState.value.reps
         transient.update { it.copy(checkingIn = true, error = null) }
         viewModelScope.launch {
             try {
-                withContext(NonCancellable) { repo.checkIn(entryId, clock) }
+                val result = withContext(NonCancellable) { repo.checkIn(entryId, clock) }
+                applyHighlight(type, before, result)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: EntryNotFound) {
@@ -172,8 +194,29 @@ class EntryViewModel @Inject constructor(
             return
         }
         // Uses the row's own progression; throwing (incl. EntryNotFound) takes the fail() path above.
+        val before = RepDistributor.distribute(entry.counter.total, entry.timing.sets)
         val result = repo.checkIn(entryId, clock)
+        // Starting navigates to the timer right away, so this may only ever play once the user
+        // comes back here: collectAsStateWithLifecycle pauses collection while the screen isn't
+        // started, so the event just waits on the StateFlow. If this screen (and this ViewModel)
+        // is gone by the time this runs, there's nobody left to observe it, and it's discarded
+        // along with the ViewModel — no extra "has the user left" check is needed.
+        applyHighlight(entry.type, before, result)
         controller.start(RepDistributor.distribute(result.state.total, entry.timing.sets))
+    }
+
+    /**
+     * Spec revision 12 §3: nothing highlights for a Timer only entry or an AlreadyToday no-op. If
+     * the set count changed while this check-in was in flight (e.g. a Settings edit raced it),
+     * `before` no longer lines up with the live column, so this bails rather than diff against a
+     * stale size and highlight the wrong cells.
+     */
+    private fun applyHighlight(type: EntryType, before: List<Int>, result: CheckInResult) {
+        if (type != EntryType.WORKOUT || result.outcome == Outcome.AlreadyToday) return
+        if (before.size != uiState.value.reps.size) return
+        val after = RepDistributor.distribute(result.state.total, before.size)
+        val changes = RepsColumnLayout.changedSets(before, after)
+        if (changes.isNotEmpty()) _highlight.value = Highlight(++highlightSeq, changes)
     }
 
     private fun fail(message: String) {
