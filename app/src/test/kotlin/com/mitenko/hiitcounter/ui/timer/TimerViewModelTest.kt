@@ -7,6 +7,7 @@ import com.mitenko.hiitcounter.domain.TimerController
 import com.mitenko.hiitcounter.domain.WorkoutSnapshot
 import com.mitenko.hiitcounter.domain.model.CueConfig
 import com.mitenko.hiitcounter.domain.model.EntryNotFound
+import com.mitenko.hiitcounter.domain.model.Phase
 import com.mitenko.hiitcounter.domain.model.TimingConfig
 import com.mitenko.hiitcounter.testutil.FakeEntryRepository
 import com.mitenko.hiitcounter.testutil.MainDispatcherRule
@@ -95,6 +96,28 @@ class TimerViewModelTest {
         controller.start(listOf(5))
         runCurrent()
         assertEquals(1, vm.uiState.value?.centerNumber)
+    }
+
+    @Test
+    fun `skip callbacks delegate to the controller`() = runTest {
+        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
+        backgroundScope.launch { vm.uiState.collect {} }
+        controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(prepareSec = 0, sets = 2, workSec = 3, restSec = 2, cooldownSec = 0), CueConfig()))
+        controller.onServiceStarted()
+        controller.start(listOf(5, 4))
+        runCurrent()
+        assertEquals(Phase.WORK, controller.state.value?.phase)
+        assertEquals(1, controller.state.value?.set)
+
+        vm.onSkipForward()
+        runCurrent()
+        assertEquals(Phase.REST, controller.state.value?.phase)
+
+        vm.onSkipBack() // within 2s of REST's start: back to the previous phase (WORK set 1)
+        runCurrent()
+        assertEquals(Phase.WORK, controller.state.value?.phase)
+        assertEquals(1, controller.state.value?.set)
     }
 
     @Test

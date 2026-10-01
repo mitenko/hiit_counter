@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -18,6 +19,7 @@ import com.mitenko.hiitcounter.domain.model.Phase
 import com.mitenko.hiitcounter.domain.model.TimerState
 import com.mitenko.hiitcounter.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +40,8 @@ class TimerScreenTest {
         phase: Phase = Phase.WORK,
         cues: CueConfig = CueConfig(),
         onTogglePause: () -> Unit = {},
+        onSkipBack: () -> Unit = {},
+        onSkipForward: () -> Unit = {},
         onClose: () -> Unit = {},
         onToggleSound: () -> Unit = {},
         onToggleVibration: () -> Unit = {},
@@ -47,7 +51,7 @@ class TimerScreenTest {
             HiitTheme {
                 TimerScreen(
                     ui(phase), cues,
-                    onTogglePause = onTogglePause, onClose = onClose,
+                    onTogglePause = onTogglePause, onSkipBack = onSkipBack, onSkipForward = onSkipForward, onClose = onClose,
                     onToggleSound = onToggleSound, onToggleVibration = onToggleVibration, onToggleVoice = onToggleVoice,
                 )
             }
@@ -89,7 +93,8 @@ class TimerScreenTest {
                 HiitTheme {
                     TimerScreen(
                         ui(Phase.REST), CueConfig(),
-                        onTogglePause = {}, onClose = {}, onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                        onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                        onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
                     )
                 }
             }
@@ -98,6 +103,8 @@ class TimerScreenTest {
         compose.onNodeWithTag("center_number", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("countdown", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("pause").assertIsDisplayed()
+        compose.onNodeWithTag("skip_back").assertIsDisplayed()
+        compose.onNodeWithTag("skip_forward").assertIsDisplayed()
     }
 
     @Test
@@ -145,5 +152,44 @@ class TimerScreenTest {
         compose.onNodeWithTag("cue_sound", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("cue_vibration", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("cue_voice", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `skip buttons exist, are at least 48dp and carry their descriptions`() {
+        setScreen(Phase.WORK)
+        compose.onNodeWithTag("skip_back").assertWidthIsAtLeast(48.dp)
+        compose.onNodeWithTag("skip_forward").assertWidthIsAtLeast(48.dp)
+        val back = compose.onNodeWithTag("skip_back").fetchSemanticsNode()
+        assertEquals("Back", back.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull())
+        val forward = compose.onNodeWithTag("skip_forward").fetchSemanticsNode()
+        assertEquals("Skip forward", forward.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull())
+    }
+
+    @Test
+    fun `skip buttons sit on either side of pause`() {
+        setScreen(Phase.WORK)
+        val back = compose.onNodeWithTag("skip_back").getBoundsInRoot()
+        val pause = compose.onNodeWithTag("pause").getBoundsInRoot()
+        val forward = compose.onNodeWithTag("skip_forward").getBoundsInRoot()
+        assertTrue(back.right <= pause.left)
+        assertTrue(forward.left >= pause.right)
+    }
+
+    @Test
+    fun `skip buttons invoke their callbacks`() {
+        var backClicks = 0
+        var forwardClicks = 0
+        setScreen(Phase.WORK, onSkipBack = { backClicks++ }, onSkipForward = { forwardClicks++ })
+        compose.onNodeWithTag("skip_back").performClick()
+        compose.onNodeWithTag("skip_forward").performClick()
+        assertEquals(1, backClicks)
+        assertEquals(1, forwardClicks)
+    }
+
+    @Test
+    fun `skip buttons are hidden at done`() {
+        setScreen(Phase.DONE)
+        compose.onNodeWithTag("skip_back", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("skip_forward", useUnmergedTree = true).assertDoesNotExist()
     }
 }
