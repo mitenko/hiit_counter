@@ -1,0 +1,1 @@
+I've had this as a push-ups spreadsheet for over a decade and I finally decided to make it into an app. The concept is basic enough: when you check-in to do your exercises, the number of reps you do increases by one. If you miss a few days, the reps go down. There's a minimum and a maximum number of reps and a bunch of other features but that's the real gist of it.
