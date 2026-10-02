@@ -14,6 +14,7 @@ import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.service.WorkoutServiceStarter
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,7 +65,10 @@ data class EntryUiState(
  * A one-shot check-in highlight (spec revision 12 §3): [id] increases on every event, so the UI's
  * `LaunchedEffect` keys replay even when the changed indices repeat.
  */
-data class Highlight(val id: Int, val changes: Map<Int, RepsColumnLayout.Change>)
+data class Highlight(val id: Int, val changes: Map<Int, RepsColumnLayout.Change>, val hold: HoldStatus? = null)
+
+/** Spec revision 20: the hold a check-in stayed on, for the announcement ("Holding at 64, 2 of 4"). */
+data class HoldStatus(val at: Int, val day: Int, val of: Int)
 
 @HiltViewModel
 class EntryViewModel @Inject constructor(
@@ -136,7 +140,7 @@ class EntryViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val result = withContext(NonCancellable) { repo.checkIn(entryId, clock) }
-                applyHighlight(type, before, result)
+                applyHighlight(type, before, result, repo.entry(entryId).first()?.progression)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: EntryNotFound) {
@@ -201,7 +205,7 @@ class EntryViewModel @Inject constructor(
         // started, so the event just waits on the StateFlow. If this screen (and this ViewModel)
         // is gone by the time this runs, there's nobody left to observe it, and it's discarded
         // along with the ViewModel — no extra "has the user left" check is needed.
-        applyHighlight(entry.type, before, result)
+        applyHighlight(entry.type, before, result, entry.progression)
         controller.start(RepDistributor.distribute(result.state.total, entry.timing.sets))
     }
 
@@ -211,12 +215,22 @@ class EntryViewModel @Inject constructor(
      * `before` no longer lines up with the live column, so this bails rather than diff against a
      * stale size and highlight the wrong cells.
      */
-    private fun applyHighlight(type: EntryType, before: List<Int>, result: CheckInResult) {
+    private fun applyHighlight(type: EntryType, before: List<Int>, result: CheckInResult, progression: ProgressionConfig?) {
         if (type != EntryType.WORKOUT || result.outcome == Outcome.AlreadyToday) return
         if (before.size != uiState.value.reps.size) return
         val after = RepDistributor.distribute(result.state.total, before.size)
         val changes = RepsColumnLayout.changedSets(before, after)
-        if (changes.isNotEmpty()) _highlight.value = Highlight(++highlightSeq, changes)
+        if (changes.isNotEmpty()) {
+            _highlight.value = Highlight(++highlightSeq, changes)
+            return
+        }
+        // Spec revision 20: nothing moved because the check-in stayed on a hold. A positive hold
+        // count means the total sits on an active hold; flash every cell neutral and say the day.
+        val hold = progression?.activeHold(result.state.total)
+        if (hold != null && result.state.holdCount > 0) {
+            val all = before.indices.associateWith { RepsColumnLayout.Change.HOLD }
+            _highlight.value = Highlight(++highlightSeq, all, HoldStatus(hold.at, result.state.holdCount, hold.forCount))
+        }
     }
 
     private fun fail(message: String) {
