@@ -25,6 +25,7 @@ As you develop, refine the instructions here.
 - **Monetisation seams (approved, rev 18):** `docs/superpowers/specs/2026-10-01-monetisation-seams-design.md` — groundwork for a free tier (at most 3 entries, with a Go Pro limit dialog) and banner ad slots (entry list and entry screen only, never the timer, never for Pro); v1 binds everything unlocked, so nothing changes.
 - **Full-width tile graphs (approved, rev 19, amends rev 9 §2 / rev 11 §2):** `docs/superpowers/specs/2026-10-02-tile-graph-width-design.md` — the list tile graph fills the line after "X× this week" (sparkline full width, day circles spread).
 - **Hold highlight (approved, rev 20, amends rev 12 §3):** `docs/superpowers/specs/2026-10-02-hold-highlight-design.md` — a check-in that stays on a hold flashes every reps cell neutral (no pop) and announces "Holding at N, D of F".
+- **Charts fit their data (approved, rev 21, amends rev 9 §2/§3):** `docs/superpowers/specs/2026-10-02-chart-fit-data-design.md` — the entry chart and tile sparkline x-axes start at the first shown check-in (not the empty range start) and end at today.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

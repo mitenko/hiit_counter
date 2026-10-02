@@ -33,6 +33,14 @@ object HistoryLayout {
     }
 
     /** A Workout plots only points with a total; a Timer only entry shows every point (plan Spec note 9). */
+    /**
+     * Where the Workout chart's x-axis starts (spec rev 21): at the first shown point when that is
+     * later than the range start, so the line fills the width instead of sitting at the right edge
+     * of a mostly empty range. The axis still ends at today.
+     */
+    fun chartStart(view: RangeView, shown: List<CheckInPoint>): Instant =
+        shown.minOfOrNull { it.at }?.takeIf { it.isAfter(view.start) } ?: view.start
+
     fun shownPoints(view: RangeView, type: EntryType): List<CheckInPoint> =
         if (type == EntryType.WORKOUT) view.points.filter { it.total != null } else view.points
 

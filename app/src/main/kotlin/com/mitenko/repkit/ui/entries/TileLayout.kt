@@ -45,9 +45,10 @@ object TileLayout {
     }
 
     /**
-     * The sparkline's vertices in a [width] × [height] box, [inset] from every edge: day 0 on the
-     * left, day 27 on the right, the highest total at the top. A single point or a flat line sits
-     * at mid-height.
+     * The sparkline's vertices in a [width] × [height] box, [inset] from every edge: the first
+     * point's day on the left and today (day 27) on the right, so the line fills the width (spec
+     * rev 21); the highest total at the top. A single point or a flat line sits at mid-height, and
+     * a lone point today sits in the middle.
      */
     fun sparkline(spark: List<SparkPoint>, width: Float, height: Float, inset: Float): List<PlotPoint> {
         if (spark.isEmpty()) return emptyList()
@@ -55,8 +56,10 @@ object TileLayout {
         val hi = spark.maxOf { it.total }
         val usableWidth = width - 2 * inset
         val usableHeight = height - 2 * inset
+        val first = spark.minOf { it.day }
+        val span = (TILE_DAYS - 1) - first
         return spark.map { p ->
-            val x = inset + usableWidth * p.day / (TILE_DAYS - 1)
+            val x = if (span <= 0) width / 2 else inset + usableWidth * (p.day - first) / span
             val y = if (hi == lo) height / 2 else inset + usableHeight * (hi - p.total) / (hi - lo)
             PlotPoint(x, y)
         }

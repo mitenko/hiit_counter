@@ -235,7 +235,7 @@ private fun CentreRow(state: EntryUiState, range: HistoryRange, highlight: Highl
                 HistoryEmpty.NO_CHECK_INS -> EmptyText(R.string.history_empty)
                 HistoryEmpty.NONE_IN_RANGE -> EmptyText(R.string.history_empty_range)
                 null -> when (state.type) {
-                    EntryType.WORKOUT -> WorkoutChart(shown, view.start, view.end, state.zone)
+                    EntryType.WORKOUT -> WorkoutChart(shown, HistoryLayout.chartStart(view, shown), view.end, state.zone)
                     // key(range): a new range gets a fresh scroll state, so the calendar reopens at today.
                     EntryType.CHECK_IN -> key(range) { CheckInCalendar(shown, view.start, view.end, state.zone) }
                 }
