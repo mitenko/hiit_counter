@@ -40,6 +40,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.File
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -105,7 +106,7 @@ class EntrySettingsScreenTest {
     @Test
     fun `duplicate shows the suffixed copy in the list`() {
         val repo = FakeEntryRepository(listOf(testEntry(1, "Burpees")))
-        val controller = TimerController(MainScope()) { 0L }
+        val controller = TimerController(MainScope(), wallNow = fixedWallNow) { 0L }
         val settingsVm = EntrySettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, controller)
         val preferences = AppPreferences(
             PreferenceDataStoreFactory.create(scope = MainScope(), produceFile = { File(tmp.root, "app.preferences_pb") }),

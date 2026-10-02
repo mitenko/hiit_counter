@@ -47,7 +47,7 @@ interface EntryRepository {
     /** Copies the config with a fresh counter and the §5.5 name, appended at the end. */
     suspend fun duplicate(id: Long): Long
 
-    /** Shifts every later row down by one and deletes the entry's history (spec R6 §3.2). */
+    /** Shifts every later row down by one and deletes the entry's history and workout sessions (spec R6 §3.2, rev 17 §4). */
     suspend fun delete(id: Long)
 
     /** Target = (position + delta) clamped to the list bounds; a no-op when it equals the current position. */
@@ -75,7 +75,7 @@ interface EntryRepository {
 
     /**
      * total NULL, streaks 0, lastCheckIn NULL, holdCount 0. With [clearHistory], the entry's history
-     * is deleted in the same transaction (spec R6 §3.2).
+     * and workout sessions are deleted in the same transaction (spec R6 §3.2, rev 17 §4).
      */
     suspend fun resetProgress(id: Long, clearHistory: Boolean)
 
@@ -107,6 +107,7 @@ class RoomEntryRepository(
 ) : EntryRepository {
     private val dao = db.entryDao()
     private val checkIns = db.checkInDao()
+    private val sessions = db.workoutSessionDao()
 
     override val entries: Flow<List<Entry>> = flow {
         gate.awaitReady()
@@ -153,6 +154,7 @@ class RoomEntryRepository(
             val row = dao.get(id) ?: throw EntryNotFound(id)
             // Spec R6 §3.2: explicit, so deletion never depends on PRAGMA foreign_keys (the cascade covers it too).
             checkIns.deleteForEntry(id)
+            sessions.deleteForEntry(id)
             dao.delete(id)
             dao.shiftPositions(low = row.position + 1, high = Int.MAX_VALUE, delta = -1)
         }
@@ -251,7 +253,10 @@ class RoomEntryRepository(
         gate.awaitReady()
         db.withTransaction {
             found(id, dao.setCounter(id, total = null, bestStreak = 0, currentStreak = 0, holdCount = 0, lastCheckIn = null))
-            if (clearHistory) checkIns.deleteForEntry(id)
+            if (clearHistory) {
+                checkIns.deleteForEntry(id)
+                sessions.deleteForEntry(id)
+            }
         }
     }
 

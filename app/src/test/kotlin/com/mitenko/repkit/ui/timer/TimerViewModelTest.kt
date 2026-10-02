@@ -27,6 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimerViewModelTest {
@@ -39,7 +40,7 @@ class TimerViewModelTest {
 
     @Test
     fun `toggle pause, finish and leave done`() = runTest {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
         backgroundScope.launch { vm.uiState.collect {} }
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(prepareSec = 0, sets = 1, workSec = 2, restSec = 0), CueConfig()))
@@ -62,7 +63,7 @@ class TimerViewModelTest {
 
     @Test
     fun `stop returns to idle`() = runTest {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(), CueConfig()))
         controller.onServiceStarted()
@@ -74,7 +75,7 @@ class TimerViewModelTest {
 
     @Test
     fun `ui state shows the snapshot's entry name`() = runTest {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
         backgroundScope.launch { vm.uiState.collect {} }
         controller.prepare(WorkoutSnapshot(7L, "Kettlebell Lunges", TimingConfig(), CueConfig()))
@@ -86,7 +87,7 @@ class TimerViewModelTest {
 
     @Test
     fun `a Timer only run's ui state shows the set number, not reps`() = runTest {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
         backgroundScope.launch { vm.uiState.collect {} }
         controller.prepare(
@@ -100,7 +101,7 @@ class TimerViewModelTest {
 
     @Test
     fun `skip callbacks delegate to the controller`() = runTest {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
         backgroundScope.launch { vm.uiState.collect {} }
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(prepareSec = 0, sets = 2, workSec = 3, restSec = 2, cooldownSec = 0), CueConfig()))
@@ -123,7 +124,7 @@ class TimerViewModelTest {
     @Test
     fun `notification permission is asked once`() = runTest {
         val prefs = preferences()
-        val vm = TimerViewModel(TimerController(backgroundScope) { testScheduler.currentTime }, prefs, FakeEntryRepository())
+        val vm = TimerViewModel(TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }, prefs, FakeEntryRepository())
         assertFalse(vm.notificationPermissionAsked.first())
         vm.onNotificationPermissionAsked()
         runCurrent()
@@ -133,7 +134,7 @@ class TimerViewModelTest {
     @Test
     fun `a toggle updates liveCues and persists to the entry`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1L, cues = CueConfig())))
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), repo)
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(), CueConfig()))
         controller.onServiceStarted()
@@ -149,7 +150,7 @@ class TimerViewModelTest {
     @Test
     fun `rapid toggles of two different cues both persist`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1L, cues = CueConfig())))
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), repo)
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(), CueConfig()))
         controller.onServiceStarted()
@@ -168,7 +169,7 @@ class TimerViewModelTest {
     @Test
     fun `EntryNotFound from a toggle's save is ignored`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1L, cues = CueConfig())))
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), repo)
         controller.prepare(WorkoutSnapshot(1L, "Burpees", TimingConfig(), CueConfig()))
         controller.onServiceStarted()
@@ -185,7 +186,7 @@ class TimerViewModelTest {
     @Test
     fun `no snapshot means a toggle neither crashes nor writes`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1L, cues = CueConfig())))
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = TimerViewModel(controller, preferences(), repo)
 
         vm.toggleSound() // idle: no crash

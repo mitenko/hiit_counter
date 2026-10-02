@@ -21,6 +21,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EntrySettingsViewModelTest {
@@ -32,7 +33,7 @@ class EntrySettingsViewModelTest {
     private class Harness(val vm: EntrySettingsViewModel, val controller: TimerController)
 
     private fun TestScope.harness(repository: FakeEntryRepository = repo): Harness {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val vm = EntrySettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repository, controller)
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()

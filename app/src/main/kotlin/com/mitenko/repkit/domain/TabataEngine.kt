@@ -58,6 +58,9 @@ class TabataEngine(
 
     val isPaused: Boolean get() = paused.value
 
+    /** Active (running, unpaused) time so far, in ms; after [run] ends it stays at the run's total (spec revision 17 §2). */
+    val activeMillis: Long get() = activeMs()
+
     suspend fun run() {
         isRunning = true
         runningSinceMs = nowMs()
@@ -96,6 +99,8 @@ class TabataEngine(
             stepIndex++
         }
         isRunning = false
+        // Folds the last running stretch in, so activeMillis keeps the run's total after it ends.
+        activeBaseMs = activeMs()
         runningSinceMs = null
         val done = TimerState(
             phase = Phase.DONE, set = timing.sets, sets = timing.sets, phaseSecondsLeft = 0, phaseDurationSec = 0,

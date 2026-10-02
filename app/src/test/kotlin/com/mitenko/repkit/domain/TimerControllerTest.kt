@@ -16,13 +16,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimerControllerTest {
     private val snapshot = WorkoutSnapshot(entryId = 1L, entryName = "Burpees", timing = TimingConfig(), cues = CueConfig())
     private val reps = List(8) { 8 }
 
-    private fun TestScope.controller() = TimerController(backgroundScope) { testScheduler.currentTime }
+    private fun TestScope.controller() = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
 
     private fun TestScope.running(): TimerController = controller().also {
         it.prepare(snapshot)
