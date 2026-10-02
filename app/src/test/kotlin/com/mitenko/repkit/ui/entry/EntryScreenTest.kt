@@ -194,14 +194,18 @@ class EntryScreenTest {
     @Test
     fun `tapping a point shows its date and reps, and tapping elsewhere on the chart clears it`() {
         show(state)
-        val start = rangeStart(HistoryRange.FOUR_WEEKS, now, la)!!
+        // Spec rev 21: the axis starts at the first shown point (c, 10 Sep), not the range start.
+        val start = c.at
         compose.onNodeWithTag("chart").performTouchInput {
             val x = HistoryLayout.x(d.at, start, now, ChartInsets.left.toPx(), width - ChartInsets.right.toPx())
             click(Offset(x, height / 2f))
         }
         compose.onNodeWithText("23 Sep · 62").assertExists()
-        // The axis start (28 Aug) is 13 days from the nearest point, far outside 24 dp.
-        compose.onNodeWithTag("chart").performTouchInput { click(Offset(ChartInsets.left.toPx(), height / 2f)) }
+        // Midway between c (10 Sep) and d (23 Sep) is days from either point, far outside 24 dp.
+        compose.onNodeWithTag("chart").performTouchInput {
+            val mid = Instant.ofEpochMilli((c.at.toEpochMilli() + d.at.toEpochMilli()) / 2)
+            click(Offset(HistoryLayout.x(mid, start, now, ChartInsets.left.toPx(), width - ChartInsets.right.toPx()), height / 2f))
+        }
         compose.onNodeWithTag("point_label").assertDoesNotExist()
     }
 

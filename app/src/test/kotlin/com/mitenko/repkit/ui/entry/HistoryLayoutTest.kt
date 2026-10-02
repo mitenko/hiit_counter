@@ -21,6 +21,18 @@ class HistoryLayoutTest {
     private val all = listOf(a, b, c, d)
 
     @Test
+    fun `the chart axis starts at the first shown point, not the empty start of the range`() {
+        // Spec rev 21: 4 weeks starts on 27 Aug, but the first point is c (10 Sep), so the axis starts there.
+        val view = HistoryLayout.rangeView(all, HistoryRange.FOUR_WEEKS, now, la)
+        assertEquals(c.at, HistoryLayout.chartStart(view, listOf(c, d)))
+        // No points shown: the range start stands.
+        assertEquals(view.start, HistoryLayout.chartStart(view, emptyList()))
+        // All already starts at the first point.
+        val allView = HistoryLayout.rangeView(all, HistoryRange.ALL, now, la)
+        assertEquals(a.at, HistoryLayout.chartStart(allView, all))
+    }
+
+    @Test
     fun `four weeks and three months start at the range start and keep only its points`() {
         assertEquals(
             RangeView(Instant.parse("2026-08-28T07:00:00Z"), now, listOf(c, d)),
