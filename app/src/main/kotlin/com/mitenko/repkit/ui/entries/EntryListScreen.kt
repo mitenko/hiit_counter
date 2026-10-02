@@ -391,9 +391,10 @@ private fun EntryRowItem(
                     }
                 }
                 // Spec rev 9 §2 (amended rev 13): the name spans the full width above "X× this week" and
-                // the tile graph, so it isn't squeezed by the graph; the graph sits at the end of the
-                // second line, 8 dp before the ≡ handle. Decorative: no touch target.
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // the tile graph, so it isn't squeezed by the graph. The graph fills the rest of the
+                // second line after "X× this week", ending 8 dp before the ≡ handle (user, 2026-10-02:
+                // the graphs expand horizontally to fill the width). Decorative: no touch target.
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     // R6 §3.4's weekCount, shown at 0 too; no rep total or streak.
                     Text(
                         stringResource(R.string.week_count, row.weekCount),
@@ -401,9 +402,8 @@ private fun EntryRowItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
                     )
-                    TileGraphic(row.type, row.id, row.tile, Modifier.padding(start = 8.dp, end = 8.dp))
+                    TileGraphic(row.type, row.id, row.tile, Modifier.weight(1f).padding(start = 12.dp, end = 8.dp))
                 }
             }
             dragHandle()

@@ -441,9 +441,14 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `each tile has a 96 by 32 dp graph that describes its last 4 weeks`() {
+    fun `each tile's 32 dp graph fills the line after the week count and describes its last 4 weeks`() {
         show(EntryListUiState.Items(listOf(rows[0].copy(tile = TileData(count = 12)), rows[1].copy(tile = TileData(count = 1)), rows[2])))
-        compose.onNodeWithTag("tile_1", useUnmergedTree = true).assertWidthIsEqualTo(96.dp).assertHeightIsEqualTo(32.dp)
+        val tile = compose.onNodeWithTag("tile_1", useUnmergedTree = true).assertHeightIsEqualTo(32.dp).fetchSemanticsNode().boundsInRoot
+        val week = compose.onAllNodesWithText("× this week", substring = true, useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot
+        val gap = with(compose.density) { 12.dp.toPx() }
+        // Wider than the old fixed 96 dp, and it starts right after the week count (rev 19).
+        assertTrue(tile.width > with(compose.density) { 96.dp.toPx() })
+        assertEquals(gap, tile.left - week.right, 0.5f)
         compose.onNodeWithContentDescription("12 check-ins in the last 4 weeks", useUnmergedTree = true).assertExists()
         compose.onNodeWithContentDescription("1 check-in in the last 4 weeks", useUnmergedTree = true).assertExists()
         compose.onNodeWithContentDescription("0 check-ins in the last 4 weeks", useUnmergedTree = true).assertExists()
