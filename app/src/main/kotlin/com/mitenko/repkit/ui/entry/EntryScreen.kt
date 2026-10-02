@@ -66,6 +66,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.ui.ads.AdPlacement
+import com.mitenko.repkit.ui.ads.AdSlot
 import kotlinx.coroutines.launch
 
 @Composable
@@ -115,7 +117,12 @@ fun EntryScreen(
     }
     // Spec rev 9 §3: 4 weeks by default, kept across rotation and process death.
     var range by rememberSaveable { mutableStateOf(HistoryRange.FOUR_WEEKS) }
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) }, contentWindowInsets = WindowInsets(0)) { padding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        // Spec revision 18 §4: the ad slot sits at the bottom; it composes nothing for Pro (all of v1).
+        bottomBar = { AdSlot(AdPlacement.ENTRY_SCREEN) },
+        contentWindowInsets = WindowInsets(0),
+    ) { padding ->
         Column(
             Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

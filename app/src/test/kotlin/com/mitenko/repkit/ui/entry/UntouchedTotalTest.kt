@@ -10,7 +10,10 @@ import com.mitenko.repkit.data.MigrationGate
 import com.mitenko.repkit.data.RoomEntryRepository
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.domain.TimerController
+import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.testutil.FakeClock
+import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeServiceStarter
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
@@ -53,7 +56,7 @@ class UntouchedTotalTest {
             val preferences = AppPreferences(
                 PreferenceDataStoreFactory.create(scope = backgroundScope, produceFile = { File(tmp.root, "app.preferences_pb") }),
             )
-            val listVm = EntryListViewModel(repo, clock, preferences)
+            val listVm = EntryListViewModel(repo, clock, preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade())
             backgroundScope.launch { entryVm.uiState.collect {} }
             backgroundScope.launch { listVm.uiState.collect {} }
             val entry = entryVm.uiState.first { it.name == "Burpees" }

@@ -188,4 +188,13 @@
     <string name="week_no_check_in_desc">No check-ins this week</string>
     <string name="day_checked_in">checked in</string>
     <string name="day_not_checked_in">not checked in</string>
+
+    <!-- Monetisation seams (spec revision 18 §3): the free tier's entry limit -->
+    <string name="limit_title">Want more entries?</string>
+    <plurals name="limit_text">
+        <item quantity="one">The free version keeps up to %1$d entry. Go Pro for unlimited entries.</item>
+        <item quantity="other">The free version keeps up to %1$d entries. Go Pro for unlimited entries.</item>
+    </plurals>
+    <string name="go_pro">Go Pro</string>
+    <string name="not_now">Not now</string>
 </resources>

@@ -1,13 +1,17 @@
 package com.mitenko.repkit.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
+import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.testutil.FakeEntitlements
 import com.mitenko.repkit.testutil.FakeEntryRepository
+import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
@@ -18,6 +22,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,9 +37,13 @@ class EntrySettingsViewModelTest {
 
     private class Harness(val vm: EntrySettingsViewModel, val controller: TimerController)
 
-    private fun TestScope.harness(repository: FakeEntryRepository = repo): Harness {
+    private val proUpgrade = FakeProUpgrade()
+
+    private fun TestScope.harness(repository: FakeEntryRepository = repo, tier: Tier = Tier.PRO): Harness {
         val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
-        val vm = EntrySettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repository, controller)
+        val vm = EntrySettingsViewModel(
+            SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repository, controller, FakeEntitlements(tier), FreeLimits(), proUpgrade,
+        )
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Harness(vm, controller)
@@ -170,5 +179,66 @@ class EntrySettingsViewModelTest {
         runCurrent()
         assertTrue(h.vm.missing.value)
         assertEquals(EntryType.WORKOUT, repo.find(1).type)
+    }
+
+    // Spec revision 18 §3: Duplicate respects the free tier's entry limit.
+
+    private fun entries(n: Int) = FakeEntryRepository(List(n) { testEntry(it + 1L) })
+
+    @Test
+    fun `free at 3 entries duplicates nothing and shows the limit dialog`() = runTest {
+        val three = entries(3)
+        val h = harness(three, tier = Tier.FREE)
+        var copy: Long? = null
+        h.vm.duplicate { copy = it }
+        runCurrent()
+        assertNull(copy)
+        assertEquals(3, three.state.value.size)
+        assertTrue(h.vm.uiState.value.limitDialog)
+    }
+
+    @Test
+    fun `free at 2 entries duplicates`() = runTest {
+        val two = entries(2)
+        val h = harness(two, tier = Tier.FREE)
+        var copy: Long? = null
+        h.vm.duplicate { copy = it }
+        runCurrent()
+        assertEquals(3, two.state.value.size)
+        assertEquals("Entry 1 copy", two.find(copy!!).name)
+        assertFalse(h.vm.uiState.value.limitDialog)
+    }
+
+    @Test
+    fun `pro at 10 entries duplicates`() = runTest {
+        val ten = entries(10)
+        val h = harness(ten, tier = Tier.PRO)
+        var copy: Long? = null
+        h.vm.duplicate { copy = it }
+        runCurrent()
+        assertEquals(11, ten.state.value.size)
+        assertEquals("Entry 1 copy", ten.find(copy!!).name)
+    }
+
+    @Test
+    fun `Go Pro starts the upgrade and closes the dialog`() = runTest {
+        val h = harness(entries(3), tier = Tier.FREE)
+        h.vm.duplicate {}
+        runCurrent()
+        h.vm.goPro()
+        runCurrent()
+        assertEquals(1, proUpgrade.starts)
+        assertFalse(h.vm.uiState.value.limitDialog)
+    }
+
+    @Test
+    fun `Not now closes the dialog without starting the upgrade`() = runTest {
+        val h = harness(entries(3), tier = Tier.FREE)
+        h.vm.duplicate {}
+        runCurrent()
+        h.vm.dismissLimit()
+        runCurrent()
+        assertEquals(0, proUpgrade.starts)
+        assertFalse(h.vm.uiState.value.limitDialog)
     }
 }

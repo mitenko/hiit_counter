@@ -56,12 +56,18 @@ class EntryListScreenTest {
         onCreate: (String, EntryType) -> Unit = { _, _ -> },
         themeMode: ThemeMode = ThemeMode.SYSTEM,
         onSetThemeMode: (ThemeMode) -> Unit = {},
+        onRequestAdd: () -> Boolean = { true },
+        limitDialog: Boolean = false,
+        onGoPro: () -> Unit = {},
+        onDismissLimit: () -> Unit = {},
     ) {
         compose.setContent {
             HiitTheme {
                 EntryListScreen(
                     state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate,
                     themeMode = themeMode, onSetThemeMode = onSetThemeMode,
+                    onRequestAdd = onRequestAdd, limitDialog = limitDialog, maxEntries = 3,
+                    onGoPro = onGoPro, onDismissLimit = onDismissLimit,
                 )
             }
         }
@@ -528,5 +534,36 @@ class EntryListScreenTest {
             val b = compose.onNodeWithTag("entry_${lower.id}").fetchSemanticsNode().boundsInRoot
             assertEquals(gap, b.top - a.bottom, 0.5f)
         }
+    }
+
+    // Spec revision 18 §3: the free tier's limit dialog.
+
+    @Test
+    fun `the limit dialog shows the title, the text with 3 and both buttons`() {
+        var goPro = 0
+        var dismissed = 0
+        show(EntryListUiState.Items(rows), limitDialog = true, onGoPro = { goPro++ }, onDismissLimit = { dismissed++ })
+        compose.onNodeWithText("Want more entries?").assertExists()
+        compose.onNodeWithText("The free version keeps up to 3 entries. Go Pro for unlimited entries.").assertExists()
+        compose.onNodeWithTag("go_pro").assertTextEquals("Go Pro").performClick()
+        compose.onNodeWithTag("not_now").assertTextEquals("Not now").performClick()
+        assertEquals(1, goPro)
+        assertEquals(1, dismissed)
+    }
+
+    @Test
+    fun `a refused add opens no name dialog`() {
+        var requests = 0
+        show(EntryListUiState.Items(rows), onRequestAdd = { requests++; false })
+        compose.onNodeWithTag("add").performClick()
+        assertEquals(1, requests)
+        compose.onNodeWithTag("name_field").assertDoesNotExist()
+    }
+
+    @Test
+    fun `an allowed add opens the name dialog`() {
+        show(EntryListUiState.Items(rows), onRequestAdd = { true })
+        compose.onNodeWithTag("add").performClick()
+        compose.onNodeWithTag("name_field").assertExists()
     }
 }

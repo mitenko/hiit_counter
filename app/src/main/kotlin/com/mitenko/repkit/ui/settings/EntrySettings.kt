@@ -37,10 +37,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mitenko.repkit.R
 import com.mitenko.repkit.data.EntryRepository
+import com.mitenko.repkit.domain.Entitlements
+import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.ProUpgrade
 import com.mitenko.repkit.domain.TimerController
+import com.mitenko.repkit.domain.canAddEntry
 import com.mitenko.repkit.domain.model.EntryBusy
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.ui.common.EntryLimitDialog
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
@@ -55,6 +60,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,6 +88,8 @@ data class EntrySettingsUiState(
     val busy: Boolean = false,
     val error: String? = null,
     val type: EntryType = EntryType.WORKOUT,
+    /** Spec revision 18 §3: the free tier's limit dialog, shown instead of duplicating. */
+    val limitDialog: Boolean = false,
 )
 
 @HiltViewModel
@@ -89,16 +97,25 @@ class EntrySettingsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     repo: EntryRepository,
     private val controller: TimerController,
+    private val entitlements: Entitlements,
+    private val limits: FreeLimits,
+    private val proUpgrade: ProUpgrade,
 ) : EntryScopedViewModel(savedStateHandle, repo) {
     private val error = MutableStateFlow<String?>(null)
+    private val limitDialog = MutableStateFlow(false)
+
+    /** The free tier's entry limit, for the dialog's text. */
+    val maxEntries: Int get() = limits.maxEntries
 
     /** In-flight guard; touched only on Main. A double-tap while a duplicate is running is ignored. */
     private var duplicating = false
 
     /** busy is re-read on every run-status change; the snapshot is set before PREPARING is emitted. */
     val uiState: StateFlow<EntrySettingsUiState> =
-        combine(repo.entry(entryId).filterNotNull(), controller.status, error) { entry, _, err ->
-            EntrySettingsUiState(name = entry.name, busy = controller.isBusy(entryId), error = err, type = entry.type)
+        combine(repo.entry(entryId).filterNotNull(), controller.status, error, limitDialog) { entry, _, err, limit ->
+            EntrySettingsUiState(
+                name = entry.name, busy = controller.isBusy(entryId), error = err, type = entry.type, limitDialog = limit,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntrySettingsUiState())
 
     /** Allowed while busy: it only affects future runs, because the snapshot is frozen (spec §7.1). */
@@ -131,12 +148,17 @@ class EntrySettingsViewModel @Inject constructor(
         }
     }
 
+    /** Spec revision 18 §3: at the free limit nothing is duplicated; the limit dialog shows instead. */
     fun duplicate(onCreated: (Long) -> Unit) {
         if (duplicating) return
         duplicating = true
         error.value = null
         viewModelScope.launch {
             try {
+                if (!canAddEntry(entitlements.tier.value, repo.entries.first().size, limits)) {
+                    limitDialog.value = true
+                    return@launch
+                }
                 onCreated(repo.duplicate(entryId))
             } catch (e: EntryNotFound) {
                 markMissing()
@@ -144,6 +166,17 @@ class EntrySettingsViewModel @Inject constructor(
                 duplicating = false
             }
         }
+    }
+
+    /** Go Pro (spec revision 18 §3): starts the upgrade, then closes the dialog. */
+    fun goPro() {
+        proUpgrade.start()
+        limitDialog.value = false
+    }
+
+    /** Not now (spec revision 18 §3). */
+    fun dismissLimit() {
+        limitDialog.value = false
     }
 
     /**
@@ -190,6 +223,9 @@ fun EntrySettingsRoute(
         onDuplicate = { vm.duplicate(onDuplicated) },
         onDelete = { vm.delete(onDeleted) },
         onSetType = vm::setType,
+        maxEntries = vm.maxEntries,
+        onGoPro = vm::goPro,
+        onDismissLimit = vm::dismissLimit,
     )
 }
 
@@ -202,6 +238,9 @@ fun EntrySettingsScreen(
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     onSetType: (EntryType) -> Unit,
+    maxEntries: Int = FreeLimits().maxEntries,
+    onGoPro: () -> Unit = {},
+    onDismissLimit: () -> Unit = {},
 ) {
     var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -254,6 +293,9 @@ fun EntrySettingsScreen(
             },
             onDismiss = { choosingType = false },
         )
+    }
+    if (state.limitDialog) {
+        EntryLimitDialog(maxEntries, onGoPro = onGoPro, onDismiss = onDismissLimit)
     }
     if (confirmDelete) {
         AlertDialog(
