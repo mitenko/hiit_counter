@@ -24,6 +24,7 @@ As you develop, refine the instructions here.
 - **Workout session log (approved, rev 17, amends R6 §3.2, schema v6):** `docs/superpowers/specs/2026-10-01-workout-session-design.md` — every timer run is recorded as one `workout_session` row when it ends (DONE or stopped); no UI yet (groundwork for Strava / Health Connect).
 - **Monetisation seams (approved, rev 18):** `docs/superpowers/specs/2026-10-01-monetisation-seams-design.md` — groundwork for a free tier (at most 3 entries, with a Go Pro limit dialog) and banner ad slots (entry list and entry screen only, never the timer, never for Pro); v1 binds everything unlocked, so nothing changes.
 - **Full-width tile graphs (approved, rev 19, amends rev 9 §2 / rev 11 §2):** `docs/superpowers/specs/2026-10-02-tile-graph-width-design.md` — the list tile graph fills the line after "X× this week" (sparkline full width, day circles spread).
+- **Hold highlight (approved, rev 20, amends rev 12 §3):** `docs/superpowers/specs/2026-10-02-hold-highlight-design.md` — a check-in that stays on a hold flashes every reps cell neutral (no pop) and announces "Holding at N, D of F".
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

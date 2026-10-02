@@ -336,6 +336,62 @@ class EntryViewModelTest {
         assertEquals(mapOf(1 to RepsColumnLayout.Change.UP), h.vm.highlight.value?.changes)
     }
 
+    private fun TestScope.holdHarness(total: Int, holdCount: Int): Harness {
+        val onHold = FakeEntryRepository(
+            listOf(
+                testEntry(
+                    1, "Pushups",
+                    counter = CounterState(
+                        total = total, bestStreak = 4, currentStreak = 4,
+                        lastCheckIn = Instant.parse("2026-09-23T12:55:00Z"), holdCount = holdCount,
+                    ),
+                ),
+            ),
+        )
+        return harness(repository = onHold)
+    }
+
+    @Test
+    fun `a check-in that stays on a hold flashes every cell neutral with the hold day`() = runTest {
+        // Default holds are [64 x 4]: day 1 was yesterday, so today is day 2 and the total stays 64.
+        val h = holdHarness(total = 64, holdCount = 1)
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals((0 until 8).associateWith { RepsColumnLayout.Change.HOLD }, highlight?.changes)
+        assertEquals(HoldStatus(at = 64, day = 2, of = 4), highlight?.hold)
+    }
+
+    @Test
+    fun `finishing a hold climbs, so it highlights UP rather than the hold`() = runTest {
+        val h = holdHarness(total = 64, holdCount = 4)
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals(mapOf(0 to RepsColumnLayout.Change.UP), highlight?.changes)
+        assertNull(highlight?.hold)
+    }
+
+    @Test
+    fun `start on a hold also flashes the hold`() = runTest {
+        val h = holdHarness(total = 64, holdCount = 1)
+        runCurrent()
+        h.vm.onStart()
+        runCurrent()
+        assertEquals(HoldStatus(at = 64, day = 2, of = 4), h.vm.highlight.value?.hold)
+    }
+
+    @Test
+    fun `a check-in at the cap with no hold still shows nothing`() = runTest {
+        val h = holdHarness(total = 72, holdCount = 0)
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
     @Test
     fun `a check-in after a miss emits DOWN for the right indices`() = runTest {
         val h = harness()

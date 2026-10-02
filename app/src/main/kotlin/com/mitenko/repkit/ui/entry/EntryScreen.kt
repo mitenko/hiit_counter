@@ -302,7 +302,8 @@ private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, hi
         active = true
         try {
             // Reduced motion (spec revision 12 §3): skip the scale pop, keep only the colour fade.
-            if (!reducedMotion) {
+            // A hold (spec revision 20) never pops: no value changed, so it only flashes.
+            if (!reducedMotion && change != RepsColumnLayout.Change.HOLD) {
                 launch {
                     scale.animateTo(1.15f, tween(POP_HALF_MS))
                     scale.animateTo(1f, tween(POP_HALF_MS))
@@ -319,6 +320,7 @@ private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, hi
     val tint: Color? = when (change) {
         RepsColumnLayout.Change.UP -> MaterialTheme.colorScheme.primary
         RepsColumnLayout.Change.DOWN -> MaterialTheme.colorScheme.error
+        RepsColumnLayout.Change.HOLD -> MaterialTheme.colorScheme.onSurfaceVariant
         null -> null
     }
     Text(
@@ -334,7 +336,11 @@ private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, hi
             .then(
                 if (active) {
                     Modifier.semantics {
-                        stateDescription = if (change == RepsColumnLayout.Change.UP) "increased" else "decreased"
+                        stateDescription = when (change) {
+                            RepsColumnLayout.Change.UP -> "increased"
+                            RepsColumnLayout.Change.DOWN -> "decreased"
+                            else -> "holding"
+                        }
                     }
                 } else {
                     Modifier
@@ -354,6 +360,7 @@ private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, hi
 private fun ChangeAnnouncement(active: Highlight?, reps: List<Int>) {
     val message = when {
         active == null -> ""
+        active.hold != null -> stringResource(R.string.reps_holding, active.hold.at, active.hold.day, active.hold.of)
         active.changes.size == 1 -> {
             val (index, _) = active.changes.entries.first()
             stringResource(R.string.reps_changed_one, index + 1, reps.getOrElse(index) { 0 })

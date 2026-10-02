@@ -302,6 +302,19 @@ class EntryScreenTest {
     }
 
     @Test
+    fun `a hold flashes every cell as holding and announces the hold day`() {
+        compose.mainClock.autoAdvance = false
+        val all = (0 until 8).associateWith { RepsColumnLayout.Change.HOLD }
+        show(state, highlight = Highlight(id = 1, changes = all, hold = HoldStatus(at = 64, day = 2, of = 4)))
+        compose.mainClock.advanceTimeBy(50)
+        for (i in 0 until 8) {
+            compose.onNodeWithTag("rep_$i", useUnmergedTree = true)
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "holding"))
+        }
+        compose.onNodeWithText("Holding at 64, 2 of 4").assertExists()
+    }
+
+    @Test
     fun `the TalkBack announcement names the one changed set`() {
         compose.mainClock.autoAdvance = false
         show(state, highlight = Highlight(id = 1, changes = mapOf(1 to RepsColumnLayout.Change.UP)))

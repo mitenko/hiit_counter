@@ -156,6 +156,7 @@
     <!-- Check-in highlight announcement (spec revision 12 §3) -->
     <string name="reps_changed_one">Set %1$d now %2$d reps</string>
     <string name="reps_changed_many">%1$d sets changed</string>
+    <string name="reps_holding">Holding at %1$d, %2$d of %3$d</string>
 
     <!-- Icon-only settings tabs: their content descriptions (spec rev 9 §5; tab_current is R3's, reused) -->
     <string name="tab_timing">Timing</string>
