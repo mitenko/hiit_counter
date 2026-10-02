@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * Frozen at Start (spec §7.1): the service, timer screen and notification read only this, so
@@ -40,9 +41,15 @@ sealed interface ServiceStatus {
 /**
  * Owns the single running workout (v1 spec §4, §8). Commands are idempotent. Must be used
  * from the thread [scope] dispatches on (Main in production).
+ *
+ * Spec revision 17 §3: each run that start() began gives [runLog] exactly one [RunSummary] when it
+ * ends, at DONE or on stop(); [wallNow] stamps its start and end (the injected Clock in production).
  */
 class TimerController(
     private val scope: CoroutineScope,
+    private val wallNow: () -> Instant,
+    private val runLog: RunLog = RunLog {},
+    /** Monotonic ms; last, so callers can pass it as a trailing lambda. */
     private val nowMs: () -> Long,
 ) {
     private val _status = MutableStateFlow(RunStatus.IDLE)
@@ -75,6 +82,14 @@ class TimerController(
     private var engine: TabataEngine? = null
     private var runJob: Job? = null
     private var pauseTimeoutJob: Job? = null
+
+    /** The running run's bookkeeping for its [RunSummary] (spec revision 17 §2); null outside RUNNING. */
+    private var run: RunRecord? = null
+
+    private class RunRecord(val startedAt: Instant, val repsPerSet: List<Int>) {
+        /** Highest completedWorkSets seen: sets finish in order, so this is the count of distinct sets that ended. */
+        var setsCompleted = 0
+    }
 
     /**
      * Spec §7.1 busy rule, read at the moment of each destructive action. After process
@@ -118,18 +133,24 @@ class TimerController(
         val snap = snapshot ?: return false
         // The timer only runs under a foreground service (v1 spec §4).
         if (_status.value != RunStatus.PREPARING || _serviceStatus.value != ServiceStatus.Started) return false
+        val record = RunRecord(wallNow(), repsPerSet)
         val e = TabataEngine(
             timing = snap.timing,
             repsPerSet = repsPerSet,
             nowMs = nowMs,
-            onState = { _state.value = it },
+            onState = {
+                record.setsCompleted = maxOf(record.setsCompleted, it.completedWorkSets)
+                _state.value = it
+            },
             onCue = { _cues.tryEmit(withReps(it, repsPerSet)) },
         )
         engine = e
+        run = record
         _status.value = RunStatus.RUNNING
         runJob = scope.launch {
             e.run()
             pauseTimeoutJob?.cancel()
+            logRun(completed = true)
             _status.value = RunStatus.DONE
         }
         return true
@@ -170,6 +191,7 @@ class TimerController(
     fun stop() {
         when (_status.value) {
             RunStatus.RUNNING -> {
+                logRun(completed = false)
                 clearRun()
                 _status.value = RunStatus.IDLE
             }
@@ -197,6 +219,27 @@ class TimerController(
         return cue.copy(reps = if (snapshot?.countsReps == false) s.sets - s.set + 1 else repsPerSet.getOrNull(s.set - 1))
     }
 
+    /** Hands the ending run's summary to [runLog], once: it clears [run]. */
+    private fun logRun(completed: Boolean) {
+        val record = run ?: return
+        val snap = snapshot ?: return
+        val e = engine ?: return
+        run = null
+        runLog.record(
+            RunSummary(
+                entryId = snap.entryId,
+                startedAt = record.startedAt,
+                endedAt = wallNow(),
+                activeSec = (e.activeMillis / 1000L).toInt(),
+                plannedSec = snap.timing.totalDurationSec,
+                setsPlanned = snap.timing.sets,
+                setsCompleted = record.setsCompleted,
+                repsDone = if (snap.countsReps) record.repsPerSet.take(record.setsCompleted).sum() else null,
+                completed = completed,
+            ),
+        )
+    }
+
     /** Clears the run but deliberately not [lastEntryId]. */
     private fun clearRun() {
         runJob?.cancel()
@@ -204,6 +247,7 @@ class TimerController(
         pauseTimeoutJob?.cancel()
         pauseTimeoutJob = null
         engine = null
+        run = null
         snapshot = null
         _liveCues.value = null
         _state.value = null

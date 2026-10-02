@@ -8,14 +8,19 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /**
  * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2), version 3 adds
  * `entry.type` and `entry.cue_voice` (R4 §3.2), version 4 adds the `check_in` history table
- * (R6 §3.1), version 5 adds `entry.holds` (rev 16 §5). Schemas are exported to app/schemas and committed. Every migration is registered in
+ * (R6 §3.1), version 5 adds `entry.holds` (rev 16 §5), version 6 adds the `workout_session` run log (rev 17 §1). Schemas are exported to app/schemas and committed. Every migration is registered in
  * the builder (StorageModule), and there is no destructive fallback.
  */
-@Database(entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class], version = 5, exportSchema = true)
+@Database(
+    entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class, WorkoutSessionEntity::class],
+    version = 6,
+    exportSchema = true,
+)
 abstract class HiitDatabase : RoomDatabase() {
     abstract fun entryDao(): EntryDao
     abstract fun metaDao(): MetaDao
     abstract fun checkInDao(): CheckInDao
+    abstract fun workoutSessionDao(): WorkoutSessionDao
 
     companion object {
         const val NAME = "hiit.db"
@@ -85,6 +90,25 @@ abstract class HiitDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        /**
+         * Spec rev 17 §1. Room's own text for WorkoutSessionEntity (the 6.json createSql, checked by
+         * HiitDatabaseTest); no seed, since no run before v6 was recorded.
+         */
+        internal val MIGRATION_5_6_SQL = listOf(
+            "CREATE TABLE IF NOT EXISTS `workout_session` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`entry_id` INTEGER NOT NULL, `started_at` INTEGER NOT NULL, `ended_at` INTEGER NOT NULL, " +
+                "`active_sec` INTEGER NOT NULL, `planned_sec` INTEGER NOT NULL, `sets_planned` INTEGER NOT NULL, " +
+                "`sets_completed` INTEGER NOT NULL, `reps_done` INTEGER, `completed` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`entry_id`) REFERENCES `entry`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            "CREATE INDEX IF NOT EXISTS `index_workout_session_entry_id` ON `workout_session` (`entry_id`)",
+        )
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_6_SQL.forEach { db.execSQL(it) }
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }

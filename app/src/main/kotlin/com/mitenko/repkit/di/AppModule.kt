@@ -1,6 +1,7 @@
 package com.mitenko.repkit.di
 
 import android.content.Context
+import com.mitenko.repkit.data.SessionRecorder
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.platform.AndroidClock
@@ -30,9 +31,10 @@ object AppModule {
     @Provides @Singleton @ApplicationScope
     fun applicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    /** The recorder is the controller's RunLog (spec revision 17 §3): every ended run reaches it by a direct call. */
     @Provides @Singleton
-    fun timerController(@ApplicationScope scope: CoroutineScope, clock: Clock): TimerController =
-        TimerController(scope, clock::elapsedRealtimeMs)
+    fun timerController(@ApplicationScope scope: CoroutineScope, clock: Clock, recorder: SessionRecorder): TimerController =
+        TimerController(scope, wallNow = clock::now, runLog = recorder, nowMs = clock::elapsedRealtimeMs)
 
     @Provides @Singleton
     fun workoutServiceStarter(@ApplicationContext context: Context): WorkoutServiceStarter =

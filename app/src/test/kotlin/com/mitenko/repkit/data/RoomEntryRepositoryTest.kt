@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.data.db.CheckInEntity
 import com.mitenko.repkit.data.db.HiitDatabase
+import com.mitenko.repkit.data.db.WorkoutSessionEntity
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
@@ -597,6 +598,39 @@ class RoomEntryRepositoryTest {
         assertTrue(db.checkInDao().getForEntry(a).isEmpty())
         assertTrue(r.recentCheckIns(Instant.EPOCH).first().isEmpty())
     }
+
+    @Test
+    fun `delete removes the entry's workout sessions and a duplicate copies none`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val b = r.create("Lunges")
+        db.workoutSessionDao().insert(session(a))
+        db.workoutSessionDao().insert(session(b))
+        val copy = r.duplicate(a)
+        assertTrue(db.workoutSessionDao().getForEntry(copy).isEmpty())
+        r.delete(a)
+        assertTrue(db.workoutSessionDao().getForEntry(a).isEmpty())
+        assertEquals(1, db.workoutSessionDao().getForEntry(b).size)
+    }
+
+    @Test
+    fun `resetProgress clears the workout sessions only with clearHistory`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val b = r.create("Lunges")
+        db.workoutSessionDao().insert(session(a))
+        db.workoutSessionDao().insert(session(b))
+        r.resetProgress(a, clearHistory = false)
+        assertEquals(1, db.workoutSessionDao().getForEntry(a).size)
+        r.resetProgress(a, clearHistory = true)
+        assertTrue(db.workoutSessionDao().getForEntry(a).isEmpty())
+        assertEquals(1, db.workoutSessionDao().getForEntry(b).size)
+    }
+
+    private fun session(entryId: Long) = WorkoutSessionEntity(
+        entryId = entryId, startedAt = 1_000, endedAt = 241_000, activeSec = 240, plannedSec = 240,
+        setsPlanned = 8, setsCompleted = 8, repsDone = 64, completed = true,
+    )
 
     @Test
     fun `history returns points oldest first from since, or all of them for null`() = runTest {

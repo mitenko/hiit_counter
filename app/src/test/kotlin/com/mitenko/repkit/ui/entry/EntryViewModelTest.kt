@@ -36,6 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
 import java.time.Instant
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EntryViewModelTest {
@@ -58,7 +59,7 @@ class EntryViewModelTest {
         behavior: Behavior = Behavior.SUCCEED,
         repository: FakeEntryRepository = repo,
     ): Harness {
-        val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
         val starter = FakeServiceStarter(controller, behavior)
         val vm = EntryViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repository, controller, starter, clock)
         backgroundScope.launch { vm.uiState.collect {} }

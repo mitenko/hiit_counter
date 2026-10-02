@@ -306,8 +306,103 @@ class HiitDatabaseTest {
         }
     }
 
+    @Test
+    fun `workout sessions round-trip including a null reps count`() = runTest {
+        val a = db.entryDao().insert(testEntity(name = "A", position = 0))
+        val counter = WorkoutSessionEntity(
+            entryId = a, startedAt = 1_000, endedAt = 250_000, activeSec = 240, plannedSec = 240,
+            setsPlanned = 8, setsCompleted = 8, repsDone = 36, completed = true,
+        )
+        val timerOnly = counter.copy(startedAt = 300_000, endedAt = 320_000, setsCompleted = 0, repsDone = null, completed = false)
+        val first = db.workoutSessionDao().insert(counter)
+        val second = db.workoutSessionDao().insert(timerOnly)
+        assertEquals(listOf(counter.copy(id = first), timerOnly.copy(id = second)), db.workoutSessionDao().getForEntry(a))
+        assertEquals(2, db.workoutSessionDao().deleteForEntry(a))
+        assertTrue(db.workoutSessionDao().getForEntry(a).isEmpty())
+    }
+
+    @Test
+    fun `deleting an entry row cascades to its workout sessions`() = runTest {
+        val a = db.entryDao().insert(testEntity(name = "A", position = 0))
+        val b = db.entryDao().insert(testEntity(name = "B", position = 1))
+        db.workoutSessionDao().insert(session(a))
+        val kept = db.workoutSessionDao().insert(session(b))
+        db.entryDao().delete(a)
+        assertTrue(db.workoutSessionDao().getForEntry(a).isEmpty())
+        assertEquals(listOf(session(b).copy(id = kept)), db.workoutSessionDao().getForEntry(b))
+    }
+
+    @Test
+    fun `schema v6 exports workout_session exactly as the 5 to 6 migration creates it`() {
+        val json = File("schemas/com.mitenko.repkit.data.db.HiitDatabase/6.json").readText()
+        assertTrue(Regex("\"version\"\\s*:\\s*6").containsMatchIn(json))
+        // Room writes the table name as a placeholder; rev 17 §1: the migration creates exactly what the entity exports.
+        assertEquals(2, HiitDatabase.MIGRATION_5_6_SQL.size)
+        HiitDatabase.MIGRATION_5_6_SQL.forEach { sql ->
+            assertTrue(sql, json.contains(sql.replace("`workout_session`", "`\${TABLE_NAME}`")))
+        }
+    }
+
+    @Test
+    fun `the 5 to 6 migration SQL adds a cascading, indexed workout_session and keeps every existing row`() {
+        // Runs everywhere (no file-based helper), so Windows also covers the rev 17 §1 SQL.
+        val raw = SQLiteDatabase.create(null)
+        try {
+            v5Schema(raw)
+            val entriesBefore = raw.rawQuery(ALL_QUERY, null).allColumns()
+            val checkInsBefore = raw.rawQuery(CHECK_IN_QUERY, null).allColumns()
+            HiitDatabase.MIGRATION_5_6_SQL.forEach { raw.execSQL(it) }
+            assertEquals(entriesBefore, raw.rawQuery(ALL_QUERY, null).allColumns())
+            assertEquals(checkInsBefore, raw.rawQuery(CHECK_IN_QUERY, null).allColumns())
+            assertEquals(
+                listOf("index_workout_session_entry_id"),
+                raw.rawQuery("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'workout_session'", null).holdsColumn(),
+            )
+            raw.execSQL("PRAGMA foreign_keys = ON")
+            raw.execSQL(SESSION_ROW.format(1))
+            raw.execSQL(SESSION_ROW.format(2))
+            raw.execSQL("DELETE FROM check_in WHERE entry_id = 1")
+            raw.execSQL("DELETE FROM entry WHERE id = 1")
+            assertEquals(listOf("2"), raw.rawQuery("SELECT entry_id FROM workout_session", null).holdsColumn())
+        } finally {
+            raw.close()
+        }
+    }
+
+    @Test
+    fun `migration 5 to 6 validates through MigrationTestHelper`() {
+        // Same Windows guard as the checks above: androidx.sqlite 2.6.1 mishandles backslash paths. CI runs it.
+        assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+        helper.createDatabase(MIGRATION_DB_6, 5).use { db ->
+            v4Rows.forEach { db.execSQL(it) }
+            db.execSQL("UPDATE entry SET holds = hold_at || ':' || hold_for")
+        }
+        helper.runMigrationsAndValidate(MIGRATION_DB_6, 6, true, HiitDatabase.MIGRATION_5_6).use { db ->
+            assertEquals(MIGRATED_HOLDS, db.query(HOLDS_QUERY).holdsColumn())
+            db.execSQL(SESSION_ROW.format(1))
+            assertEquals(listOf("1"), db.query("SELECT entry_id FROM workout_session").holdsColumn())
+        }
+    }
+
+    /** The v5 tables (entry and check_in) as the migrations up to 5 leave them, with the v4 rows and one check-in each. */
+    private fun v5Schema(raw: SQLiteDatabase) {
+        raw.execSQL(V3_ENTRY_TABLE)
+        v4Rows.forEach { raw.execSQL(it) }
+        HiitDatabase.MIGRATION_3_4_SQL.forEach { raw.execSQL(it) }
+        HiitDatabase.MIGRATION_4_5_SQL.forEach { raw.execSQL(it) }
+    }
+
+    private fun session(entryId: Long) = WorkoutSessionEntity(
+        entryId = entryId, startedAt = 1_000, endedAt = 61_000, activeSec = 60, plannedSec = 240,
+        setsPlanned = 8, setsCompleted = 2, repsDone = null, completed = false,
+    )
+
     private companion object {
         const val MIGRATION_DB_5 = "migration-4-5"
+        const val MIGRATION_DB_6 = "migration-5-6"
+        const val CHECK_IN_QUERY = "SELECT * FROM check_in ORDER BY id"
+        const val SESSION_ROW = "INSERT INTO workout_session (entry_id, started_at, ended_at, active_sec, planned_sec, " +
+            "sets_planned, sets_completed, reps_done, completed) VALUES (%d, 1000, 61000, 60, 240, 8, 2, 3, 0)"
         const val ALL_QUERY = "SELECT * FROM entry ORDER BY id"
         const val HOLDS_QUERY = "SELECT holds FROM entry ORDER BY id"
         val MIGRATED_HOLDS = listOf("64:4", "56:3", "70:0")

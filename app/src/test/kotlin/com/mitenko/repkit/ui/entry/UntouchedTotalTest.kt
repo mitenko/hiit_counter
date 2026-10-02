@@ -27,6 +27,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.File
+import com.mitenko.repkit.testutil.fixedWallNow
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -47,7 +48,7 @@ class UntouchedTotalTest {
             val repo = RoomEntryRepository(db, open, clock)
             val id = repo.create("Burpees")
             assertNull(db.entryDao().get(id)!!.total)
-            val controller = TimerController(backgroundScope) { testScheduler.currentTime }
+            val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
             val entryVm = EntryViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to id)), repo, controller, FakeServiceStarter(controller), clock)
             val preferences = AppPreferences(
                 PreferenceDataStoreFactory.create(scope = backgroundScope, produceFile = { File(tmp.root, "app.preferences_pb") }),
