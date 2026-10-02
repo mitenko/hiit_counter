@@ -23,6 +23,7 @@ As you develop, refine the instructions here.
 - **Multiple holds (approved, rev 16, amends v1 §6, R3 §5 and §6.3, schema v5):** `docs/superpowers/specs/2026-10-01-multi-hold-design.md` — a Counter entry has a list of holds (Hold at / Hold for each, "+ Add hold", ✕ to remove, at most 8) under the one Hold switch; stored in `entry.holds` (Room v5).
 - **Workout session log (approved, rev 17, amends R6 §3.2, schema v6):** `docs/superpowers/specs/2026-10-01-workout-session-design.md` — every timer run is recorded as one `workout_session` row when it ends (DONE or stopped); no UI yet (groundwork for Strava / Health Connect).
 - **Monetisation seams (approved, rev 18):** `docs/superpowers/specs/2026-10-01-monetisation-seams-design.md` — groundwork for a free tier (at most 3 entries, with a Go Pro limit dialog) and banner ad slots (entry list and entry screen only, never the timer, never for Pro); v1 binds everything unlocked, so nothing changes.
+- **Full-width tile graphs (approved, rev 19, amends rev 9 §2 / rev 11 §2):** `docs/superpowers/specs/2026-10-02-tile-graph-width-design.md` — the list tile graph fills the line after "X× this week" (sparkline full width, day circles spread).
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

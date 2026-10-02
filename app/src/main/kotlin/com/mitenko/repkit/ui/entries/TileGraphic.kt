@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -30,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.EntryType
 
-private val TILE_WIDTH = 96.dp
 private val TILE_HEIGHT = 32.dp
 private val LINE_WIDTH = 1.5.dp
 private val POINT_RADIUS = 2.dp
@@ -40,7 +41,7 @@ private val DAY_LETTER_SIZE = 10.dp
 private val DAY_OUTLINE_WIDTH = 1.dp
 
 /**
- * A list tile's graph (spec rev 9 §2, amended rev 11 §2). A Workout draws a 96 × 32 dp sparkline of
+ * A list tile's graph (spec rev 9 §2, amended rev 11 §2 and rev 19). A Workout draws a full-width, 32 dp tall sparkline of
  * its totals over the 28-day window with a dot on each point (one point draws one dot, none draws
  * nothing). A Timer only entry draws a row of 7 lettered circles for the current calendar week
  * (Mon–Sun), filled for a checked-in day and outlined for the rest. Decorative: no touch target,
@@ -54,7 +55,8 @@ fun TileGraphic(type: EntryType, entryId: Long, tile: TileData, modifier: Modifi
             val filled = MaterialTheme.colorScheme.primary
             Canvas(
                 modifier
-                    .size(TILE_WIDTH, TILE_HEIGHT)
+                    .fillMaxWidth()
+                    .height(TILE_HEIGHT)
                     .testTag("tile_$entryId")
                     .semantics { contentDescription = description },
             ) {
@@ -85,13 +87,15 @@ private fun WeekRow(entryId: Long, week: List<Boolean>, modifier: Modifier) {
     val letterSize = with(LocalDensity.current) { DAY_LETTER_SIZE.toSp() }
     Row(
         modifier
+            .fillMaxWidth()
             .testTag("week_$entryId")
             // The card is clickable, which merges descendants into one announced node (spec rev
             // 11 §2). clearAndSetSemantics stops the circles' own text and state from bubbling up
             // past the row: only this contentDescription is what a screen reader hears, while the
             // circles (below this boundary) stay fully present for the unmerged tree tests query.
             .clearAndSetSemantics { contentDescription = description },
-        horizontalArrangement = Arrangement.spacedBy(DAY_SPACING),
+        // The 7 circles spread across the width the row is given, at least DAY_SPACING apart.
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         week.forEachIndexed { index, checkedIn ->
