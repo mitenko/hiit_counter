@@ -93,7 +93,7 @@ class EntrySettingsScreenTest {
         show(onDelete = { deletes++ })
         compose.onNodeWithTag("delete").performScrollTo().performClick()
         compose.onNodeWithText("Delete Burpees?").assertExists()
-        compose.onNodeWithText("Its rep total, streaks and settings will be lost.").assertExists()
+        compose.onNodeWithText("Its reps, streaks, history and settings will be lost.").assertExists()
         compose.onNodeWithTag("confirm_delete").performClick()
         assertEquals(1, deletes)
     }
@@ -207,8 +207,8 @@ class EntrySettingsScreenTest {
                 )
             }
         }
-        compose.onNodeWithText("Want more entries?").assertExists()
-        compose.onNodeWithText("The free version keeps up to 3 entries. Go Pro for unlimited entries.").assertExists()
+        compose.onNodeWithText("Want more workouts?").assertExists()
+        compose.onNodeWithText("The free version allows up to 3 workouts. Go Pro for unlimited workouts.").assertExists()
         compose.onNodeWithTag("not_now").assertExists()
         compose.onNodeWithTag("go_pro").performClick()
         assertEquals(1, goPro)

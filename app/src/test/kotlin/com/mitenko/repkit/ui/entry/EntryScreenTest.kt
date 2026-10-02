@@ -219,9 +219,9 @@ class EntryScreenTest {
         compose.onNodeWithTag("chart").assertDoesNotExist()
         compose.onNodeWithTag("reps_column").assertExists() // plan Spec note 17
         s = state.copy(points = listOf(a))
-        compose.onNodeWithText("No check-ins in this range").assertExists()
+        compose.onNodeWithText("No check-ins in this period").assertExists()
         compose.onNodeWithTag("range_ALL").performClick()
-        compose.onNodeWithText("No check-ins in this range").assertDoesNotExist()
+        compose.onNodeWithText("No check-ins in this period").assertDoesNotExist()
         compose.onNodeWithContentDescription("1 check-in, from 50 to 50 reps").assertExists()
     }
 
@@ -315,7 +315,7 @@ class EntryScreenTest {
             compose.onNodeWithTag("rep_$i", useUnmergedTree = true)
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "holding"))
         }
-        compose.onNodeWithText("Holding at 64, 2 of 4").assertExists()
+        compose.onNodeWithText("Holding at 64 · 2 of 4").assertExists()
     }
 
     @Test
@@ -323,7 +323,7 @@ class EntryScreenTest {
         compose.mainClock.autoAdvance = false
         show(state, highlight = Highlight(id = 1, changes = mapOf(1 to RepsColumnLayout.Change.UP)))
         compose.mainClock.advanceTimeBy(50)
-        compose.onNodeWithText("Set 2 now 8 reps").assertExists()
+        compose.onNodeWithText("Set 2: now 8 reps").assertExists()
     }
 
     @Test
@@ -331,7 +331,7 @@ class EntryScreenTest {
         compose.mainClock.autoAdvance = false
         show(state, highlight = Highlight(id = 1, changes = mapOf(0 to RepsColumnLayout.Change.DOWN, 7 to RepsColumnLayout.Change.DOWN)))
         compose.mainClock.advanceTimeBy(50)
-        compose.onNodeWithText("2 sets changed").assertExists()
+        compose.onNodeWithText("2 sets updated").assertExists()
     }
 
     @Test
@@ -349,6 +349,6 @@ class EntryScreenTest {
         show(timerOnly, highlight = Highlight(id = 1, changes = mapOf(0 to RepsColumnLayout.Change.UP)))
         compose.onNodeWithTag("reps_column").assertDoesNotExist()
         compose.onNodeWithTag("rep_0", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithText("Set 1 now 9 reps").assertDoesNotExist()
+        compose.onNodeWithText("Set 1: now 9 reps").assertDoesNotExist()
     }
 }

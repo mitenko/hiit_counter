@@ -12,53 +12,59 @@
     <string name="stop">Stop</string>
     <string name="cancel">Cancel</string>
     <string name="stop_workout_title">Stop workout?</string>
-    <string name="stop_workout_body">Today\'s check-in has already been recorded.</string>
+    <string name="stop_workout_body">Your check-in for today has already been recorded.</string>
     <string name="notification_channel_name">Workout timer</string>
     <string name="back">Back</string>
+
     <string name="settings_timing">Timing</string>
     <string name="settings_progression">Progression</string>
-    <string name="settings_current_state">Current State</string>
+    <string name="settings_current_state">Current</string>
     <string name="settings_cues">Cues</string>
+
     <string name="prepare">PREPARE</string>
     <string name="sets">SETS</string>
     <string name="work">WORK</string>
     <string name="rest">REST</string>
     <string name="cooldown">COOLDOWN</string>
     <string name="total_duration">TOTAL %1$s</string>
+
     <string name="decrease">Decrease %1$s</string>
     <string name="increase">Increase %1$s</string>
-    <string name="starting_total">Starting total</string>
-    <string name="floor">Floor (min)</string>
-    <string name="cap">Cap (max)</string>
+    <string name="starting_total">Starting reps</string>
+    <string name="floor">Minimum reps</string>
+    <string name="cap">Maximum reps</string>
     <string name="hold_at">Hold at</string>
     <string name="hold_for">Hold for (check-ins)</string>
-    <!-- Multiple holds (spec rev 16 §6) -->
+
+    <!-- Multiple holds -->
     <string name="hold_n">Hold %1$d</string>
     <string name="remove_hold">Remove hold %1$d</string>
     <string name="add_hold">Add hold</string>
-    <!-- Spoken names for each hold's rows; the visible labels stay hold_at / hold_for -->
     <string name="hold_n_at">Hold %1$d at</string>
-    <!-- "Hold 2 for" names the second hold; it is not a quantity -->
     <string name="hold_n_for" tools:ignore="PluralsCandidate">Hold %1$d for</string>
-    <string name="window_hours">Check-in window (hours)</string>
-    <string name="penalty_rate">Penalty rate (hours per rep)</string>
+
+    <string name="window_hours">On-time window (hours)</string>
+    <string name="penalty_rate">Missed-day adjustment (hours per rep)</string>
+
     <string name="reset_defaults">Reset to defaults</string>
-    <string name="current_total">Current total</string>
+    <string name="current_total">Current reps</string>
     <string name="best_streak_field">Best streak</string>
     <string name="current_streak_field">Current streak</string>
     <string name="last_check_in_field">Last check-in</string>
     <string name="clear">Clear</string>
     <string name="none">—</string>
+
     <string name="reset_progress">Reset progress</string>
     <string name="reset_progress_title">Reset progress?</string>
-    <string name="reset_progress_body">Total returns to the starting total, streaks to 0 and the last check-in is cleared.</string>
+    <string name="reset_progress_body">Your reps will return to the starting total, your streaks will reset to 0, and your last check-in will be cleared.</string>
     <string name="reset">Reset</string>
     <string name="next">Next</string>
     <string name="ok">OK</string>
+
     <string name="sound">Sound</string>
     <string name="vibration">Vibration</string>
 
-    <!-- Multi-entry (spec §7, §8) -->
+    <!-- Workouts -->
     <string name="no_workouts">No workouts yet</string>
     <string name="add_first_workout">Add your first workout</string>
     <string name="add_workout">Add workout</string>
@@ -71,53 +77,75 @@
     <string name="duplicate">Duplicate</string>
     <string name="delete">Delete</string>
     <string name="delete_title">Delete %1$s?</string>
-    <string name="delete_body">Its rep total, streaks and settings will be lost.</string>
+    <string name="delete_body">Its reps, streaks, history and settings will be lost.</string>
     <string name="stop_workout_first">Stop the workout first</string>
     <string name="edit_value">Edit %1$s</string>
 
-    <!-- Settings pager, auto-save, info tags and the Hold switch (spec R3 §4–§7) -->
+    <!-- Workout settings -->
     <string name="entry_settings_title">%1$s settings</string>
     <string name="tab_current">Current</string>
-    <string name="total_label">Total</string>
+    <string name="total_label">Total reps</string>
     <string name="hold">Hold</string>
     <string name="about">About %1$s</string>
     <string name="saved">Saved</string>
     <string name="not_saved_invalid">Not saved: fix the highlighted field</string>
     <string name="not_saved">Not saved</string>
     <string name="reset_defaults_title">Reset progression to defaults?</string>
-    <string name="info_prepare">Countdown before the first set, so you can get into position. 0 skips it.</string>
-    <string name="info_sets">How many work intervals the workout has. A rest follows every set except the last.</string>
-    <string name="info_work">Length of each work interval. For Counter entries, the rep table shows how many reps to do in each set.</string>
-    <string name="info_rest">Break between sets. There\'s no rest after the last set.</string>
-    <string name="info_cooldown">Countdown after the last set. 0 skips it.</string>
-    <string name="info_total">The workout\'s full length: prepare, all sets and rests, and cooldown. It can be at most 2:00:00.</string>
-    <string name="info_starting_total">The rep total you do on your first check-in, and again after Reset progress. It must be between the floor and the cap.</string>
-    <string name="info_floor">The lowest your rep total can fall to, however long you\'re away.</string>
-    <string name="info_cap">The highest your rep total can climb to. At the cap, on-time check-ins keep the total where it is.</string>
-    <string name="info_hold">Say you get to 8×10 (80) reps, and you don\'t really want to go to 81 the next day. Well, you can hold the count at 80 for as many days as you want. You can set multiple holds for your progression.</string>
-    <string name="info_hold_at">The rep total where the hold happens. It needs to be at or above the floor and below the cap.</string>
-    <string name="info_hold_for">How many check-ins you stay at hold at before going up again. The day you first reach it counts. 0 skips the hold.</string>
-    <string name="info_window">Check in within this many hours of your last check-in to count as on time: your streak continues (and, for Counter entries, your total goes up by one).</string>
-    <string name="info_penalty_rate">After a missed window, you lose reps for the time away: one rep for roughly every this-many hours past the first day, less one. The total never drops below the floor.</string>
-    <string name="info_total_reps">Your current rep total, split across the sets in the rep table. Changing it here takes effect immediately.</string>
-    <string name="info_best_streak">Your longest run of on-time check-ins. It must be at least your current streak.</string>
-    <string name="info_current_streak">On-time check-ins in a row, including the last one. A missed window restarts it at 1.</string>
-    <string name="info_last_check_in">When you last pressed Start. The window and penalty are measured from this. Clear it to make the next check-in count as your first.</string>
-    <string name="info_sound">Beeps for the countdown and at each phase change.</string>
-    <string name="info_vibration">Vibrates at each phase change, including with the screen off.</string>
 
-    <!-- Timer Only entries, Check in / Start and the Voice cue (spec R4 §6, verbatim) -->
+    <string name="info_prepare">Countdown before the first set, so you have time to get into position. Set to 0 to skip it.</string>
+
+    <string name="info_sets">The number of work sets in the workout. Each set is followed by a rest except the last one.</string>
+
+    <string name="info_work">How long each work set lasts. For Counter workouts, the rep table shows how many reps to do in each set.</string>
+
+    <string name="info_rest">The break between sets. There is no rest after the final set.</string>
+
+    <string name="info_cooldown">Countdown after the last set. Set to 0 to skip it.</string>
+
+    <string name="info_total">The total workout time, including preparation, work, rests and cooldown. Maximum 2 hours.</string>
+
+    <string name="info_starting_total">The number of reps in your first workout, and after you reset your progress. It must be between your minimum and maximum.</string>
+
+    <string name="info_floor">The lowest your rep total can go, no matter how long you are away.</string>
+
+    <string name="info_cap">The highest your rep total can go. Once you reach it, on-time check-ins keep you at the same number.</string>
+
+    <string name="info_hold">Want to stay at a certain number for a while? A hold lets you pause your progression. For example, you could hold at 80 reps for several check-ins before climbing again. You can set multiple holds.</string>
+
+    <string name="info_hold_at">The rep total where progression pauses. It must be at or above your minimum and below your maximum.</string>
+
+    <string name="info_hold_for">How many check-ins to stay at this number before increasing again. The check-in that first reaches it counts. Set to 0 to skip the hold.</string>
+
+    <string name="info_window">Check in within this many hours of your last check-in to stay on time. On-time check-ins continue your streak and, for Counter workouts, add one rep.</string>
+
+    <string name="info_penalty_rate">After you miss the on-time window, your rep total gradually decreases while you are away. The total never falls below your minimum.</string>
+
+    <string name="info_total_reps">Your current rep total, divided across the workout\'s sets. Changes take effect immediately.</string>
+
+    <string name="info_best_streak">Your longest run of on-time check-ins. It can never be lower than your current streak.</string>
+
+    <string name="info_current_streak">Your current run of on-time check-ins, including the latest one. Missing the window resets the streak to 1.</string>
+
+    <string name="info_last_check_in">The last time you pressed Start. REPKIT uses this to calculate your on-time window and missed-day adjustment. Clear it to make your next check-in the first one.</string>
+
+    <string name="info_sound">Plays countdown beeps and a beep whenever the workout changes phase.</string>
+
+    <string name="info_vibration">Vibrates whenever the workout changes phase, even when the screen is off.</string>
+
+    <!-- Counter / Timer Only -->
     <string name="check_in">Check in</string>
     <string name="checked_in">Checked in ✓</string>
     <string name="type">Type</string>
     <string name="type_workout">Counter</string>
     <string name="type_check_in">Timer Only</string>
     <string name="voice">Voice</string>
-    <string name="voice_unavailable">Voice not available on this device</string>
-    <string name="info_type">Counter entries count reps and grow them as you check in. Timer Only entries run the same timer without counting reps; checking in keeps your streak. Switching keeps all your values.</string>
-    <string name="info_voice">Says the number of reps (or the set number, for Timer Only entries) as each work set starts.</string>
+    <string name="voice_unavailable">Voice cues aren\'t available on this device</string>
 
-    <!-- Cue toggles on the timer screen (spec revision 7): live mid-run, saved to the entry -->
+    <string name="info_type">Counter workouts track reps and increase your target as you check in. Timer Only workouts use the same timer without counting reps. Checking in still keeps your streak. You can switch between the two without losing your settings or history.</string>
+
+    <string name="info_voice">At the start of each work set, says the number of reps to do. For Timer Only workouts, it says the set number instead.</string>
+
+    <!-- Timer controls -->
     <string name="cue_sound_on">Sound on</string>
     <string name="cue_sound_off">Sound off</string>
     <string name="cue_vibration_on">Vibration on</string>
@@ -125,48 +153,53 @@
     <string name="cue_voice_on">Voice on</string>
     <string name="cue_voice_off">Voice off</string>
 
-    <!-- Appearance (spec rev 14 §5): the ⚙ in the entry list's top bar -->
+    <!-- Appearance -->
     <string name="appearance">Appearance</string>
     <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
 
-    <!-- History and the UI refresh (spec R6 §5 as kept by rev 9 §5; counts as plurals) -->
+    <!-- History -->
     <string name="week_count">%1$d× this week</string>
+
     <plurals name="tile_desc">
         <item quantity="one">%1$d check-in in the last 4 weeks</item>
         <item quantity="other">%1$d check-ins in the last 4 weeks</item>
     </plurals>
+
     <string name="range_4w">4 weeks</string>
     <string name="range_3m">3 months</string>
     <string name="range_all">All</string>
-    <string name="history_empty_range">No check-ins in this range</string>
+    <string name="history_empty_range">No check-ins in this period</string>
     <string name="history_empty">No check-ins yet</string>
+
     <plurals name="chart_desc">
         <item quantity="one">%1$d check-in, from %2$d to %3$d reps</item>
         <item quantity="other">%1$d check-ins, from %2$d to %3$d reps</item>
     </plurals>
+
     <string name="streak_line">Streak %1$d · best %2$d</string>
     <string name="reps_per_set_desc">Reps per set: %1$s</string>
+
     <plurals name="calendar_desc">
         <item quantity="one">%1$d check-in day</item>
         <item quantity="other">%1$d check-in days</item>
     </plurals>
 
-    <!-- Check-in highlight announcement (spec revision 12 §3) -->
-    <string name="reps_changed_one">Set %1$d now %2$d reps</string>
-    <string name="reps_changed_many">%1$d sets changed</string>
-    <string name="reps_holding">Holding at %1$d, %2$d of %3$d</string>
+    <!-- Progress announcements -->
+    <string name="reps_changed_one">Set %1$d: now %2$d reps</string>
+    <string name="reps_changed_many">%1$d sets updated</string>
+    <string name="reps_holding">Holding at %1$d · %2$d of %3$d</string>
 
-    <!-- Icon-only settings tabs: their content descriptions (spec rev 9 §5; tab_current is R3's, reused) -->
+    <!-- Settings tabs -->
     <string name="tab_timing">Timing</string>
     <string name="tab_progression">Progression</string>
     <string name="tab_cues">Cues</string>
 
-    <!-- Reset progress: Clear history too (spec R6 §4.3) -->
+    <!-- Reset progress -->
     <string name="clear_history_too">Clear history too</string>
 
-    <!-- Timer Only tile: this week as lettered circles (spec rev 11 §2) -->
+    <!-- Week -->
     <string-array name="week_day_letters">
         <item>M</item>
         <item>T</item>
@@ -176,6 +209,7 @@
         <item>S</item>
         <item>S</item>
     </string-array>
+
     <string-array name="week_day_abbrev">
         <item>Mon</item>
         <item>Tue</item>
@@ -185,17 +219,20 @@
         <item>Sat</item>
         <item>Sun</item>
     </string-array>
+
     <string name="week_check_in_desc">Checked in %1$s this week</string>
     <string name="week_no_check_in_desc">No check-ins this week</string>
     <string name="day_checked_in">checked in</string>
     <string name="day_not_checked_in">not checked in</string>
 
-    <!-- Monetisation seams (spec revision 18 §3): the free tier's entry limit -->
-    <string name="limit_title">Want more entries?</string>
+    <!-- Monetisation -->
+    <string name="limit_title">Want more workouts?</string>
+
     <plurals name="limit_text">
-        <item quantity="one">The free version keeps up to %1$d entry. Go Pro for unlimited entries.</item>
-        <item quantity="other">The free version keeps up to %1$d entries. Go Pro for unlimited entries.</item>
+        <item quantity="one">The free version allows up to %1$d workout. Go Pro for unlimited workouts.</item>
+        <item quantity="other">The free version allows up to %1$d workouts. Go Pro for unlimited workouts.</item>
     </plurals>
+
     <string name="go_pro">Go Pro</string>
     <string name="not_now">Not now</string>
 </resources>

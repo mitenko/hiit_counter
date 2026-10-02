@@ -73,7 +73,7 @@ class CurrentStatePageTest {
     fun `Clear history too starts unchecked under the unchanged body, so a reset keeps the history`() {
         show()
         compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
-        compose.onNodeWithText("Total returns to the starting total, streaks to 0 and the last check-in is cleared.").assertIsDisplayed()
+        compose.onNodeWithText("Your reps will return to the starting total, your streaks will reset to 0, and your last check-in will be cleared.").assertIsDisplayed()
         compose.onNodeWithTag("clear_history").assertIsOff()
         compose.onNodeWithTag("confirm_reset_progress").performClick()
         assertEquals(listOf(false), resets)
@@ -93,7 +93,7 @@ class CurrentStatePageTest {
     @Test
     fun `without the total the page shows the streaks, the date and Reset progress`() {
         show(showTotal = false)
-        compose.onNodeWithTag("value_Current total").assertDoesNotExist()
+        compose.onNodeWithTag("value_Current reps").assertDoesNotExist()
         compose.onNodeWithTag("value_Best streak").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("value_Current streak").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("last_check_in").performScrollTo().assertIsDisplayed()
