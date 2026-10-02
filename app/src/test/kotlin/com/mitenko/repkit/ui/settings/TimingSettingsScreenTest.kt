@@ -58,7 +58,7 @@ class TimingSettingsScreenTest {
 
     @Test
     fun `work cannot step below one second`() {
-        show(TimingConfig(workSec = 5))
+        show(TimingConfig(workSec = 2))
         repeat(2) { compose.onNodeWithContentDescription("Decrease WORK").performScrollTo().performClick() }
         compose.onNodeWithTag("value_WORK").assertTextEquals("00:01")
     }

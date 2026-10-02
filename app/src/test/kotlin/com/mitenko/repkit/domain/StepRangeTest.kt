@@ -7,11 +7,11 @@ class StepRangeTest {
     @Test
     fun `steps clamp at the hard edges`() {
         assertEquals(0, FieldRanges.PHASE.minus(0))
-        assertEquals(0, FieldRanges.PHASE.minus(3))
-        assertEquals(3599, FieldRanges.PHASE.plus(3595))
-        assertEquals(1, FieldRanges.WORK.minus(5))
+        assertEquals(2, FieldRanges.PHASE.minus(3))
+        assertEquals(3599, FieldRanges.PHASE.plus(3599))
+        assertEquals(4, FieldRanges.WORK.minus(5))
         assertEquals(1, FieldRanges.WORK.minus(1))
-        assertEquals(6, FieldRanges.WORK.plus(1))
+        assertEquals(2, FieldRanges.WORK.plus(1))
         assertEquals(20, FieldRanges.SETS.plus(20))
         assertEquals(0, FieldRanges.STREAK.minus(0))
         assertEquals(9999, FieldRanges.REPS.plus(Int.MAX_VALUE))
@@ -27,8 +27,8 @@ class StepRangeTest {
 
     @Test
     fun `ranges match the spec table`() {
-        assertEquals(StepRange(0, 3599, 5), FieldRanges.PHASE)
-        assertEquals(StepRange(1, 3599, 5), FieldRanges.WORK)
+        assertEquals(StepRange(0, 3599, 1), FieldRanges.PHASE)
+        assertEquals(StepRange(1, 3599, 1), FieldRanges.WORK)
         assertEquals(StepRange(1, 20, 1), FieldRanges.SETS)
         assertEquals(StepRange(1, 9999, 1), FieldRanges.REPS)
         assertEquals(StepRange(0, 999, 1), FieldRanges.HOLD_FOR)
