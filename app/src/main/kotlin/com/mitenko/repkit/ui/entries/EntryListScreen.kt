@@ -62,7 +62,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.ui.ads.AdPlacement
+import com.mitenko.repkit.ui.ads.AdSlot
+import com.mitenko.repkit.ui.common.EntryLimitDialog
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.theme.ThemeMode
@@ -73,6 +77,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val limitDialog by vm.limitDialog.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
@@ -84,10 +89,19 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onCreate = { name, type -> vm.create(name, type, onCreated) },
         themeMode = themeMode,
         onSetThemeMode = vm::setThemeMode,
+        onRequestAdd = vm::requestAdd,
+        limitDialog = limitDialog,
+        maxEntries = vm.maxEntries,
+        onGoPro = vm::goPro,
+        onDismissLimit = vm::dismissLimit,
     )
 }
 
-/** The entry list (spec §7.3): Loading disables the FAB, Empty offers the first workout, Items is a keyed LazyColumn. */
+/**
+ * The entry list (spec §7.3): Loading disables the FAB, Empty offers the first workout, Items is a
+ * keyed LazyColumn. Spec revision 18 §3: [onRequestAdd] decides whether the New dialog opens; when
+ * it doesn't, the ViewModel raises [limitDialog] instead.
+ */
 @Composable
 fun EntryListScreen(
     state: EntryListUiState,
@@ -96,8 +110,14 @@ fun EntryListScreen(
     onCreate: (String, EntryType) -> Unit,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onSetThemeMode: (ThemeMode) -> Unit = {},
+    onRequestAdd: () -> Boolean = { true },
+    limitDialog: Boolean = false,
+    maxEntries: Int = FreeLimits().maxEntries,
+    onGoPro: () -> Unit = {},
+    onDismissLimit: () -> Unit = {},
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
+    val requestAdd = { if (onRequestAdd()) naming = true }
     var showAppearance by rememberSaveable { mutableStateOf(false) }
     val loading = state is EntryListUiState.Loading
     Scaffold(
@@ -118,19 +138,21 @@ fun EntryListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { if (!loading) naming = true },
+                onClick = { if (!loading) requestAdd() },
                 modifier = Modifier.testTag("add").semantics { if (loading) disabled() },
             ) {
                 Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.add_workout))
             }
         },
+        // Spec revision 18 §4: the ad slot sits at the bottom; it composes nothing for Pro (all of v1).
+        bottomBar = { AdSlot(AdPlacement.ENTRY_LIST) },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when (state) {
                 EntryListUiState.Loading ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center).testTag("loading"))
                 EntryListUiState.Empty ->
-                    EmptyState(onAdd = { naming = true }, modifier = Modifier.align(Alignment.Center))
+                    EmptyState(onAdd = requestAdd, modifier = Modifier.align(Alignment.Center))
                 is EntryListUiState.Items ->
                     EntryList(state.rows, onOpenEntry, onMove)
             }
@@ -149,6 +171,9 @@ fun EntryListScreen(
             onDismiss = { naming = false },
             extra = { EntryTypeChoice(type, onSelect = { type = it }) },
         )
+    }
+    if (limitDialog) {
+        EntryLimitDialog(maxEntries, onGoPro = onGoPro, onDismiss = onDismissLimit)
     }
     if (showAppearance) {
         AppearanceDialog(

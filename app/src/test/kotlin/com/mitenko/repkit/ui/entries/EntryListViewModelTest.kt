@@ -3,14 +3,19 @@ package com.mitenko.repkit.ui.entries
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.viewModelScope
 import com.mitenko.repkit.data.AppPreferences
+import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.testutil.FakeClock
+import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.theme.ThemeMode
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
@@ -45,8 +50,14 @@ class EntryListViewModelTest {
         ),
     )
 
-    private fun TestScope.vm(repo: FakeEntryRepository, preferences: AppPreferences = preferences()) =
-        EntryListViewModel(repo, clock, preferences).also { vm ->
+    private val proUpgrade = FakeProUpgrade()
+
+    private fun TestScope.vm(
+        repo: FakeEntryRepository,
+        preferences: AppPreferences = preferences(),
+        tier: Tier = Tier.PRO,
+    ) =
+        EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade).also { vm ->
             backgroundScope.launch { vm.uiState.collect {} }
             backgroundScope.launch { vm.themeMode.collect {} }
             runCurrent()
@@ -244,5 +255,114 @@ class EntryListViewModelTest {
         runCurrent()
         assertEquals(ThemeMode.DARK, vm.themeMode.value)
         assertEquals(ThemeMode.DARK, preferences.themeMode.first())
+    }
+
+    // Spec revision 18 §3: the free tier's entry limit.
+
+    private fun entries(n: Int) = FakeEntryRepository(List(n) { testEntry(it + 1L) })
+
+    @Test
+    fun `free at 2 entries can add and create proceeds`() = runTest {
+        val repo = entries(2)
+        val vm = vm(repo, tier = Tier.FREE)
+        assertTrue(vm.requestAdd())
+        var created: Long? = null
+        vm.create("Burpees") { created = it }
+        runCurrent()
+        assertEquals(3, repo.state.value.size)
+        assertEquals(repo.state.value.last().id, created)
+        assertFalse(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `free at 3 entries shows the limit dialog instead of the name dialog`() = runTest {
+        val vm = vm(entries(3), tier = Tier.FREE)
+        assertFalse(vm.requestAdd())
+        assertTrue(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `free at 3 entries creates nothing and shows the limit dialog`() = runTest {
+        val repo = entries(3)
+        val vm = vm(repo, tier = Tier.FREE)
+        var created: Long? = null
+        vm.create("Burpees") { created = it }
+        runCurrent()
+        assertNull(created)
+        assertEquals(3, repo.state.value.size)
+        assertTrue(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `a free user over the limit keeps every entry but can't add one`() = runTest {
+        val repo = entries(5)
+        val vm = vm(repo, tier = Tier.FREE)
+        assertEquals(5, (vm.uiState.value as EntryListUiState.Items).rows.size)
+        assertFalse(vm.requestAdd())
+    }
+
+    @Test
+    fun `pro at 10 entries can add and create proceeds`() = runTest {
+        val repo = entries(10)
+        val vm = vm(repo, tier = Tier.PRO)
+        assertTrue(vm.requestAdd())
+        vm.create("Burpees") {}
+        runCurrent()
+        assertEquals(11, repo.state.value.size)
+        assertFalse(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `Go Pro starts the upgrade and closes the dialog`() = runTest {
+        val vm = vm(entries(3), tier = Tier.FREE)
+        vm.requestAdd()
+        vm.goPro()
+        assertEquals(1, proUpgrade.starts)
+        assertFalse(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `Not now closes the dialog without starting the upgrade`() = runTest {
+        val vm = vm(entries(3), tier = Tier.FREE)
+        vm.requestAdd()
+        vm.dismissLimit()
+        assertEquals(0, proUpgrade.starts)
+        assertFalse(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `maxEntries comes from FreeLimits`() = runTest {
+        assertEquals(3, vm(FakeEntryRepository()).maxEntries)
+    }
+
+    @Test
+    fun `a double submit at 2 free entries creates exactly one`() = runTest {
+        // The gate holds the first create() inside repo.create(), after its limit check passed,
+        // so the second lands while the first is still in flight.
+        val repo = entries(2)
+        val gate = CompletableDeferred<Unit>()
+        repo.createGate = gate
+        val vm = vm(repo, tier = Tier.FREE)
+        var created = 0
+        vm.create("Burpees") { created++ }
+        vm.create("Burpees") { created++ }
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(1, created)
+        assertEquals(3, repo.state.value.size)
+    }
+
+    @Test
+    fun `pro creates again once the previous create has finished`() = runTest {
+        val repo = entries(3)
+        val vm = vm(repo, tier = Tier.PRO)
+        val ids = mutableListOf<Long>()
+        vm.create("Burpees") { ids += it }
+        runCurrent()
+        vm.create("Lunges") { ids += it }
+        runCurrent()
+        assertEquals(2, ids.size)
+        assertEquals(5, repo.state.value.size)
     }
 }

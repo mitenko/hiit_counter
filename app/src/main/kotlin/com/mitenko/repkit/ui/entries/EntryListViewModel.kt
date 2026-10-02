@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.Clock
+import com.mitenko.repkit.domain.Entitlements
+import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.ProUpgrade
+import com.mitenko.repkit.domain.canAddEntry
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
@@ -19,7 +23,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -55,8 +61,19 @@ class EntryListViewModel @Inject constructor(
     private val repo: EntryRepository,
     private val clock: Clock,
     private val preferences: AppPreferences,
+    private val entitlements: Entitlements,
+    private val limits: FreeLimits,
+    private val proUpgrade: ProUpgrade,
 ) : ViewModel() {
     private val refresh = MutableStateFlow(0)
+
+    private val _limitDialog = MutableStateFlow(false)
+
+    /** Spec revision 18 §3: the free tier's limit dialog, shown instead of creating anything. */
+    val limitDialog: StateFlow<Boolean> = _limitDialog.asStateFlow()
+
+    /** The free tier's entry limit, for the dialog's text. */
+    val maxEntries: Int get() = limits.maxEntries
 
     /** The Appearance choice (spec rev 14 §5), for the ⚙ dialog in the top bar. */
     val themeMode: StateFlow<ThemeMode> =
@@ -104,19 +121,55 @@ class EntryListViewModel @Inject constructor(
         refresh.update { it + 1 }
     }
 
+    /** In-flight guard for [create]; touched only on Main, like EntrySettingsViewModel's `duplicating`. */
+    private var creating = false
+
+    /**
+     * Spec revision 18 §3: called before the New dialog opens. True lets it open; false shows the
+     * limit dialog instead. It counts the rows on screen; [create] re-checks against the repository.
+     */
+    fun requestAdd(): Boolean {
+        val count = (uiState.value as? EntryListUiState.Items)?.rows?.size ?: 0
+        return allowAdd(count)
+    }
+
+    /** Go Pro (spec revision 18 §3): starts the upgrade, then closes the dialog. */
+    fun goPro() {
+        proUpgrade.start()
+        _limitDialog.value = false
+    }
+
+    /** Not now (spec revision 18 §3). */
+    fun dismissLimit() {
+        _limitDialog.value = false
+    }
+
+    private fun allowAdd(entryCount: Int): Boolean =
+        canAddEntry(entitlements.tier.value, entryCount, limits).also { if (!it) _limitDialog.value = true }
+
     /**
      * Creates with defaults and the chosen [type] (spec R4 §4.4) and reports the new id for
      * navigation (spec §7.3). The name dialog already blocks invalid names.
      */
     fun create(name: String, type: EntryType = EntryType.WORKOUT, onCreated: (Long) -> Unit) {
+        // A double submit is ignored while a create is in flight, so two calls can't both pass the
+        // limit check before either has written (spec revision 18 §3).
+        if (creating) return
+        creating = true
         viewModelScope.launch {
-            val id = try {
-                repo.create(name, type)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Create rejected: ${e.message}")
-                return@launch
+            try {
+                // Spec revision 18 §3: at the free limit nothing is created; the limit dialog shows instead.
+                if (!allowAdd(repo.entries.first().size)) return@launch
+                val id = try {
+                    repo.create(name, type)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Create rejected: ${e.message}")
+                    return@launch
+                }
+                onCreated(id)
+            } finally {
+                creating = false
             }
-            onCreated(id)
         }
     }
 

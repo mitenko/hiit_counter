@@ -48,6 +48,9 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     /** When set, checkIn suspends on it after counting the call, so a test can hold a check-in in flight. */
     var checkInGate: CompletableDeferred<Unit>? = null
     val moves = mutableListOf<Pair<Long, Int>>()
+
+    /** When set, create suspends on it after validating the name, so a test can hold a create in flight. */
+    var createGate: CompletableDeferred<Unit>? = null
     var deleteCalls = 0
 
     /** Every resetProgress call as (id, clearHistory), including failed ones. */
@@ -75,6 +78,7 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     override suspend fun create(name: String, type: EntryType): Long {
         val valid = validName(name)
         readiness.await()
+        createGate?.await()
         val id = nextId++
         val p = ProgressionConfig()
         state.update {

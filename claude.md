@@ -22,6 +22,7 @@ As you develop, refine the instructions here.
 - **Calendar weeks (approved, rev 15, amends R6 §3.4/§4.2):** `docs/superpowers/specs/2026-10-01-calendar-weeks-design.md` — the Timer Only calendar is unbroken Monday-first weeks under one weekday header, with a month label above the row where each month starts.
 - **Multiple holds (approved, rev 16, amends v1 §6, R3 §5 and §6.3, schema v5):** `docs/superpowers/specs/2026-10-01-multi-hold-design.md` — a Counter entry has a list of holds (Hold at / Hold for each, "+ Add hold", ✕ to remove, at most 8) under the one Hold switch; stored in `entry.holds` (Room v5).
 - **Workout session log (approved, rev 17, amends R6 §3.2, schema v6):** `docs/superpowers/specs/2026-10-01-workout-session-design.md` — every timer run is recorded as one `workout_session` row when it ends (DONE or stopped); no UI yet (groundwork for Strava / Health Connect).
+- **Monetisation seams (approved, rev 18):** `docs/superpowers/specs/2026-10-01-monetisation-seams-design.md` — groundwork for a free tier (at most 3 entries, with a Go Pro limit dialog) and banner ad slots (entry list and entry screen only, never the timer, never for Pro); v1 binds everything unlocked, so nothing changes.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").
@@ -41,6 +42,7 @@ As you develop, refine the instructions here.
 - Timer: `TimerController` singleton owns the engine; `TimerService` (specialUse foreground service + partial wake lock) only hosts it. ViewModels never bind to the service.
 - Voice cue (`cue_voice`): `TimerController` puts each WORK set's reps (the sets-remaining countdown for Timer only entries) on `Cue.PhaseStart`; `CuePlayer` says them after the beep through `platform/CueSpeaker` (TextToSpeech, English), inside the beeps' ducking focus. `TimerService` creates the speaker while the live cues have Voice on, and shuts it down when Voice is toggled off. The manifest's `<queries>` TTS_SERVICE entry is required for Android 11+.
 - Cue toggles: cues are live mid-run via `TimerController.liveCues`, not frozen with the rest of the snapshot; each toggle applies at once and saves to the entry.
+- Monetisation (rev 18): `domain/Entitlements` (`Tier`, `FreeLimits(maxEntries = 3)`, `canAddEntry`, `showAds`, `ProUpgrade`). v1 binds `UnlockedEntitlements` (always PRO), a no-op `ProUpgrade` and `NoAdRenderer` in `di/MonetisationModule`; billing and ads replace these later. The limit is checked in `EntryListViewModel` (New) and `EntrySettingsViewModel` (Duplicate), never the repository; entries over the limit are kept. `AdSlot` sits in the bottomBar of the entry list and entry screen only (there is no timer placement); it reads `LocalTier` and `LocalAdRenderer`, which MainActivity provides.
 
 ## Working rules
 - `domain/` stays pure Kotlin (no Android imports) and is developed test-first.

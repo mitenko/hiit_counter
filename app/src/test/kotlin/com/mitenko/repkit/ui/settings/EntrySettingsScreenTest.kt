@@ -22,9 +22,12 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.data.AppPreferences
+import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.testutil.FakeClock
+import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
@@ -107,11 +110,13 @@ class EntrySettingsScreenTest {
     fun `duplicate shows the suffixed copy in the list`() {
         val repo = FakeEntryRepository(listOf(testEntry(1, "Burpees")))
         val controller = TimerController(MainScope(), wallNow = fixedWallNow) { 0L }
-        val settingsVm = EntrySettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, controller)
+        val settingsVm = EntrySettingsViewModel(
+            SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, controller, FakeEntitlements(), FreeLimits(), FakeProUpgrade(),
+        )
         val preferences = AppPreferences(
             PreferenceDataStoreFactory.create(scope = MainScope(), produceFile = { File(tmp.root, "app.preferences_pb") }),
         )
-        val listVm = EntryListViewModel(repo, FakeClock(), preferences)
+        val listVm = EntryListViewModel(repo, FakeClock(), preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade())
         var copied by mutableStateOf(false)
         compose.setContent {
             HiitTheme {
@@ -189,5 +194,23 @@ class EntrySettingsScreenTest {
             val b = compose.onNodeWithTag(lower).fetchSemanticsNode().boundsInRoot
             assertEquals("$upper → $lower", gap, b.top - a.bottom, 0.5f)
         }
+    }
+
+    @Test
+    fun `the limit dialog shows over Entry Settings and Go Pro reports back`() {
+        var goPro = 0
+        compose.setContent {
+            HiitTheme {
+                EntrySettingsScreen(
+                    EntrySettingsUiState(name = "Burpees", limitDialog = true), onBack = {}, onOpen = {}, onRename = {},
+                    onDuplicate = {}, onDelete = {}, onSetType = {}, maxEntries = 3, onGoPro = { goPro++ },
+                )
+            }
+        }
+        compose.onNodeWithText("Want more entries?").assertExists()
+        compose.onNodeWithText("The free version keeps up to 3 entries. Go Pro for unlimited entries.").assertExists()
+        compose.onNodeWithTag("not_now").assertExists()
+        compose.onNodeWithTag("go_pro").performClick()
+        assertEquals(1, goPro)
     }
 }
