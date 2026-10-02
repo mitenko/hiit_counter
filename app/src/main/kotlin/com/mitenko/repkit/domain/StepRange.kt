@@ -16,9 +16,9 @@ data class StepRange(val min: Int, val max: Int, val step: Int) {
 
 /** The hard ranges of spec §8.1. The penalty rate is stepped in half-hours by [PenaltyDraft]. */
 object FieldRanges {
-    /** Prepare, Rest, Cooldown: 0 – 59:59 in 5 s steps. */
-    val PHASE = StepRange(0, SettingsValidator.MAX_PHASE_SEC, 5)
-    val WORK = StepRange(1, SettingsValidator.MAX_PHASE_SEC, 5)
+    /** Prepare, Rest, Cooldown: 0 – 59:59 in 1 s steps (user, 2026-10-01: every ± changes the value by 1). */
+    val PHASE = StepRange(0, SettingsValidator.MAX_PHASE_SEC, 1)
+    val WORK = StepRange(1, SettingsValidator.MAX_PHASE_SEC, 1)
     val SETS = StepRange(1, SettingsValidator.MAX_SETS, 1)
     /** Starting total, Floor, Cap, Hold at. */
     val REPS = StepRange(1, 9999, 1)
