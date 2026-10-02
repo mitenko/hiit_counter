@@ -22,10 +22,10 @@ class InfoTagTest {
 
     @Test
     fun `tapping the tag opens its title, text and OK`() {
-        compose.setContent { HiitTheme { InfoTag(title = "Floor (min)", text = "The lowest your rep total can fall to.") } }
+        compose.setContent { HiitTheme { InfoTag(title = "Minimum reps", text = "The lowest your rep total can fall to.") } }
         compose.onNodeWithTag("info_text").assertDoesNotExist()
-        compose.onNodeWithContentDescription("About Floor (min)").performClick()
-        compose.onNodeWithTag("info_title").assertTextEquals("Floor (min)")
+        compose.onNodeWithContentDescription("About Minimum reps").performClick()
+        compose.onNodeWithTag("info_title").assertTextEquals("Minimum reps")
         compose.onNodeWithTag("info_text").assertTextEquals("The lowest your rep total can fall to.")
         compose.onNodeWithTag("info_ok").performClick()
         compose.onNodeWithTag("info_text").assertDoesNotExist()

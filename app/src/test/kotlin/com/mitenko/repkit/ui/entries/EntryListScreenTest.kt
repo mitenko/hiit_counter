@@ -548,8 +548,8 @@ class EntryListScreenTest {
         var goPro = 0
         var dismissed = 0
         show(EntryListUiState.Items(rows), limitDialog = true, onGoPro = { goPro++ }, onDismissLimit = { dismissed++ })
-        compose.onNodeWithText("Want more entries?").assertExists()
-        compose.onNodeWithText("The free version keeps up to 3 entries. Go Pro for unlimited entries.").assertExists()
+        compose.onNodeWithText("Want more workouts?").assertExists()
+        compose.onNodeWithText("The free version allows up to 3 workouts. Go Pro for unlimited workouts.").assertExists()
         compose.onNodeWithTag("go_pro").assertTextEquals("Go Pro").performClick()
         compose.onNodeWithTag("not_now").assertTextEquals("Not now").performClick()
         assertEquals(1, goPro)

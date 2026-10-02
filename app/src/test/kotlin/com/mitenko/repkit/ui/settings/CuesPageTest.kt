@@ -42,7 +42,7 @@ class CuesPageTest {
         val repo = FakeEntryRepository(listOf(testEntry(1)))
         val vm = CuesSettingsViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repo, FakeVoiceAvailability(available = false))
         compose.setContent { HiitTheme { CuesPage(vm) } }
-        compose.onNodeWithTag("support_Voice").assertTextEquals("Voice not available on this device")
+        compose.onNodeWithTag("support_Voice").assertTextEquals("Voice cues aren't available on this device")
         compose.onNodeWithTag("switch_Voice").performClick()
         compose.waitForIdle()
         assertEquals(CueConfig(voice = true), repo.find(1).cues)

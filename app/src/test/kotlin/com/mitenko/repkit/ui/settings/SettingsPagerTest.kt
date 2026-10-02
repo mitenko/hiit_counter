@@ -125,7 +125,7 @@ class SettingsPagerTest {
         tab(SettingsPage.TIMING).assertIsSelected()
         tab(SettingsPage.PROGRESSION).performClick()
         tab(SettingsPage.PROGRESSION).assertIsSelected()
-        compose.onNodeWithTag("value_Starting total").assertIsDisplayed()
+        compose.onNodeWithTag("value_Starting reps").assertIsDisplayed()
     }
 
     @Test
@@ -135,14 +135,14 @@ class SettingsPagerTest {
         // performTouchInput { swipeLeft(startX = right * 0.9f, endX = left, durationMillis = 400) }
         compose.onNodeWithTag("settings_pager").performTouchInput { swipeLeft() }
         tab(SettingsPage.PROGRESSION).assertIsSelected()
-        compose.onNodeWithTag("value_Starting total").assertIsDisplayed()
+        compose.onNodeWithTag("value_Starting reps").assertIsDisplayed()
     }
 
     @Test
     fun `page 2 opens on Current`() {
         show(initial = SettingsPage.CURRENT)
         tab(SettingsPage.CURRENT).assertIsSelected()
-        compose.onNodeWithTag("value_Current total").assertIsDisplayed()
+        compose.onNodeWithTag("value_Current reps").assertIsDisplayed()
     }
 
     @Test
@@ -232,11 +232,11 @@ class SettingsPagerTest {
         tab(SettingsPage.CUES).assertIsDisplayed()
         tab(SettingsPage.CURRENT).assertIsSelected()
         compose.onNodeWithTag("value_Best streak").assertIsDisplayed()
-        compose.onNodeWithTag("value_Current total").assertDoesNotExist()
+        compose.onNodeWithTag("value_Current reps").assertDoesNotExist()
         tab(SettingsPage.PROGRESSION).performClick()
         tab(SettingsPage.PROGRESSION).assertIsSelected()
-        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
-        compose.onNodeWithTag("value_Starting total").assertDoesNotExist()
+        compose.onNodeWithTag("value_On-time window (hours)").assertIsDisplayed()
+        compose.onNodeWithTag("value_Starting reps").assertDoesNotExist()
     }
 
     @Test

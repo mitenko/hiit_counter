@@ -28,18 +28,18 @@ class SwitchRowTest {
     fun `a switch row toggles and its info tag opens its text`() {
         var on by mutableStateOf(true)
         compose.setContent {
-            HiitTheme { Column { SwitchRow("Sound", on, onChange = { on = it }, info = "Beeps for the countdown and at each phase change.") } }
+            HiitTheme { Column { SwitchRow("Sound", on, onChange = { on = it }, info = "Plays countdown beeps and a beep whenever the workout changes phase.") } }
         }
         compose.onNodeWithTag("switch_Sound").performClick()
         assertFalse(on)
         compose.onNodeWithContentDescription("About Sound").performClick()
-        compose.onNodeWithTag("info_text").assertTextEquals("Beeps for the countdown and at each phase change.")
+        compose.onNodeWithTag("info_text").assertTextEquals("Plays countdown beeps and a beep whenever the workout changes phase.")
     }
 
     @Test
     fun `the switch row is one rounded card holding its label, info tag and switch`() {
         compose.setContent {
-            HiitTheme { Column { SwitchRow("Sound", true, onChange = {}, info = "Beeps for the countdown and at each phase change.") } }
+            HiitTheme { Column { SwitchRow("Sound", true, onChange = {}, info = "Plays countdown beeps and a beep whenever the workout changes phase.") } }
         }
         val card = compose.onNodeWithTag("card_Sound").fetchSemanticsNode().boundsInRoot
         listOf(

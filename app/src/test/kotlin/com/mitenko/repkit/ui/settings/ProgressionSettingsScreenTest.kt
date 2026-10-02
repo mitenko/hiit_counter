@@ -56,7 +56,7 @@ class ProgressionSettingsScreenTest {
     @Test
     fun `cross-field errors show inline with Not saved, and the hold hint shows`() {
         show(ProgressionConfig(startingTotal = 40))
-        compose.onNodeWithTag("support_Starting total").assertTextEquals("Must be ≥ floor")
+        compose.onNodeWithTag("support_Starting reps").assertTextEquals("Must be ≥ floor")
         compose.onNodeWithTag("save_status").assertTextEquals("Not saved: fix the highlighted field")
         draft = ProgressionDraft.from(ProgressionConfig(holds = listOf(Hold(64, 0))))
         compose.onNodeWithTag("support_Hold 1 at").performScrollTo().assertTextEquals("Hold disabled")
@@ -90,12 +90,12 @@ class ProgressionSettingsScreenTest {
     @Test
     fun `window only shows just the check-in window and keeps the other values`() {
         show(ProgressionConfig(cap = 80, holds = listOf(Hold(66, 4))), windowOnly = true)
-        compose.onNodeWithTag("value_Check-in window (hours)").assertIsDisplayed()
-        listOf("Starting total", "Floor (min)", "Cap (max)", "Hold 1 at", "Hold 1 for", "Penalty rate (hours per rep)")
+        compose.onNodeWithTag("value_On-time window (hours)").assertIsDisplayed()
+        listOf("Starting reps", "Minimum reps", "Maximum reps", "Hold 1 at", "Hold 1 for", "Missed-day adjustment (hours per rep)")
             .forEach { compose.onNodeWithTag("value_$it").assertDoesNotExist() }
         compose.onNodeWithTag("switch_Hold").assertDoesNotExist()
         compose.onNodeWithTag("reset_defaults").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Increase Check-in window (hours)").performClick()
+        compose.onNodeWithContentDescription("Increase On-time window (hours)").performClick()
         assertEquals(37, draft.windowHours)
         assertEquals(80, draft.cap)
         assertEquals(listOf(Hold(66, 4)), draft.holds)
