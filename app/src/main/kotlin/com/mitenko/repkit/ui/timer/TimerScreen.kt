@@ -68,22 +68,23 @@ fun TimerScreen(
         PhaseTone.REST -> HiitColors.Rest
         PhaseTone.NEUTRAL -> HiitColors.Neutral
     }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(8.dp).testTag("close")) {
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        IconButton(onClick = onClose, modifier = Modifier.padding(8.dp).testTag("close")) {
             Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.stop), tint = Color.White)
         }
-        // The run's cues are live (spec revision 7): hidden once the run is DONE, matching the pause button.
+        // The run's cues are live (spec revision 7): hidden once the run is DONE, matching the pause
+        // button. Spec revision 22: they have their own row under ✕, spread across the width.
         if (!ui.done) {
             CueToggleRow(
                 cues = cues,
                 onToggleSound = onToggleSound,
                 onToggleVibration = onToggleVibration,
                 onToggleVoice = onToggleVoice,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).testTag("cue_toggle_row"),
+                modifier = Modifier.padding(horizontal = 48.dp).testTag("cue_toggle_row"),
             )
         }
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 48.dp),
+            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
@@ -126,8 +127,9 @@ fun TimerScreen(
                 }
             }
             if (!ui.done) {
-                // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while paused.
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while
+                // paused. Spec revision 22: 56 dp apart, so they're harder to hit by mistake.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(56.dp)) {
                     IconButton(onClick = onSkipBack, modifier = Modifier.size(48.dp).testTag("skip_back")) {
                         Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = Color.White)
                     }
@@ -168,7 +170,7 @@ private fun CueToggleRow(
     onToggleVoice: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         CueToggleButton(
             on = cues.sound, icon = R.drawable.ic_cue_sound,
             onDescription = stringResource(R.string.cue_sound_on), offDescription = stringResource(R.string.cue_sound_off),

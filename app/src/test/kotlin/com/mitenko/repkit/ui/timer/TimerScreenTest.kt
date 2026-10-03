@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
@@ -26,7 +27,9 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34])
+// A real phone size (Pixel-class, portrait): Robolectric's 320 x 470 dp default is smaller than any
+// phone the app targets, and the timer's controls are laid out for a phone screen (spec rev 22).
+@Config(sdk = [34], qualifiers = "w411dp-h891dp")
 class TimerScreenTest {
     @get:Rule val compose = createComposeRule()
 
@@ -173,6 +176,36 @@ class TimerScreenTest {
         val forward = compose.onNodeWithTag("skip_forward").getBoundsInRoot()
         assertTrue(back.right <= pause.left)
         assertTrue(forward.left >= pause.right)
+    }
+
+    @Test
+    fun `skip buttons sit at least 48dp from pause`() {
+        // User, 2026-10-03: more space between the < pause > buttons.
+        setScreen(Phase.WORK)
+        val back = compose.onNodeWithTag("skip_back").getBoundsInRoot()
+        val pause = compose.onNodeWithTag("pause").getBoundsInRoot()
+        val forward = compose.onNodeWithTag("skip_forward").getBoundsInRoot()
+        assertTrue(pause.left - back.right >= 47.5.dp)
+        assertTrue(forward.left - pause.right >= 47.5.dp)
+    }
+
+    @Test
+    fun `cue toggles have their own row below close, spread across the width`() {
+        // User, 2026-10-03: the sound buttons go on their own row, spaced between.
+        setScreen(Phase.WORK)
+        val close = compose.onNodeWithTag("close").getBoundsInRoot()
+        val sound = compose.onNodeWithTag("cue_sound").getBoundsInRoot()
+        val vibration = compose.onNodeWithTag("cue_vibration").getBoundsInRoot()
+        val voice = compose.onNodeWithTag("cue_voice").getBoundsInRoot()
+        val row = compose.onNodeWithTag("cue_toggle_row").getBoundsInRoot()
+        assertTrue(sound.top >= close.bottom)
+        // Spread out: the gaps between buttons are wider than a button, and equal.
+        val gap1 = vibration.left - sound.right
+        val gap2 = voice.left - vibration.right
+        assertTrue(gap1 > sound.width)
+        assertEquals(gap1.value, gap2.value, 1f)
+        // The middle button is centred in the row.
+        assertEquals(((row.left + row.right) / 2).value, ((vibration.left + vibration.right) / 2).value, 1f)
     }
 
     @Test
