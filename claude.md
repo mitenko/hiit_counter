@@ -27,6 +27,7 @@ As you develop, refine the instructions here.
 - **Hold highlight (approved, rev 20, amends rev 12 §3):** `docs/superpowers/specs/2026-10-02-hold-highlight-design.md` — a check-in that stays on a hold flashes every reps cell neutral (no pop) and announces "Holding at N, D of F".
 - **Charts fit their data (approved, rev 21, amends rev 9 §2/§3):** `docs/superpowers/specs/2026-10-02-chart-fit-data-design.md` — the entry chart and tile sparkline x-axes start at the first shown check-in (not the empty range start) and end at today.
 - **Timer control spacing (approved, rev 22, amends rev 7 / rev 10 §5):** `docs/superpowers/specs/2026-10-03-timer-controls-spacing-design.md` — cue toggles on their own row under ✕, spread across the width; Back / Pause / Skip forward 56 dp apart.
+- **Launcher icon (approved, rev 23):** `docs/superpowers/specs/2026-10-03-launcher-icon-design.md` — the "+1 ring" adaptive icon (dark slate background, teal 270° arc, "+1"), with a themed monochrome layer.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").
