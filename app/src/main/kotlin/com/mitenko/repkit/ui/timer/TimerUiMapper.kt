@@ -1,8 +1,10 @@
 package com.mitenko.repkit.ui.timer
 
+import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.TimerText
 import com.mitenko.repkit.domain.model.Phase
 import com.mitenko.repkit.domain.model.TimerState
+import com.mitenko.repkit.ui.common.UiText
 
 enum class PhaseTone { WORK, REST, NEUTRAL }
 
@@ -11,7 +13,8 @@ data class TimerUiState(
     val entryName: String,
     val setsText: String,
     val elapsedText: String,
-    val label: String?,
+    /** The phase label over the countdown (none during WORK), resolved by the screen (spec revision 24). */
+    val label: UiText?,
     val centerNumber: Int?,
     val centerDimmed: Boolean,
     val countdownText: String,
@@ -20,7 +23,8 @@ data class TimerUiState(
     val tone: PhaseTone,
     val paused: Boolean,
     val done: Boolean,
-    val description: String,
+    /** What TalkBack says for the centre, resolved by the screen. */
+    val description: UiText,
 )
 
 object TimerUiMapper {
@@ -51,38 +55,55 @@ object TimerUiMapper {
             tone = PhaseTone.NEUTRAL,
             paused = s.paused,
             done = false,
-            description = "",
+            description = UiText.Raw(""),
         )
         val setsToGo = s.sets - s.set + 1
+        // Spec revision 24: the text is resource ids plus args; "last set" stays its own string,
+        // and every other count goes through a plural.
         return when (s.phase) {
             Phase.WORK -> base.copy(
                 centerNumber = if (countsReps) s.repsThisSet else setsToGo, tone = PhaseTone.WORK,
                 description = if (countsReps) {
-                    "Work, set ${s.set} of ${s.sets}, ${s.repsThisSet} reps"
+                    UiText.Plural(R.plurals.timer_desc_work_reps, s.repsThisSet, listOf(s.repsThisSet, s.set, s.sets))
                 } else if (setsToGo == 1) {
-                    "Work, last set"
+                    UiText.Res(R.string.timer_desc_work_last_set)
                 } else {
-                    "Work, $setsToGo sets to go"
+                    UiText.Plural(R.plurals.timer_desc_work_sets_to_go, setsToGo)
                 },
             )
             Phase.REST -> base.copy(
-                label = "REST", centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true, tone = PhaseTone.REST,
+                label = UiText.Res(R.string.timer_label_rest),
+                centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true, tone = PhaseTone.REST,
                 description = if (countsReps) {
-                    "Rest, next set ${s.set} of ${s.sets}, ${s.repsThisSet} reps"
+                    UiText.Plural(R.plurals.timer_desc_rest_reps, s.repsThisSet, listOf(s.repsThisSet, s.set, s.sets))
                 } else if (setsToGo == 1) {
-                    "Rest, last set next"
+                    UiText.Res(R.string.timer_desc_rest_last_set)
                 } else {
-                    "Rest, next set $setsToGo to go"
+                    UiText.Plural(R.plurals.timer_desc_rest_sets_to_go, setsToGo)
                 },
             )
             Phase.PREPARE -> base.copy(
-                label = "GET READY", centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true,
-                description = if (countsReps) "Get ready, first set ${s.repsThisSet} reps" else if (setsToGo == 1) "Get ready, 1 set" else "Get ready, $setsToGo sets",
+                label = UiText.Res(R.string.timer_label_get_ready),
+                centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true,
+                description = if (countsReps) {
+                    UiText.Plural(R.plurals.timer_desc_prepare_reps, s.repsThisSet)
+                } else {
+                    UiText.Plural(R.plurals.timer_desc_prepare_sets, setsToGo)
+                },
             )
-            Phase.COOLDOWN -> base.copy(label = "COOLDOWN", description = "Cooldown")
+            Phase.COOLDOWN -> base.copy(
+                label = UiText.Res(R.string.timer_label_cooldown),
+                description = UiText.Res(R.string.timer_desc_cooldown),
+            )
             Phase.DONE -> base.copy(
-                label = "DONE", centerNumber = if (countsReps) s.totalReps else null, countdownText = "", innerProgress = 0f,
-                outerProgress = 1f, done = true, description = if (countsReps) "Done, ${s.totalReps} reps" else "Done",
+                label = UiText.Res(R.string.timer_label_done),
+                centerNumber = if (countsReps) s.totalReps else null, countdownText = "", innerProgress = 0f,
+                outerProgress = 1f, done = true,
+                description = if (countsReps) {
+                    UiText.Plural(R.plurals.timer_desc_done_reps, s.totalReps)
+                } else {
+                    UiText.Res(R.string.timer_desc_done)
+                },
             )
         }
     }

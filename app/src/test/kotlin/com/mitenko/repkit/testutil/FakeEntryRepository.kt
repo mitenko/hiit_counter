@@ -4,6 +4,7 @@ import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.EntryNames
+import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RepProgression
@@ -100,7 +101,7 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         state.update {
             it + source.copy(
                 id = newId,
-                name = EntryNames.duplicateName(source.name),
+                name = EntryNames.duplicateName(source.name, " copy"),
                 position = it.size,
                 counter = CounterState(total = source.progression.startingTotal),
             )
@@ -215,6 +216,6 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
 
     private fun validName(raw: String): String = when (val check = EntryNames.validate(raw)) {
         is NameCheck.Ok -> check.name
-        else -> throw IllegalArgumentException(EntryNames.errorMessage(check))
+        else -> throw InvalidEntryName(check)
     }
 }

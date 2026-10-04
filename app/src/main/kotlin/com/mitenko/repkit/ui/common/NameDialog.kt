@@ -48,7 +48,7 @@ fun NameDialog(
         mutableStateOf(TextFieldValue(initial, selection = TextRange(0, initial.length)))
     }
     val check = EntryNames.validate(text.text)
-    val error = EntryNames.errorMessage(check)
+    val error = check.uiText()?.resolve()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },

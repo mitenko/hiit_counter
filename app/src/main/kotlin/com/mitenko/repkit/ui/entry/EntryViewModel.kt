@@ -2,6 +2,7 @@ package com.mitenko.repkit.ui.entry
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.mitenko.repkit.R
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
@@ -17,6 +18,7 @@ import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.service.WorkoutServiceStarter
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
+import com.mitenko.repkit.ui.common.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -48,7 +50,7 @@ data class EntryUiState(
     val starting: Boolean = false,
     /** A Check in call is in flight (spec R4 §4.1): both buttons are disabled until it returns. */
     val checkingIn: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** True once the entry has emitted at least once. The action buttons and Workout-only rows wait for this. */
     val loaded: Boolean = false,
     /**
@@ -78,7 +80,7 @@ class EntryViewModel @Inject constructor(
     private val starter: WorkoutServiceStarter,
     private val clock: Clock,
 ) : EntryScopedViewModel(savedStateHandle, repo) {
-    private data class Transient(val starting: Boolean = false, val checkingIn: Boolean = false, val error: String? = null)
+    private data class Transient(val starting: Boolean = false, val checkingIn: Boolean = false, val error: UiText? = null)
 
     private val transient = MutableStateFlow(Transient())
     private val refresh = MutableStateFlow(0)
@@ -146,7 +148,7 @@ class EntryViewModel @Inject constructor(
             } catch (e: EntryNotFound) {
                 markMissing()
             } catch (e: Exception) {
-                transient.update { it.copy(error = "Couldn't check in: ${e.message ?: e.javaClass.simpleName}") }
+                transient.update { it.copy(error = UiText.Res(R.string.error_check_in, listOf(e.reason()))) }
             } finally {
                 transient.update { it.copy(checkingIn = false) }
             }
@@ -169,7 +171,7 @@ class EntryViewModel @Inject constructor(
                 controller.cancelPrepare()
                 throw e
             } catch (e: Exception) {
-                fail("Couldn't start the workout: ${e.message ?: e.javaClass.simpleName}")
+                fail(e.reason())
             } finally {
                 transient.update { it.copy(starting = false) }
             }
@@ -181,20 +183,20 @@ class EntryViewModel @Inject constructor(
         // Frozen at Start (spec §7.1): the run never reads the entry again. A Timer only entry
         // (spec revision 8) runs the same flow with countsReps = false: no reps are counted or shown.
         if (!controller.prepare(WorkoutSnapshot(entry.id, entry.name, entry.timing, entry.cues, countsReps = entry.type == EntryType.WORKOUT))) {
-            transient.update { it.copy(error = "A workout is already starting") }
+            transient.update { it.copy(error = UiText.Res(R.string.error_already_starting)) }
             return
         }
 
         starter.start().onFailure { e ->
-            fail("Couldn't start the workout: ${e.message ?: e.javaClass.simpleName}")
+            fail(e.reason())
             return
         }
         val status = withTimeoutOrNull(SERVICE_START_TIMEOUT_MS) {
             controller.serviceStatus.first { it != ServiceStatus.Pending }
         }
         if (status != ServiceStatus.Started) {
-            val reason = (status as? ServiceStatus.Failed)?.reason ?: "the timer service didn't respond"
-            fail("Couldn't start the workout: $reason")
+            val reason = (status as? ServiceStatus.Failed)?.reason
+            fail(if (reason != null) UiText.Raw(reason) else UiText.Res(R.string.error_service_no_response))
             return
         }
         // Uses the row's own progression; throwing (incl. EntryNotFound) takes the fail() path above.
@@ -233,10 +235,14 @@ class EntryViewModel @Inject constructor(
         }
     }
 
-    private fun fail(message: String) {
+    /** "Couldn't start the workout: <reason>"; the reason is a system message or a resource. */
+    private fun fail(reason: UiText) {
         controller.cancelPrepare()
-        transient.update { it.copy(error = message) }
+        transient.update { it.copy(error = UiText.Res(R.string.error_start, listOf(reason))) }
     }
+
+    /** An exception's own message, which is never translated (spec revision 24). */
+    private fun Throwable.reason(): UiText = UiText.Raw(message ?: javaClass.simpleName)
 
     companion object {
         const val SERVICE_START_TIMEOUT_MS = 5_000L

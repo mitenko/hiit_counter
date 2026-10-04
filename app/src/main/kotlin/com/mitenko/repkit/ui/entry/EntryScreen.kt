@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -68,6 +69,7 @@ import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
+import com.mitenko.repkit.ui.common.resolve
 import kotlinx.coroutines.launch
 
 @Composable
@@ -109,8 +111,9 @@ fun EntryScreen(
     onHighlightShown: () -> Unit = {},
 ) {
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(state.error) {
-        state.error?.let {
+    val error = state.error?.resolve()
+    LaunchedEffect(error) {
+        error?.let {
             snackbar.showSnackbar(it)
             onDismissError()
         }
@@ -294,6 +297,9 @@ private fun RepsColumn(reps: List<Int>, highlight: Highlight?, onHighlightShown:
 @Composable
 private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, highlightId: Int?, borderColor: Color) {
     val reducedMotion = reducedMotionEnabled()
+    val increased = stringResource(R.string.reps_state_increased)
+    val decreased = stringResource(R.string.reps_state_decreased)
+    val holding = stringResource(R.string.reps_state_holding)
     val scale = remember { Animatable(1f) }
     val colorFraction = remember { Animatable(0f) }
     var active by remember { mutableStateOf(false) }
@@ -337,9 +343,9 @@ private fun RepCell(index: Int, value: Int, change: RepsColumnLayout.Change?, hi
                 if (active) {
                     Modifier.semantics {
                         stateDescription = when (change) {
-                            RepsColumnLayout.Change.UP -> "increased"
-                            RepsColumnLayout.Change.DOWN -> "decreased"
-                            else -> "holding"
+                            RepsColumnLayout.Change.UP -> increased
+                            RepsColumnLayout.Change.DOWN -> decreased
+                            else -> holding
                         }
                     }
                 } else {
@@ -363,9 +369,10 @@ private fun ChangeAnnouncement(active: Highlight?, reps: List<Int>) {
         active.hold != null -> stringResource(R.string.reps_holding, active.hold.at, active.hold.day, active.hold.of)
         active.changes.size == 1 -> {
             val (index, _) = active.changes.entries.first()
-            stringResource(R.string.reps_changed_one, index + 1, reps.getOrElse(index) { 0 })
+            val now = reps.getOrElse(index) { 0 }
+            pluralStringResource(R.plurals.reps_changed_set, now, index + 1, now)
         }
-        else -> stringResource(R.string.reps_changed_many, active.changes.size)
+        else -> pluralStringResource(R.plurals.reps_changed_sets, active.changes.size, active.changes.size)
     }
     Text(
         message,

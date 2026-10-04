@@ -14,7 +14,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mitenko.repkit.MainActivity
 import com.mitenko.repkit.R
-import com.mitenko.repkit.domain.TimerText
 import com.mitenko.repkit.domain.model.TimerState
 
 class WorkoutNotifications(private val context: Context) {
@@ -40,10 +39,11 @@ class WorkoutNotifications(private val context: Context) {
             Intent(context, TimerService::class.java).setAction(TimerService.ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
+        val text = NotificationText(context.resources)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_play)
-            .setContentTitle(state?.let { TimerText.notificationTitle(entryName, it) } ?: TimerText.startingTitle(entryName))
-            .setContentText(state?.let(TimerText::notificationBody))
+            .setContentTitle(state?.let { text.title(entryName, it) } ?: text.startingTitle(entryName))
+            .setContentText(state?.let(text::body))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)

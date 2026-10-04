@@ -39,6 +39,7 @@ import com.mitenko.repkit.R
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.Entitlements
 import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.ProUpgrade
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.canAddEntry
@@ -52,7 +53,10 @@ import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.SettingsCard
 import com.mitenko.repkit.ui.common.SettingsCardShape
 import com.mitenko.repkit.ui.common.SettingsScaffold
+import com.mitenko.repkit.ui.common.UiText
 import com.mitenko.repkit.ui.common.label
+import com.mitenko.repkit.ui.common.resolve
+import com.mitenko.repkit.ui.common.uiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,7 +90,7 @@ enum class SettingsPage(@StringRes val label: Int, @StringRes val tab: Int, @Dra
 data class EntrySettingsUiState(
     val name: String = "",
     val busy: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val type: EntryType = EntryType.WORKOUT,
     /** Spec revision 18 §3: the free tier's limit dialog, shown instead of duplicating. */
     val limitDialog: Boolean = false,
@@ -101,7 +105,7 @@ class EntrySettingsViewModel @Inject constructor(
     private val limits: FreeLimits,
     private val proUpgrade: ProUpgrade,
 ) : EntryScopedViewModel(savedStateHandle, repo) {
-    private val error = MutableStateFlow<String?>(null)
+    private val error = MutableStateFlow<UiText?>(null)
     private val limitDialog = MutableStateFlow(false)
 
     /** The free tier's entry limit, for the dialog's text. */
@@ -126,8 +130,8 @@ class EntrySettingsViewModel @Inject constructor(
                 repo.rename(entryId, name)
             } catch (e: EntryNotFound) {
                 markMissing()
-            } catch (e: IllegalArgumentException) {
-                error.value = e.message
+            } catch (e: InvalidEntryName) {
+                error.value = e.check.uiText()
             }
         }
     }
@@ -199,7 +203,7 @@ class EntrySettingsViewModel @Inject constructor(
     }
 
     companion object {
-        const val BUSY_HINT = "Stop the workout first"
+        val BUSY_HINT: UiText = UiText.Res(R.string.stop_workout_first)
     }
 }
 
@@ -270,7 +274,7 @@ fun EntrySettingsScreen(
             )
         }
         state.error?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+            Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
         }
     }
     if (renaming) {

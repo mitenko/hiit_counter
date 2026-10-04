@@ -48,6 +48,7 @@ import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.DateFormats
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
@@ -249,7 +250,7 @@ fun CurrentStatePageContent(
                 stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
                 onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
-                error = validation.errors[Field.TOTAL], hint = validation.hints[Field.TOTAL],
+                error = validation.errors[Field.TOTAL].resolve(), hint = validation.hints[Field.TOTAL].resolve(),
                 info = stringResource(R.string.info_total_reps),
             )
         }
@@ -257,13 +258,13 @@ fun CurrentStatePageContent(
             stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
             onUpdate = { f -> onChange { it.copy(best = f(it.best)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(best = f(it.best)) } },
-            error = validation.errors[Field.BEST_STREAK], info = stringResource(R.string.info_best_streak),
+            error = validation.errors[Field.BEST_STREAK].resolve(), info = stringResource(R.string.info_best_streak),
         )
         IntStepperField(
             stringResource(R.string.current_streak_field), draft.current, FieldRanges.STREAK, ValueInput.WHOLE,
             onUpdate = { f -> onChange { it.copy(current = f(it.current)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(current = f(it.current)) } },
-            error = validation.errors[Field.CURRENT_STREAK], info = stringResource(R.string.info_current_streak),
+            error = validation.errors[Field.CURRENT_STREAK].resolve(), info = stringResource(R.string.info_current_streak),
         )
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(lastLabel, style = MaterialTheme.typography.labelLarge)
@@ -289,7 +290,7 @@ fun CurrentStatePageContent(
                 Text(stringResource(R.string.clear))
             }
         }
-        validation.errors[Field.LAST_CHECK_IN]?.let {
+        validation.errors[Field.LAST_CHECK_IN].resolve()?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
         OutlinedButton(

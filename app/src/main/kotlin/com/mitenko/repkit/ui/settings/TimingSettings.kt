@@ -29,6 +29,7 @@ import com.mitenko.repkit.domain.TimerText
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.InfoTag
@@ -149,7 +150,7 @@ fun TimingPageContent(
     onChangeNow: ((TimingConfig) -> TimingConfig) -> Unit,
 ) {
     val errors = validation.errors
-    val totalError = errors[Field.TOTAL_DURATION]
+    val totalError = errors[Field.TOTAL_DURATION].resolve()
     SettingsPageLayout(
         footer = {
             Column {
@@ -173,31 +174,31 @@ fun TimingPageContent(
             stringResource(R.string.prepare), draft.prepareSec, FieldRanges.PHASE, ValueInput.TIME,
             onUpdate = { f -> onChange { it.copy(prepareSec = f(it.prepareSec)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(prepareSec = f(it.prepareSec)) } },
-            error = errors[Field.PREPARE], info = stringResource(R.string.info_prepare),
+            error = errors[Field.PREPARE].resolve(), info = stringResource(R.string.info_prepare),
         )
         IntStepperField(
             stringResource(R.string.sets), draft.sets, FieldRanges.SETS, ValueInput.WHOLE,
             onUpdate = { f -> onChange { it.copy(sets = f(it.sets)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(sets = f(it.sets)) } },
-            error = errors[Field.SETS], info = stringResource(R.string.info_sets),
+            error = errors[Field.SETS].resolve(), info = stringResource(R.string.info_sets),
         )
         IntStepperField(
             stringResource(R.string.work), draft.workSec, FieldRanges.WORK, ValueInput.TIME,
             onUpdate = { f -> onChange { it.copy(workSec = f(it.workSec)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(workSec = f(it.workSec)) } },
-            error = errors[Field.WORK], info = stringResource(R.string.info_work),
+            error = errors[Field.WORK].resolve(), info = stringResource(R.string.info_work),
         )
         IntStepperField(
             stringResource(R.string.rest), draft.restSec, FieldRanges.PHASE, ValueInput.TIME,
             onUpdate = { f -> onChange { it.copy(restSec = f(it.restSec)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(restSec = f(it.restSec)) } },
-            error = errors[Field.REST], info = stringResource(R.string.info_rest),
+            error = errors[Field.REST].resolve(), info = stringResource(R.string.info_rest),
         )
         IntStepperField(
             stringResource(R.string.cooldown), draft.cooldownSec, FieldRanges.PHASE, ValueInput.TIME,
             onUpdate = { f -> onChange { it.copy(cooldownSec = f(it.cooldownSec)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(cooldownSec = f(it.cooldownSec)) } },
-            error = errors[Field.COOLDOWN], info = stringResource(R.string.info_cooldown),
+            error = errors[Field.COOLDOWN].resolve(), info = stringResource(R.string.info_cooldown),
         )
         totalError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
     }

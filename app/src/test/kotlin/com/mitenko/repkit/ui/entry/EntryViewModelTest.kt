@@ -2,6 +2,7 @@ package com.mitenko.repkit.ui.entry
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.RunStatus
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
@@ -16,7 +17,9 @@ import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.FakeServiceStarter
 import com.mitenko.repkit.testutil.FakeServiceStarter.Behavior
 import com.mitenko.repkit.testutil.MainDispatcherRule
+import com.mitenko.repkit.testutil.rawText
 import com.mitenko.repkit.testutil.testEntry
+import com.mitenko.repkit.ui.common.UiText
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -120,7 +123,7 @@ class EntryViewModelTest {
         runCurrent()
         assertEquals(0, repo.checkInCalls)
         assertEquals(RunStatus.IDLE, h.controller.status.value)
-        assertTrue(h.vm.uiState.value.error!!.contains("not allowed"))
+        assertTrue(h.vm.uiState.value.error!!.rawText().contains("not allowed"))
     }
 
     @Test
@@ -130,7 +133,7 @@ class EntryViewModelTest {
         runCurrent()
         assertEquals(0, repo.checkInCalls)
         assertEquals(RunStatus.IDLE, h.controller.status.value)
-        assertTrue(h.vm.uiState.value.error!!.contains("boom"))
+        assertTrue(h.vm.uiState.value.error!!.rawText().contains("boom"))
     }
 
     @Test
@@ -141,7 +144,10 @@ class EntryViewModelTest {
         runCurrent()
         assertEquals(0, repo.checkInCalls)
         assertEquals(RunStatus.IDLE, h.controller.status.value)
-        assertTrue(h.vm.uiState.value.error != null)
+        assertEquals(
+            UiText.Res(R.string.error_start, listOf(UiText.Res(R.string.error_service_no_response))),
+            h.vm.uiState.value.error,
+        )
     }
 
     @Test
@@ -161,7 +167,7 @@ class EntryViewModelTest {
         h.vm.onStart()
         runCurrent()
         assertEquals(RunStatus.IDLE, h.controller.status.value)
-        assertTrue(h.vm.uiState.value.error!!.contains("disk full"))
+        assertTrue(h.vm.uiState.value.error!!.rawText().contains("disk full"))
     }
 
     @Test
@@ -172,7 +178,7 @@ class EntryViewModelTest {
         runCurrent()
         assertEquals(1, repo.checkInCalls)
         assertEquals(RunStatus.IDLE, h.controller.status.value)
-        assertTrue(h.vm.uiState.value.error!!.contains("Entry 1 not found"))
+        assertTrue(h.vm.uiState.value.error!!.rawText().contains("Entry 1 not found"))
         assertFalse(h.vm.uiState.value.starting)
     }
 
@@ -282,7 +288,7 @@ class EntryViewModelTest {
         repo.checkInError = IOException("disk full")
         h.vm.onCheckIn()
         runCurrent()
-        assertTrue(h.vm.uiState.value.error!!.contains("disk full"))
+        assertTrue(h.vm.uiState.value.error!!.rawText().contains("disk full"))
         assertFalse(h.vm.uiState.value.checkingIn)
         assertFalse(h.vm.missing.value)
         repo.checkInError = EntryNotFound(1)

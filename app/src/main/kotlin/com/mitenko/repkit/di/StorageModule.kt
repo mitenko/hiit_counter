@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
+import com.mitenko.repkit.R
 import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.data.RoomEntryRepository
@@ -54,6 +55,10 @@ object StorageModule {
     ): V1Migrator = V1Migrator(File(context.filesDir, "datastore"), db, preferences, scope, Dispatchers.IO)
 
     @Provides @Singleton
-    fun entryRepository(db: HiitDatabase, migrator: V1Migrator, clock: Clock): EntryRepository =
-        RoomEntryRepository(db, migrator, clock)
+    fun entryRepository(
+        @ApplicationContext context: Context,
+        db: HiitDatabase,
+        migrator: V1Migrator,
+        clock: Clock,
+    ): EntryRepository = RoomEntryRepository(db, migrator, clock) { context.getString(R.string.copy_suffix) }
 }

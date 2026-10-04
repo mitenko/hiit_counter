@@ -5,13 +5,17 @@ import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.rangeStart
+import com.mitenko.repkit.testutil.DefaultLocaleRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
 import java.time.ZoneId
 
 class HistoryLayoutTest {
+    @get:Rule val locale = DefaultLocaleRule()
+
     private val la = ZoneId.of("America/Los_Angeles")
     private val now = Instant.parse("2026-09-24T15:00:00Z") // Thu 24 Sep 08:00 PDT
     private val a = CheckInPoint(Instant.parse("2026-06-10T16:00:00Z"), 50) // All only

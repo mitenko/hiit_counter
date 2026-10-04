@@ -187,8 +187,15 @@
     </plurals>
 
     <!-- Progress announcements -->
-    <string name="reps_changed_one">Set %1$d: now %2$d reps</string>
-    <string name="reps_changed_many">%1$d sets updated</string>
+    <!-- %1$d is the set, %2$d its new reps -->
+    <plurals name="reps_changed_set">
+        <item quantity="one">Set %1$d: now %2$d rep</item>
+        <item quantity="other">Set %1$d: now %2$d reps</item>
+    </plurals>
+    <plurals name="reps_changed_sets">
+        <item quantity="one">%1$d set updated</item>
+        <item quantity="other">%1$d sets updated</item>
+    </plurals>
     <string name="reps_holding">Holding at %1$d · %2$d of %3$d</string>
 
     <!-- Settings tabs -->
@@ -235,4 +242,108 @@
 
     <string name="go_pro">Go Pro</string>
     <string name="not_now">Not now</string>
+    <!-- Validation messages (spec revision 24) -->
+    <plurals name="error_sets_range">
+        <item quantity="one">1–%1$d set</item>
+        <item quantity="other">1–%1$d sets</item>
+    </plurals>
+    <string name="error_work_range">1 s – 59:59</string>
+    <string name="error_phase_range">0 – 59:59</string>
+    <string name="error_workout_too_long">Workout longer than 2:00:00</string>
+    <string name="error_at_least_one">Must be at least 1</string>
+    <string name="error_zero_or_more">Must be 0 or more</string>
+    <string name="error_greater_than_zero">Must be greater than 0</string>
+    <string name="error_at_least_floor">Must be ≥ floor</string>
+    <string name="error_at_least_starting_total">Must be ≥ starting total</string>
+    <string name="error_at_least_current_streak">Must be ≥ current streak</string>
+    <plurals name="error_too_many_holds">
+        <item quantity="one">At most %1$d hold</item>
+        <item quantity="other">At most %1$d holds</item>
+    </plurals>
+    <string name="error_duplicate_hold">Already a hold at %1$d</string>
+    <string name="hint_hold_disabled">Hold disabled</string>
+    <string name="hint_outside_floor_cap">Outside floor–cap; clamped at the next check-in</string>
+    <string name="error_in_the_future">Can\'t be in the future</string>
+    <string name="error_enter_name">Enter a name</string>
+    <plurals name="error_name_too_long">
+        <item quantity="one">Use at most %1$d character</item>
+        <item quantity="other">Use at most %1$d characters</item>
+    </plurals>
+    <string name="error_enter_number">Enter a number</string>
+    <string name="error_time_format">Use m:ss or seconds</string>
+    <!-- Appended to a duplicated workout's name; the quotes keep the leading space. -->
+    <string name="copy_suffix">" copy"</string>
+    <!-- Errors (spec revision 24); %1$s is a system message, never translated -->
+    <string name="error_check_in">Couldn\'t check in: %1$s</string>
+    <string name="error_start">Couldn\'t start the workout: %1$s</string>
+    <string name="error_already_starting">A workout is already starting</string>
+    <string name="error_service_no_response">the timer service didn\'t respond</string>
+
+    <!-- What TalkBack says for a reps cell that changed after a check-in -->
+    <string name="reps_state_increased">increased</string>
+    <string name="reps_state_decreased">decreased</string>
+    <string name="reps_state_holding">holding</string>
+
+    <!-- Timer screen: the phase label over the countdown -->
+    <string name="timer_label_get_ready">GET READY</string>
+    <string name="timer_label_rest">REST</string>
+    <string name="timer_label_cooldown">COOLDOWN</string>
+    <string name="timer_label_done">DONE</string>
+
+    <!-- Timer screen: what TalkBack says for the centre. %1$d is the reps (or sets) count; %2$d of %3$d is the set. -->
+    <plurals name="timer_desc_work_reps">
+        <item quantity="one">Work, set %2$d of %3$d, %1$d rep</item>
+        <item quantity="other">Work, set %2$d of %3$d, %1$d reps</item>
+    </plurals>
+    <string name="timer_desc_work_last_set">Work, last set</string>
+    <plurals name="timer_desc_work_sets_to_go">
+        <item quantity="one">Work, %1$d set to go</item>
+        <item quantity="other">Work, %1$d sets to go</item>
+    </plurals>
+    <plurals name="timer_desc_rest_reps">
+        <item quantity="one">Rest, next set %2$d of %3$d, %1$d rep</item>
+        <item quantity="other">Rest, next set %2$d of %3$d, %1$d reps</item>
+    </plurals>
+    <string name="timer_desc_rest_last_set">Rest, last set next</string>
+    <plurals name="timer_desc_rest_sets_to_go">
+        <item quantity="one">Rest, next set %1$d to go</item>
+        <item quantity="other">Rest, next set %1$d to go</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_reps">
+        <item quantity="one">Get ready, first set %1$d rep</item>
+        <item quantity="other">Get ready, first set %1$d reps</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_sets">
+        <item quantity="one">Get ready, %1$d set</item>
+        <item quantity="other">Get ready, %1$d sets</item>
+    </plurals>
+    <string name="timer_desc_cooldown">Cooldown</string>
+    <plurals name="timer_desc_done_reps">
+        <item quantity="one">Done, %1$d rep</item>
+        <item quantity="other">Done, %1$d reps</item>
+    </plurals>
+    <string name="timer_desc_done">Done</string>
+
+    <!-- Workout notification -->
+    <string name="notification_phase_prepare">Get ready</string>
+    <string name="notification_phase_work">Work</string>
+    <string name="notification_phase_rest">Rest</string>
+    <string name="notification_phase_cooldown">Cooldown</string>
+    <string name="notification_phase_done">Done</string>
+    <!-- %1$s is the phase name; %2$d/%3$d the set -->
+    <string name="notification_phase_set">%1$s · Set %2$d/%3$d</string>
+    <!-- %1$s is the workout's name, %2$s the phase and set -->
+    <string name="notification_named">%1$s · %2$s</string>
+    <string name="notification_starting_named">%1$s · Starting…</string>
+    <string name="notification_starting">Starting workout…</string>
+    <string name="notification_complete">Workout complete</string>
+    <!-- %1$s is the time left, e.g. 00:15 -->
+    <string name="notification_paused_left">Paused · %1$s left</string>
+    <string name="notification_left">%1$s left</string>
+
+    <!-- What the Voice cue says at the start of each work set: the reps (or sets to go) as a number. -->
+    <plurals name="voice_count">
+        <item quantity="one">%1$d</item>
+        <item quantity="other">%1$d</item>
+    </plurals>
 </resources>

@@ -51,8 +51,8 @@ class SettingsValidatorTest {
     fun `hold outside floor to cap is allowed with a hint`() {
         val r = SettingsValidator.progression(holds(Hold(80, 4)))
         assertTrue(r.isValid)
-        assertEquals(mapOf(0 to "Hold disabled"), r.holdHints)
-        assertEquals(mapOf(0 to "Hold disabled"), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
+        assertEquals(mapOf(0 to FieldMessage.HoldDisabled), r.holdHints)
+        assertEquals(mapOf(0 to FieldMessage.HoldDisabled), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
         assertTrue(SettingsValidator.progression(ProgressionConfig()).holdHints.isEmpty())
     }
 
@@ -63,25 +63,25 @@ class SettingsValidatorTest {
         assertTrue(r.errors.isEmpty())
         assertEquals(
             mapOf(
-                1 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more"),
-                3 to mapOf(HoldField.FOR to "Must be 0 or more"),
+                1 to mapOf(HoldField.AT to FieldMessage.AtLeastOne, HoldField.FOR to FieldMessage.ZeroOrMore),
+                3 to mapOf(HoldField.FOR to FieldMessage.ZeroOrMore),
             ),
             r.holdErrors,
         )
-        assertEquals(mapOf(2 to "Hold disabled"), r.holdHints)
+        assertEquals(mapOf(2 to FieldMessage.HoldDisabled), r.holdHints)
     }
 
     @Test
     fun `a duplicate hold at is an error on the later duplicate`() {
         val r = SettingsValidator.progression(holds(Hold(64, 4), Hold(56, 3), Hold(64, 2)))
         assertFalse(r.isValid)
-        assertEquals(mapOf(2 to mapOf(HoldField.AT to "Already a hold at 64")), r.holdErrors)
+        assertEquals(mapOf(2 to mapOf(HoldField.AT to FieldMessage.DuplicateHold(64))), r.holdErrors)
         assertTrue(SettingsValidator.progression(holds(Hold(64, 4), Hold(64, 2), hold = false)).isValid)
     }
 
     @Test
     fun `each hold's hard ranges are checked whatever the switch says`() {
-        val expected = mapOf(0 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more"))
+        val expected = mapOf(0 to mapOf(HoldField.AT to FieldMessage.AtLeastOne, HoldField.FOR to FieldMessage.ZeroOrMore))
         val off = SettingsValidator.progression(holds(Hold(0, -1), Hold(64, 4), hold = false))
         assertFalse(off.isValid)
         assertEquals(expected, off.holdErrors)
@@ -127,9 +127,34 @@ class SettingsValidatorTest {
         assertTrue(SettingsValidator.progression(holds(Hold(64, 0), hold = false)).holdHints.isEmpty())
         // Switched on, the checks and the hint behave as before.
         assertEquals(
-            mapOf(0 to mapOf(HoldField.AT to "Must be at least 1", HoldField.FOR to "Must be 0 or more")),
+            mapOf(0 to mapOf(HoldField.AT to FieldMessage.AtLeastOne, HoldField.FOR to FieldMessage.ZeroOrMore)),
             SettingsValidator.progression(holds(Hold(0, -1))).holdErrors,
         )
-        assertEquals(mapOf(0 to "Hold disabled"), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
+        assertEquals(mapOf(0 to FieldMessage.HoldDisabled), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
+    }
+
+    @Test
+    fun `every message is typed, with its numbers as values`() {
+        assertEquals(mapOf(Field.SETS to FieldMessage.SetsRange(20)), SettingsValidator.timing(TimingConfig(sets = 21)).errors)
+        assertEquals(FieldMessage.WorkRange, SettingsValidator.timing(TimingConfig(workSec = 0)).errors[Field.WORK])
+        assertEquals(FieldMessage.PhaseRange, SettingsValidator.timing(TimingConfig(restSec = -1)).errors[Field.REST])
+        val tooLong = TimingConfig(prepareSec = 0, sets = 20, workSec = 300, restSec = 60, cooldownSec = 61)
+        assertEquals(FieldMessage.WorkoutTooLong, SettingsValidator.timing(tooLong).errors[Field.TOTAL_DURATION])
+
+        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.progression(ProgressionConfig(floor = 0)).errors[Field.FLOOR])
+        assertEquals(FieldMessage.AtLeastFloor, SettingsValidator.progression(ProgressionConfig(startingTotal = 40)).errors[Field.STARTING_TOTAL])
+        assertEquals(FieldMessage.AtLeastStartingTotal, SettingsValidator.progression(ProgressionConfig(cap = 47)).errors[Field.CAP])
+        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.progression(ProgressionConfig(windowHours = 0)).errors[Field.WINDOW_HOURS])
+        assertEquals(FieldMessage.GreaterThanZero, SettingsValidator.progression(ProgressionConfig(penaltyHoursPerRep = 0.0)).errors[Field.PENALTY_RATE])
+        val nine = holds(*Array(9) { Hold(50 + it, 1) })
+        assertEquals(FieldMessage.TooManyHolds(ProgressionConfig.MAX_HOLDS), SettingsValidator.progression(nine).errors[Field.HOLDS])
+
+        val now = Instant.parse("2026-09-24T12:00:00Z")
+        val cfg = ProgressionConfig()
+        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.currentState(0, 0, 0, null, now, cfg).errors[Field.TOTAL])
+        assertEquals(FieldMessage.OutsideFloorCap, SettingsValidator.currentState(80, 24, 4, null, now, cfg).hints[Field.TOTAL])
+        assertEquals(FieldMessage.AtLeastCurrentStreak, SettingsValidator.currentState(65, 3, 4, null, now, cfg).errors[Field.BEST_STREAK])
+        assertEquals(FieldMessage.ZeroOrMore, SettingsValidator.currentState(65, 0, -1, null, now, cfg).errors[Field.CURRENT_STREAK])
+        assertEquals(FieldMessage.InTheFuture, SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now, cfg).errors[Field.LAST_CHECK_IN])
     }
 }

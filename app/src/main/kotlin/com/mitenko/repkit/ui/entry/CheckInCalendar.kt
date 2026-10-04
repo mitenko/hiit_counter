@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -35,7 +36,6 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.TextStyle
-import java.util.Locale
 
 /**
  * The Timer only calendar (spec R6 §4.2, placed by rev 9 §3 in the chart area; rev 15): one
@@ -52,11 +52,13 @@ fun CheckInCalendar(points: List<CheckInPoint>, start: Instant, end: Instant, zo
     val description = pluralStringResource(R.plurals.calendar_desc, checkedDays, checkedDays)
     // Plan Spec note 20: opens at the newest week; the first layout clamps the value to the real maximum.
     val scroll = rememberScrollState(initial = Int.MAX_VALUE)
+    // Spec revision 24: the weekday letters and month titles follow the current locale.
+    val locale = LocalConfiguration.current.locales[0]
     Column(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(bottom = 4.dp).clearAndSetSemantics { }) {
             DayOfWeek.entries.forEach { day ->
                 Text(
-                    day.getDisplayName(TextStyle.NARROW, Locale.ENGLISH),
+                    day.getDisplayName(TextStyle.NARROW, locale),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
@@ -75,7 +77,7 @@ fun CheckInCalendar(points: List<CheckInPoint>, start: Instant, end: Instant, zo
             weeks.forEach { week ->
                 week.month?.let { month ->
                     Text(
-                        DateFormats.monthYear(month),
+                        DateFormats.monthYear(month, locale),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                     )
