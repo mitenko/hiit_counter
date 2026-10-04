@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<resources>
+    <string name="settings">设置</string>
+    <string name="start">开始</string>
+    <string name="checked_in_today">今日已打卡</string>
+    <string name="sets_label">组数</string>
+    <string name="elapsed_label">已用时</string>
+    <string name="pause">暂停</string>
+    <string name="resume">继续</string>
+    <string name="skip_back">后退</string>
+    <string name="skip_forward">跳过</string>
+    <string name="stop">停止</string>
+    <string name="cancel">取消</string>
+    <string name="stop_workout_title">停止训练？</string>
+    <string name="stop_workout_body">你今天的打卡已记录。</string>
+    <string name="notification_channel_name">训练计时器</string>
+    <string name="back">返回</string>
+    <string name="settings_timing">时间</string>
+    <string name="settings_progression">进阶</string>
+    <string name="settings_current_state">当前</string>
+    <string name="settings_cues">提示</string>
+    <string name="prepare">准备</string>
+    <string name="sets">组数</string>
+    <string name="work">训练</string>
+    <string name="rest">休息</string>
+    <string name="cooldown">放松</string>
+    <string name="total_duration">总计 %1$s</string>
+    <string name="decrease">减少%1$s</string>
+    <string name="increase">增加%1$s</string>
+    <string name="starting_total">初始次数</string>
+    <string name="floor">最少次数</string>
+    <string name="cap">最多次数</string>
+    <string name="hold_at">保持在</string>
+    <string name="hold_for">保持天数（打卡次数）</string>
+    <string name="hold_n">保持 %1$d</string>
+    <string name="remove_hold">删除保持 %1$d</string>
+    <string name="add_hold">添加保持</string>
+    <string name="hold_n_at">保持 %1$d 的次数</string>
+    <string name="hold_n_for">保持 %1$d 的天数</string>
+    <string name="window_hours">准时窗口（小时）</string>
+    <string name="penalty_rate">缺勤调整（每次数的小时数）</string>
+    <string name="reset_defaults">恢复默认设置</string>
+    <string name="current_total">当前次数</string>
+    <string name="best_streak_field">最长连续</string>
+    <string name="current_streak_field">当前连续</string>
+    <string name="last_check_in_field">上次打卡</string>
+    <string name="clear">清除</string>
+    <string name="none">—</string>
+    <string name="reset_progress">重置进度</string>
+    <string name="reset_progress_title">重置进度？</string>
+    <string name="reset_progress_body">你的次数将回到初始值，连续记录将归零，上次打卡也会被清除。</string>
+    <string name="reset">重置</string>
+    <string name="next">下一步</string>
+    <string name="ok">确定</string>
+    <string name="sound">声音</string>
+    <string name="vibration">振动</string>
+    <string name="no_workouts">还没有训练</string>
+    <string name="add_first_workout">添加你的第一个训练</string>
+    <string name="add_workout">添加训练</string>
+    <string name="new_workout">新训练</string>
+    <string name="name_label">名称</string>
+    <string name="move_up">上移</string>
+    <string name="move_down">下移</string>
+    <string name="reorder_entry">调整%1$s的顺序</string>
+    <string name="rename">重命名</string>
+    <string name="duplicate">复制</string>
+    <string name="delete">删除</string>
+    <string name="delete_title">删除%1$s？</string>
+    <string name="delete_body">它的次数、连续记录、历史和设置都将丢失。</string>
+    <string name="stop_workout_first">请先停止训练</string>
+    <string name="edit_value">编辑%1$s</string>
+    <string name="entry_settings_title">%1$s 设置</string>
+    <string name="tab_current">当前</string>
+    <string name="total_label">总次数</string>
+    <string name="hold">保持</string>
+    <string name="about">关于%1$s</string>
+    <string name="saved">已保存</string>
+    <string name="not_saved_invalid">未保存：请修改标出的字段</string>
+    <string name="not_saved">未保存</string>
+    <string name="reset_defaults_title">将进阶恢复为默认设置？</string>
+    <string name="info_prepare">第一组开始前的倒计时，让你有时间做好准备。设为 0 可跳过。</string>
+    <string name="info_sets">训练中的组数。除最后一组外，每组之后都有休息。</string>
+    <string name="info_work">每组训练的时长。在计数训练中，次数表会显示每组要做多少次。</string>
+    <string name="info_rest">组间休息。最后一组之后没有休息。</string>
+    <string name="info_cooldown">最后一组之后的倒计时。设为 0 可跳过。</string>
+    <string name="info_total">训练总时长，包括准备、训练、休息和放松。最长 2 小时。</string>
+    <string name="info_starting_total">你第一次训练以及重置进度后的次数。必须在最少和最多次数之间。</string>
+    <string name="info_floor">无论你离开多久，你的总次数最低只会降到这里。</string>
+    <string name="info_cap">你的总次数最高只会到这里。达到后，准时打卡会让你保持在这个数。</string>
+    <string name="info_hold">想在某个数字停留一段时间？保持可以让你的进阶暂停。例如，你可以在 80 次保持几次打卡，然后再继续增加。你可以设置多个保持。</string>
+    <string name="info_hold_at">进阶暂停时的总次数。必须不低于最少次数，且低于最多次数。</string>
+    <string name="info_hold_for">在这个数字停留多少次打卡后再继续增加。第一次达到时的打卡也算在内。设为 0 可跳过保持。</string>
+    <string name="info_window">在上次打卡后的这么多小时内打卡即为准时。准时打卡会延续你的连续记录，在计数训练中还会增加一次。</string>
+    <string name="info_penalty_rate">如果错过准时窗口，你离开期间总次数会逐渐减少，但不会低于最少次数。</string>
+    <string name="info_total_reps">你当前的总次数，会分配到训练的各组中。修改立即生效。</string>
+    <string name="info_best_streak">你最长的准时打卡连续记录。不会低于当前连续记录。</string>
+    <string name="info_current_streak">你当前的准时打卡连续记录，包括最近一次。错过窗口会让连续记录重置为 1。</string>
+    <string name="info_last_check_in">你上次点击“开始”的时间。REPKIT 用它来计算准时窗口和缺勤调整。清除后，下次打卡将算作第一次。</string>
+    <string name="info_sound">播放倒计时提示音，并在训练阶段切换时发出提示音。</string>
+    <string name="info_vibration">训练阶段切换时振动，即使屏幕关闭也会振动。</string>
+    <string name="check_in">打卡</string>
+    <string name="checked_in">已打卡 ✓</string>
+    <string name="type">类型</string>
+    <string name="type_workout">计数</string>
+    <string name="type_check_in">仅计时</string>
+    <string name="voice">语音</string>
+    <string name="voice_unavailable">此设备不支持语音提示</string>
+    <string name="info_type">计数训练会记录次数，并在你打卡时提高目标。仅计时训练使用相同的计时器，但不计次数。打卡仍会保持你的连续记录。两者可以随时切换，不会丢失设置或历史。</string>
+    <string name="info_voice">每组训练开始时，播报要做的次数。仅计时训练则播报组数。</string>
+    <string name="cue_sound_on">声音已开启</string>
+    <string name="cue_sound_off">声音已关闭</string>
+    <string name="cue_vibration_on">振动已开启</string>
+    <string name="cue_vibration_off">振动已关闭</string>
+    <string name="cue_voice_on">语音已开启</string>
+    <string name="cue_voice_off">语音已关闭</string>
+    <string name="appearance">外观</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="week_count">本周 %1$d 次</string>
+    <plurals name="tile_desc">
+        <item quantity="other">最近 4 周打卡 %1$d 次</item>
+    </plurals>
+    <string name="range_4w">4 周</string>
+    <string name="range_3m">3 个月</string>
+    <string name="range_all">全部</string>
+    <string name="history_empty_range">这段时间没有打卡</string>
+    <string name="history_empty">还没有打卡</string>
+    <plurals name="chart_desc">
+        <item quantity="other">打卡 %1$d 次，从 %2$d 次到 %3$d 次</item>
+    </plurals>
+    <string name="streak_line">连续 %1$d · 最长 %2$d</string>
+    <string name="reps_per_set_desc">每组次数：%1$s</string>
+    <plurals name="calendar_desc">
+        <item quantity="other">打卡 %1$d 天</item>
+    </plurals>
+    <plurals name="reps_changed_set">
+        <item quantity="other">第 %1$d 组：现在 %2$d 次</item>
+    </plurals>
+    <plurals name="reps_changed_sets">
+        <item quantity="other">已更新 %1$d 组</item>
+    </plurals>
+    <string name="reps_holding">保持在 %1$d · 第 %2$d/%3$d 次</string>
+    <string name="tab_timing">时间</string>
+    <string name="tab_progression">进阶</string>
+    <string name="tab_cues">提示</string>
+    <string name="clear_history_too">同时清除历史</string>
+    <string-array name="week_day_letters">
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+        <item>日</item>
+    </string-array>
+    <string-array name="week_day_abbrev">
+        <item>周一</item>
+        <item>周二</item>
+        <item>周三</item>
+        <item>周四</item>
+        <item>周五</item>
+        <item>周六</item>
+        <item>周日</item>
+    </string-array>
+    <string name="week_check_in_desc">本周打卡：%1$s</string>
+    <string name="week_no_check_in_desc">本周没有打卡</string>
+    <string name="day_checked_in">已打卡</string>
+    <string name="day_not_checked_in">未打卡</string>
+    <string name="limit_title">想要更多训练？</string>
+    <plurals name="limit_text">
+        <item quantity="other">免费版最多可创建 %1$d 个训练。升级 Pro 即可无限创建。</item>
+    </plurals>
+    <string name="go_pro">升级 Pro</string>
+    <string name="not_now">以后再说</string>
+    <plurals name="error_sets_range">
+        <item quantity="other">1–%1$d 组</item>
+    </plurals>
+    <string name="error_work_range">1 秒 – 59:59</string>
+    <string name="error_phase_range">0 – 59:59</string>
+    <string name="error_workout_too_long">训练时长超过 2:00:00</string>
+    <string name="error_at_least_one">至少为 1</string>
+    <string name="error_zero_or_more">须为 0 或以上</string>
+    <string name="error_greater_than_zero">须大于 0</string>
+    <string name="error_at_least_floor">须 ≥ 最少次数</string>
+    <string name="error_at_least_starting_total">须 ≥ 初始次数</string>
+    <string name="error_at_least_current_streak">须 ≥ 当前连续</string>
+    <plurals name="error_too_many_holds">
+        <item quantity="other">最多 %1$d 个保持</item>
+    </plurals>
+    <string name="error_duplicate_hold">%1$d 已有保持</string>
+    <string name="hint_hold_disabled">保持已停用</string>
+    <string name="hint_outside_floor_cap">超出最少–最多范围；下次打卡时会调整</string>
+    <string name="error_in_the_future">不能是将来的时间</string>
+    <string name="error_enter_name">请输入名称</string>
+    <plurals name="error_name_too_long">
+        <item quantity="other">最多 %1$d 个字符</item>
+    </plurals>
+    <string name="error_enter_number">请输入数字</string>
+    <string name="error_time_format">请使用 m:ss 或秒数</string>
+    <string name="copy_suffix">" 副本"</string>
+    <string name="error_check_in">打卡失败：%1$s</string>
+    <string name="error_start">无法开始训练：%1$s</string>
+    <string name="error_already_starting">训练正在启动</string>
+    <string name="error_service_no_response">计时服务没有响应</string>
+    <string name="reps_state_increased">已增加</string>
+    <string name="reps_state_decreased">已减少</string>
+    <string name="reps_state_holding">保持中</string>
+    <string name="timer_label_get_ready">准备</string>
+    <string name="timer_label_rest">休息</string>
+    <string name="timer_label_cooldown">放松</string>
+    <string name="timer_label_done">完成</string>
+    <plurals name="timer_desc_work_reps">
+        <item quantity="other">训练，第 %2$d/%3$d 组，%1$d 次</item>
+    </plurals>
+    <string name="timer_desc_work_last_set">训练，最后一组</string>
+    <plurals name="timer_desc_work_sets_to_go">
+        <item quantity="other">训练，还剩 %1$d 组</item>
+    </plurals>
+    <plurals name="timer_desc_rest_reps">
+        <item quantity="other">休息，下一组 %2$d/%3$d，%1$d 次</item>
+    </plurals>
+    <string name="timer_desc_rest_last_set">休息，下一组是最后一组</string>
+    <plurals name="timer_desc_rest_sets_to_go">
+        <item quantity="other">休息，还剩 %1$d 组</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_reps">
+        <item quantity="other">准备，第一组 %1$d 次</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_sets">
+        <item quantity="other">准备，共 %1$d 组</item>
+    </plurals>
+    <string name="timer_desc_cooldown">放松</string>
+    <plurals name="timer_desc_done_reps">
+        <item quantity="other">完成，%1$d 次</item>
+    </plurals>
+    <string name="timer_desc_done">完成</string>
+    <string name="notification_phase_prepare">准备</string>
+    <string name="notification_phase_work">训练</string>
+    <string name="notification_phase_rest">休息</string>
+    <string name="notification_phase_cooldown">放松</string>
+    <string name="notification_phase_done">完成</string>
+    <string name="notification_phase_set">%1$s · 第 %2$d/%3$d 组</string>
+    <string name="notification_named">%1$s · %2$s</string>
+    <string name="notification_starting_named">%1$s · 正在开始…</string>
+    <string name="notification_starting">正在开始训练…</string>
+    <string name="notification_complete">训练完成</string>
+    <string name="notification_paused_left">已暂停 · 剩余 %1$s</string>
+    <string name="notification_left">剩余 %1$s</string>
+    <plurals name="voice_count">
+        <item quantity="other">%1$d</item>
+    </plurals>
+</resources>

@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<resources>
+    <string name="settings">सेटिंग्स</string>
+    <string name="start">शुरू करें</string>
+    <string name="checked_in_today">आज चेक-इन हो गया</string>
+    <string name="sets_label">सेट</string>
+    <string name="elapsed_label">बीता समय</string>
+    <string name="pause">रोकें</string>
+    <string name="resume">जारी रखें</string>
+    <string name="skip_back">पीछे</string>
+    <string name="skip_forward">आगे बढ़ें</string>
+    <string name="stop">बंद करें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="stop_workout_title">वर्कआउट बंद करें?</string>
+    <string name="stop_workout_body">आपका आज का चेक-इन पहले ही दर्ज हो चुका है।</string>
+    <string name="notification_channel_name">वर्कआउट टाइमर</string>
+    <string name="back">वापस</string>
+    <string name="settings_timing">समय</string>
+    <string name="settings_progression">प्रगति</string>
+    <string name="settings_current_state">वर्तमान</string>
+    <string name="settings_cues">संकेत</string>
+    <string name="prepare">तैयारी</string>
+    <string name="sets">सेट</string>
+    <string name="work">वर्क</string>
+    <string name="rest">आराम</string>
+    <string name="cooldown">कूलडाउन</string>
+    <string name="total_duration">कुल %1$s</string>
+    <string name="decrease">%1$s घटाएँ</string>
+    <string name="increase">%1$s बढ़ाएँ</string>
+    <string name="starting_total">शुरुआती रेप्स</string>
+    <string name="floor">न्यूनतम रेप्स</string>
+    <string name="cap">अधिकतम रेप्स</string>
+    <string name="hold_at">यहाँ रुकें</string>
+    <string name="hold_for">कितने चेक-इन तक रुकें</string>
+    <string name="hold_n">होल्ड %1$d</string>
+    <string name="remove_hold">होल्ड %1$d हटाएँ</string>
+    <string name="add_hold">होल्ड जोड़ें</string>
+    <string name="hold_n_at">होल्ड %1$d: रेप्स</string>
+    <string name="hold_n_for">होल्ड %1$d: चेक-इन</string>
+    <string name="window_hours">समय पर चेक-इन की सीमा (घंटे)</string>
+    <string name="penalty_rate">छूटे दिनों का समायोजन (प्रति रेप घंटे)</string>
+    <string name="reset_defaults">डिफ़ॉल्ट पर रीसेट करें</string>
+    <string name="current_total">वर्तमान रेप्स</string>
+    <string name="best_streak_field">सबसे लंबी स्ट्रीक</string>
+    <string name="current_streak_field">वर्तमान स्ट्रीक</string>
+    <string name="last_check_in_field">पिछला चेक-इन</string>
+    <string name="clear">साफ़ करें</string>
+    <string name="none">—</string>
+    <string name="reset_progress">प्रगति रीसेट करें</string>
+    <string name="reset_progress_title">प्रगति रीसेट करें?</string>
+    <string name="reset_progress_body">आपके रेप्स शुरुआती संख्या पर लौट आएँगे, स्ट्रीक 0 हो जाएगी और पिछला चेक-इन हट जाएगा।</string>
+    <string name="reset">रीसेट करें</string>
+    <string name="next">आगे</string>
+    <string name="ok">ठीक है</string>
+    <string name="sound">आवाज़</string>
+    <string name="vibration">कंपन</string>
+    <string name="no_workouts">अभी कोई वर्कआउट नहीं</string>
+    <string name="add_first_workout">अपना पहला वर्कआउट जोड़ें</string>
+    <string name="add_workout">वर्कआउट जोड़ें</string>
+    <string name="new_workout">नया वर्कआउट</string>
+    <string name="name_label">नाम</string>
+    <string name="move_up">ऊपर ले जाएँ</string>
+    <string name="move_down">नीचे ले जाएँ</string>
+    <string name="reorder_entry">%1$s का क्रम बदलें</string>
+    <string name="rename">नाम बदलें</string>
+    <string name="duplicate">डुप्लिकेट करें</string>
+    <string name="delete">हटाएँ</string>
+    <string name="delete_title">%1$s हटाएँ?</string>
+    <string name="delete_body">इसके रेप्स, स्ट्रीक, इतिहास और सेटिंग्स मिट जाएँगी।</string>
+    <string name="stop_workout_first">पहले वर्कआउट बंद करें</string>
+    <string name="edit_value">%1$s बदलें</string>
+    <string name="entry_settings_title">%1$s की सेटिंग्स</string>
+    <string name="tab_current">वर्तमान</string>
+    <string name="total_label">कुल रेप्स</string>
+    <string name="hold">होल्ड</string>
+    <string name="about">%1$s के बारे में</string>
+    <string name="saved">सहेजा गया</string>
+    <string name="not_saved_invalid">सहेजा नहीं गया: हाइलाइट किया गया फ़ील्ड ठीक करें</string>
+    <string name="not_saved">सहेजा नहीं गया</string>
+    <string name="reset_defaults_title">प्रगति को डिफ़ॉल्ट पर रीसेट करें?</string>
+    <string name="info_prepare">पहले सेट से पहले की उलटी गिनती, ताकि आपको तैयार होने का समय मिले। छोड़ने के लिए 0 रखें।</string>
+    <string name="info_sets">वर्कआउट में वर्क सेट की संख्या। आख़िरी सेट को छोड़कर हर सेट के बाद आराम होता है।</string>
+    <string name="info_work">हर वर्क सेट कितनी देर चलता है। काउंटर वर्कआउट में रेप्स टेबल बताती है कि हर सेट में कितने रेप्स करने हैं।</string>
+    <string name="info_rest">सेटों के बीच का आराम। आख़िरी सेट के बाद आराम नहीं होता।</string>
+    <string name="info_cooldown">आख़िरी सेट के बाद की उलटी गिनती। छोड़ने के लिए 0 रखें।</string>
+    <string name="info_total">वर्कआउट का कुल समय, जिसमें तैयारी, वर्क, आराम और कूलडाउन शामिल हैं। अधिकतम 2 घंटे।</string>
+    <string name="info_starting_total">आपके पहले वर्कआउट के रेप्स, और प्रगति रीसेट करने के बाद के भी। यह न्यूनतम और अधिकतम के बीच होना चाहिए।</string>
+    <string name="info_floor">आप कितने भी दिन दूर रहें, आपके कुल रेप्स इससे नीचे नहीं जाएँगे।</string>
+    <string name="info_cap">आपके कुल रेप्स इससे ऊपर नहीं जाएँगे। यहाँ पहुँचने के बाद समय पर चेक-इन करने से संख्या वही रहती है।</string>
+    <string name="info_hold">कुछ समय एक ही संख्या पर रहना चाहते हैं? होल्ड आपकी प्रगति रोक देता है। जैसे, आप 80 रेप्स पर कुछ चेक-इन तक रुक सकते हैं और फिर आगे बढ़ सकते हैं। आप कई होल्ड लगा सकते हैं।</string>
+    <string name="info_hold_at">वह कुल रेप्स जहाँ प्रगति रुकती है। यह न्यूनतम के बराबर या उससे अधिक और अधिकतम से कम होना चाहिए।</string>
+    <string name="info_hold_for">आगे बढ़ने से पहले कितने चेक-इन तक इस संख्या पर रुकना है। जिस चेक-इन पर आप यहाँ पहुँचते हैं, वह भी गिना जाता है। होल्ड छोड़ने के लिए 0 रखें।</string>
+    <string name="info_window">पिछले चेक-इन के इतने घंटों के भीतर चेक-इन करें, तो वह समय पर माना जाएगा। समय पर चेक-इन से स्ट्रीक जारी रहती है और काउंटर वर्कआउट में एक रेप बढ़ता है।</string>
+    <string name="info_penalty_rate">समय पर चेक-इन की सीमा निकल जाने पर, आपके दूर रहने के दौरान कुल रेप्स धीरे-धीरे घटते हैं। ये न्यूनतम से नीचे कभी नहीं जाते।</string>
+    <string name="info_total_reps">आपके वर्तमान कुल रेप्स, जो वर्कआउट के सेटों में बँटे होते हैं। बदलाव तुरंत लागू होते हैं।</string>
+    <string name="info_best_streak">समय पर चेक-इन की आपकी सबसे लंबी स्ट्रीक। यह वर्तमान स्ट्रीक से कम नहीं हो सकती।</string>
+    <string name="info_current_streak">समय पर चेक-इन की आपकी वर्तमान स्ट्रीक, आख़िरी चेक-इन सहित। सीमा चूकने पर स्ट्रीक फिर से 1 हो जाती है।</string>
+    <string name="info_last_check_in">पिछली बार जब आपने शुरू करें दबाया था। REPKIT इसी से समय पर चेक-इन की सीमा और छूटे दिनों का समायोजन गिनता है। अगले चेक-इन को पहला बनाने के लिए इसे साफ़ करें।</string>
+    <string name="info_sound">उलटी गिनती की बीप बजाता है, और हर बार वर्कआउट का चरण बदलने पर बीप करता है।</string>
+    <string name="info_vibration">हर बार वर्कआउट का चरण बदलने पर कंपन करता है, स्क्रीन बंद होने पर भी।</string>
+    <string name="check_in">चेक-इन करें</string>
+    <string name="checked_in">चेक-इन हो गया ✓</string>
+    <string name="type">प्रकार</string>
+    <string name="type_workout">काउंटर</string>
+    <string name="type_check_in">सिर्फ़ टाइमर</string>
+    <string name="voice">आवाज़ संकेत</string>
+    <string name="voice_unavailable">इस डिवाइस पर आवाज़ संकेत उपलब्ध नहीं हैं</string>
+    <string name="info_type">काउंटर वर्कआउट रेप्स गिनते हैं और हर चेक-इन पर आपका लक्ष्य बढ़ाते हैं। सिर्फ़ टाइमर वर्कआउट वही टाइमर चलाते हैं, पर रेप्स नहीं गिनते। चेक-इन करने से स्ट्रीक फिर भी बनी रहती है। आप सेटिंग्स या इतिहास खोए बिना दोनों के बीच बदल सकते हैं।</string>
+    <string name="info_voice">हर वर्क सेट की शुरुआत में बताता है कि कितने रेप्स करने हैं। सिर्फ़ टाइमर वर्कआउट में सेट की संख्या बताता है।</string>
+    <string name="cue_sound_on">आवाज़ चालू</string>
+    <string name="cue_sound_off">आवाज़ बंद</string>
+    <string name="cue_vibration_on">कंपन चालू</string>
+    <string name="cue_vibration_off">कंपन बंद</string>
+    <string name="cue_voice_on">आवाज़ संकेत चालू</string>
+    <string name="cue_voice_off">आवाज़ संकेत बंद</string>
+    <string name="appearance">दिखावट</string>
+    <string name="theme_system">सिस्टम डिफ़ॉल्ट</string>
+    <string name="theme_light">लाइट</string>
+    <string name="theme_dark">डार्क</string>
+    <string name="week_count">इस हफ़्ते %1$d बार</string>
+    <plurals name="tile_desc">
+        <item quantity="one">पिछले 4 हफ़्तों में %1$d चेक-इन</item>
+        <item quantity="other">पिछले 4 हफ़्तों में %1$d चेक-इन</item>
+    </plurals>
+    <string name="range_4w">4 हफ़्ते</string>
+    <string name="range_3m">3 महीने</string>
+    <string name="range_all">सभी</string>
+    <string name="history_empty_range">इस अवधि में कोई चेक-इन नहीं</string>
+    <string name="history_empty">अभी कोई चेक-इन नहीं</string>
+    <plurals name="chart_desc">
+        <item quantity="one">%1$d चेक-इन, %2$d से %3$d रेप्स</item>
+        <item quantity="other">%1$d चेक-इन, %2$d से %3$d रेप्स</item>
+    </plurals>
+    <string name="streak_line">स्ट्रीक %1$d · सबसे लंबी %2$d</string>
+    <string name="reps_per_set_desc">हर सेट के रेप्स: %1$s</string>
+    <plurals name="calendar_desc">
+        <item quantity="one">%1$d दिन चेक-इन</item>
+        <item quantity="other">%1$d दिन चेक-इन</item>
+    </plurals>
+    <plurals name="reps_changed_set">
+        <item quantity="one">सेट %1$d: अब %2$d रेप</item>
+        <item quantity="other">सेट %1$d: अब %2$d रेप्स</item>
+    </plurals>
+    <plurals name="reps_changed_sets">
+        <item quantity="one">%1$d सेट बदला गया</item>
+        <item quantity="other">%1$d सेट बदले गए</item>
+    </plurals>
+    <string name="reps_holding">%1$d पर होल्ड · %3$d में से %2$d</string>
+    <string name="tab_timing">समय</string>
+    <string name="tab_progression">प्रगति</string>
+    <string name="tab_cues">संकेत</string>
+    <string name="clear_history_too">इतिहास भी साफ़ करें</string>
+    <string-array name="week_day_letters">
+        <item>सो</item>
+        <item>मं</item>
+        <item>बु</item>
+        <item>गु</item>
+        <item>शु</item>
+        <item>श</item>
+        <item>र</item>
+    </string-array>
+    <string-array name="week_day_abbrev">
+        <item>सोम</item>
+        <item>मंगल</item>
+        <item>बुध</item>
+        <item>गुरु</item>
+        <item>शुक्र</item>
+        <item>शनि</item>
+        <item>रवि</item>
+    </string-array>
+    <string name="week_check_in_desc">इस हफ़्ते चेक-इन: %1$s</string>
+    <string name="week_no_check_in_desc">इस हफ़्ते कोई चेक-इन नहीं</string>
+    <string name="day_checked_in">चेक-इन हुआ</string>
+    <string name="day_not_checked_in">चेक-इन नहीं हुआ</string>
+    <string name="limit_title">और वर्कआउट चाहिए?</string>
+    <plurals name="limit_text">
+        <item quantity="one">मुफ़्त वर्शन में अधिकतम %1$d वर्कआउट रखा जा सकता है। असीमित वर्कआउट के लिए Pro लें।</item>
+        <item quantity="other">मुफ़्त वर्शन में अधिकतम %1$d वर्कआउट रखे जा सकते हैं। असीमित वर्कआउट के लिए Pro लें।</item>
+    </plurals>
+    <string name="go_pro">Pro लें</string>
+    <string name="not_now">अभी नहीं</string>
+    <plurals name="error_sets_range">
+        <item quantity="one">1–%1$d सेट</item>
+        <item quantity="other">1–%1$d सेट</item>
+    </plurals>
+    <string name="error_work_range">1 सेकंड – 59:59</string>
+    <string name="error_phase_range">0 – 59:59</string>
+    <string name="error_workout_too_long">वर्कआउट 2:00:00 से लंबा है</string>
+    <string name="error_at_least_one">कम से कम 1 होना चाहिए</string>
+    <string name="error_zero_or_more">0 या उससे अधिक होना चाहिए</string>
+    <string name="error_greater_than_zero">0 से अधिक होना चाहिए</string>
+    <string name="error_at_least_floor">न्यूनतम के बराबर या अधिक होना चाहिए</string>
+    <string name="error_at_least_starting_total">शुरुआती रेप्स के बराबर या अधिक होना चाहिए</string>
+    <string name="error_at_least_current_streak">वर्तमान स्ट्रीक के बराबर या अधिक होना चाहिए</string>
+    <plurals name="error_too_many_holds">
+        <item quantity="one">अधिकतम %1$d होल्ड</item>
+        <item quantity="other">अधिकतम %1$d होल्ड</item>
+    </plurals>
+    <string name="error_duplicate_hold">%1$d पर पहले से होल्ड है</string>
+    <string name="hint_hold_disabled">होल्ड बंद है</string>
+    <string name="hint_outside_floor_cap">न्यूनतम–अधिकतम से बाहर; अगले चेक-इन पर ठीक हो जाएगा</string>
+    <string name="error_in_the_future">भविष्य का समय नहीं हो सकता</string>
+    <string name="error_enter_name">नाम लिखें</string>
+    <plurals name="error_name_too_long">
+        <item quantity="one">अधिकतम %1$d अक्षर</item>
+        <item quantity="other">अधिकतम %1$d अक्षर</item>
+    </plurals>
+    <string name="error_enter_number">संख्या लिखें</string>
+    <string name="error_time_format">m:ss या सेकंड में लिखें</string>
+    <string name="copy_suffix">" कॉपी"</string>
+    <string name="error_check_in">चेक-इन नहीं हो सका: %1$s</string>
+    <string name="error_start">वर्कआउट शुरू नहीं हो सका: %1$s</string>
+    <string name="error_already_starting">एक वर्कआउट पहले से शुरू हो रहा है</string>
+    <string name="error_service_no_response">टाइमर सेवा ने जवाब नहीं दिया</string>
+    <string name="reps_state_increased">बढ़ा</string>
+    <string name="reps_state_decreased">घटा</string>
+    <string name="reps_state_holding">होल्ड पर</string>
+    <string name="timer_label_get_ready">तैयार हो जाएँ</string>
+    <string name="timer_label_rest">आराम</string>
+    <string name="timer_label_cooldown">कूलडाउन</string>
+    <string name="timer_label_done">हो गया</string>
+    <plurals name="timer_desc_work_reps">
+        <item quantity="one">वर्क, सेट %2$d / %3$d, %1$d रेप</item>
+        <item quantity="other">वर्क, सेट %2$d / %3$d, %1$d रेप्स</item>
+    </plurals>
+    <string name="timer_desc_work_last_set">वर्क, आख़िरी सेट</string>
+    <plurals name="timer_desc_work_sets_to_go">
+        <item quantity="one">वर्क, %1$d सेट बाकी</item>
+        <item quantity="other">वर्क, %1$d सेट बाकी</item>
+    </plurals>
+    <plurals name="timer_desc_rest_reps">
+        <item quantity="one">आराम, अगला सेट %2$d / %3$d, %1$d रेप</item>
+        <item quantity="other">आराम, अगला सेट %2$d / %3$d, %1$d रेप्स</item>
+    </plurals>
+    <string name="timer_desc_rest_last_set">आराम, अगला आख़िरी सेट</string>
+    <plurals name="timer_desc_rest_sets_to_go">
+        <item quantity="one">आराम, %1$d सेट बाकी</item>
+        <item quantity="other">आराम, %1$d सेट बाकी</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_reps">
+        <item quantity="one">तैयार हो जाएँ, पहला सेट %1$d रेप</item>
+        <item quantity="other">तैयार हो जाएँ, पहला सेट %1$d रेप्स</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_sets">
+        <item quantity="one">तैयार हो जाएँ, %1$d सेट</item>
+        <item quantity="other">तैयार हो जाएँ, %1$d सेट</item>
+    </plurals>
+    <string name="timer_desc_cooldown">कूलडाउन</string>
+    <plurals name="timer_desc_done_reps">
+        <item quantity="one">हो गया, %1$d रेप</item>
+        <item quantity="other">हो गया, %1$d रेप्स</item>
+    </plurals>
+    <string name="timer_desc_done">हो गया</string>
+    <string name="notification_phase_prepare">तैयार हो जाएँ</string>
+    <string name="notification_phase_work">वर्क</string>
+    <string name="notification_phase_rest">आराम</string>
+    <string name="notification_phase_cooldown">कूलडाउन</string>
+    <string name="notification_phase_done">हो गया</string>
+    <string name="notification_phase_set">%1$s · सेट %2$d/%3$d</string>
+    <string name="notification_named">%1$s · %2$s</string>
+    <string name="notification_starting_named">%1$s · शुरू हो रहा है…</string>
+    <string name="notification_starting">वर्कआउट शुरू हो रहा है…</string>
+    <string name="notification_complete">वर्कआउट पूरा हुआ</string>
+    <string name="notification_paused_left">रुका हुआ · %1$s बाकी</string>
+    <string name="notification_left">%1$s बाकी</string>
+    <plurals name="voice_count">
+        <item quantity="one">%1$d</item>
+        <item quantity="other">%1$d</item>
+    </plurals>
+</resources>
