@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +35,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +57,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +70,7 @@ import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
 import com.mitenko.repkit.ui.common.EntryLimitDialog
+import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.theme.ThemeMode
@@ -77,6 +81,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val crashReports by vm.crashReportsEnabled.collectAsStateWithLifecycle()
     val limitDialog by vm.limitDialog.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
@@ -89,6 +94,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onCreate = { name, type -> vm.create(name, type, onCreated) },
         themeMode = themeMode,
         onSetThemeMode = vm::setThemeMode,
+        crashReportsEnabled = crashReports,
+        onSetCrashReportsEnabled = vm::setCrashReportsEnabled,
         onRequestAdd = vm::requestAdd,
         limitDialog = limitDialog,
         maxEntries = vm.maxEntries,
@@ -110,6 +117,8 @@ fun EntryListScreen(
     onCreate: (String, EntryType) -> Unit,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onSetThemeMode: (ThemeMode) -> Unit = {},
+    crashReportsEnabled: Boolean = true,
+    onSetCrashReportsEnabled: (Boolean) -> Unit = {},
     onRequestAdd: () -> Boolean = { true },
     limitDialog: Boolean = false,
     maxEntries: Int = FreeLimits().maxEntries,
@@ -118,21 +127,21 @@ fun EntryListScreen(
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
     val requestAdd = { if (onRequestAdd()) naming = true }
-    var showAppearance by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     val loading = state is EntryListUiState.Loading
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            // Spec rev 9 §2: "REPKIT" centred. Spec rev 14 §5 adds the Appearance ⚙ at the right;
+            // Spec rev 9 §2: "REPKIT" centred. Spec rev 14 §5 adds the ⚙ at the right (Settings since rev 30);
             // it's overlaid rather than laid out in a Row, so the title (plain Box-centred) stays
             // exactly centred regardless of the icon.
             Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("title"))
                 IconButton(
-                    onClick = { showAppearance = true },
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(48.dp).testTag("appearance"),
+                    onClick = { showSettings = true },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(48.dp).testTag("settings"),
                 ) {
-                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.appearance))
+                    Icon(painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings))
                 }
             }
         },
@@ -175,33 +184,66 @@ fun EntryListScreen(
     if (limitDialog) {
         EntryLimitDialog(maxEntries, onGoPro = onGoPro, onDismiss = onDismissLimit)
     }
-    if (showAppearance) {
-        AppearanceDialog(
+    if (showSettings) {
+        SettingsDialog(
             current = themeMode,
             onSelect = { mode ->
-                showAppearance = false
+                showSettings = false
                 onSetThemeMode(mode)
             },
-            onDismiss = { showAppearance = false },
+            crashReports = crashReportsEnabled,
+            onCrashReportsChange = onSetCrashReportsEnabled,
+            onDismiss = { showSettings = false },
         )
     }
 }
 
-/** Spec rev 14 §5: System / Light / Dark, saved immediately on tap, closing the dialog. */
+/**
+ * The ⚙ Settings dialog (spec rev 30 §3). Under an Appearance heading, spec rev 14 §5's System /
+ * Light / Dark options save at once and close the dialog. Under them, the "Share crash reports and
+ * usage" switch applies at once and leaves the dialog open.
+ */
 @Composable
-private fun AppearanceDialog(current: ThemeMode, onSelect: (ThemeMode) -> Unit, onDismiss: () -> Unit) {
+private fun SettingsDialog(
+    current: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    crashReports: Boolean,
+    onCrashReportsChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.appearance)) },
+        title = { Text(stringResource(R.string.settings), modifier = Modifier.testTag("settings_title")) },
         text = {
-            Column(Modifier.selectableGroup()) {
-                ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
-                ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
-                ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
+            Column {
+                Text(
+                    stringResource(R.string.appearance),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp).semantics { heading() }.testTag("appearance_heading"),
+                )
+                Column(Modifier.selectableGroup()) {
+                    ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
+                    ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
+                    ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                CrashReportsRow(crashReports, onCrashReportsChange)
             }
         },
         confirmButton = {},
     )
+}
+
+/** Spec rev 30 §3: the label, its ⓘ and the switch (tagged `crash_reports`). */
+@Composable
+private fun CrashReportsRow(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val label = stringResource(R.string.crash_reports)
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f))
+        InfoTag(title = label, text = stringResource(R.string.info_crash_reports))
+        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag("crash_reports"))
+    }
 }
 
 @Composable

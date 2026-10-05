@@ -118,6 +118,8 @@
     <string name="theme_system">सिस्टम डिफ़ॉल्ट</string>
     <string name="theme_light">लाइट</string>
     <string name="theme_dark">डार्क</string>
+    <string name="crash_reports">क्रैश रिपोर्ट और उपयोग की जानकारी साझा करें</string>
+    <string name="info_crash_reports">डेवलपर को गुमनाम क्रैश रिपोर्ट और बुनियादी उपयोग आँकड़े भेजता है, ताकि गड़बड़ियाँ ठीक हों और REPKIT बेहतर बने। इसमें आपका वर्कआउट डेटा शामिल नहीं होता।</string>
     <string name="week_count">इस हफ़्ते %1$d बार</string>
     <plurals name="tile_desc">
         <item quantity="one">पिछले 4 हफ़्तों में %1$d चेक-इन</item>

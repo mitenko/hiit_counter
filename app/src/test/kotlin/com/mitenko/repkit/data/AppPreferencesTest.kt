@@ -3,6 +3,7 @@ package com.mitenko.repkit.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -13,8 +14,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.io.File
 
+/**
+ * Runs on Robolectric (SDK 34). With DataStore 1.1.7 (raised by Firebase), PreferenceDataStoreFactory
+ * on Android uses FileStorage, which replaces the file with Files.move(REPLACE_EXISTING) on API 26+
+ * but File.renameTo below that. On the plain JVM, SDK_INT reads 0, and renameTo can't overwrite an
+ * existing file on Windows. So a second write that changes a value failed with "Unable to rename".
+ * One DataStore per test, as before.
+ */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class AppPreferencesTest {
     @get:Rule val tmp = TemporaryFolder()
 
@@ -53,5 +65,19 @@ class AppPreferencesTest {
         val store = store()
         store.edit { it[stringPreferencesKey("theme_mode")] = "GARBAGE" }
         assertEquals(ThemeMode.SYSTEM, AppPreferences(store).themeMode.first())
+    }
+
+    @Test
+    fun `crashReportsEnabled defaults to true when absent`() = runTest {
+        assertTrue(AppPreferences(store()).crashReportsEnabled.first())
+    }
+
+    @Test
+    fun `setCrashReportsEnabled round trips`() = runTest {
+        val prefs = AppPreferences(store())
+        prefs.setCrashReportsEnabled(false)
+        assertFalse(prefs.crashReportsEnabled.first())
+        prefs.setCrashReportsEnabled(true)
+        assertTrue(prefs.crashReportsEnabled.first())
     }
 }

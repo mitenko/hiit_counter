@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.mitenko.repkit.domain.CrashReporter
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,9 +21,9 @@ import kotlin.coroutines.resume
  * English when the engine lacks it (spec revision 24), `USAGE_ASSISTANCE_SONIFICATION`,
  * `QUEUE_FLUSH`, and the number as the `voice_count` resource in the voice's language (the digits,
  * "12", in English), which the engine says as a word. An init failure or no usable voice leaves
- * [available] false, and the run continues silently. Create, speak and shut down on Main.
+ * [available] false, and the run continues silently; it also leaves a [reporter] breadcrumb. Create, speak and shut down on Main.
  */
-class AndroidCueSpeaker(context: Context) : CueSpeaker {
+class AndroidCueSpeaker(context: Context, private val reporter: CrashReporter) : CueSpeaker {
     private val appContext = context.applicationContext
 
     /** The language the engine was set to; read only after [available] turns true. */
@@ -56,7 +57,11 @@ class AndroidCueSpeaker(context: Context) : CueSpeaker {
         }
         if (shutDown || ready.isCompleted) return
         val usable = status == TextToSpeech.SUCCESS && configure(tts)
-        if (!usable) Log.w(TAG, "Text-to-speech unavailable (status $status); the voice cue stays silent")
+        if (!usable) {
+            Log.w(TAG, "Text-to-speech unavailable (status $status); the voice cue stays silent")
+            // Spec rev 30 §4: a breadcrumb, not a non-fatal; a device without a voice is normal.
+            reporter.log("$TAG: text-to-speech unavailable (status $status)")
+        }
         _available.value = usable
         ready.complete(usable)
     }

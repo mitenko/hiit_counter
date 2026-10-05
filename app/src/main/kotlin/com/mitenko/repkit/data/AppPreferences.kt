@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 /**
- * `app.preferences_pb` (spec §5.4): the only app-wide value. The flag is sticky — set once the
+ * `app.preferences_pb` (spec §5.4): the app-wide values. The notification flag is sticky — set once the
  * Android 13+ prompt has been shown, whatever the answer, and never reset.
  */
 class AppPreferences(private val store: DataStore<Preferences>) {
@@ -53,11 +53,28 @@ class AppPreferences(private val store: DataStore<Preferences>) {
         store.edit { it[THEME_MODE] = mode.name }
     }
 
+    /** Spec rev 30 §3: the "Share crash reports and usage" switch; on when absent. */
+    val crashReportsEnabled: Flow<Boolean> = store.data
+        .catch { e ->
+            if (e is IOException) {
+                Log.e(TAG, "App preferences read failed", e)
+                emit(emptyPreferences())
+            } else {
+                throw e
+            }
+        }
+        .map { it[CRASH_REPORTS_ENABLED] ?: true }
+
+    suspend fun setCrashReportsEnabled(enabled: Boolean) {
+        store.edit { it[CRASH_REPORTS_ENABLED] = enabled }
+    }
+
     companion object {
         /** `app.preferences_pb` via `preferencesDataStoreFile(FILE_NAME)`. */
         const val FILE_NAME = "app"
         val NOTIFICATION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         private const val TAG = "AppPreferences"
     }
 }

@@ -9,6 +9,8 @@ import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.NoOpCrashReporter
+import com.mitenko.repkit.testutil.RecordingCrashReporter
 import com.mitenko.repkit.testutil.testEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -199,5 +201,32 @@ class EntryMappingTest {
         val empty = entryEntity("Burpees", 0, progression = ProgressionConfig(holds = emptyList()))
         assertEquals(Triple("-", 64, 4), Triple(empty.holds, empty.holdAt, empty.holdFor))
         assertEquals(emptyList<Hold>(), empty.toDomain().progression.holds)
+    }
+
+    @Test
+    fun `a repair leaves a breadcrumb without values and the same result`() {
+        val row = testEntity(id = 7, name = "Burpees").copy(sets = 99, type = "BOGUS")
+        val expected = row.toDomain()
+        val reporter = RecordingCrashReporter()
+        RepairBreadcrumbs.reporter = reporter
+        try {
+            assertEquals(expected, row.toDomain())
+        } finally {
+            RepairBreadcrumbs.reporter = NoOpCrashReporter
+        }
+        assertEquals(listOf("EntryMapping: entry 7 repaired sets", "EntryMapping: entry 7 repaired type"), reporter.logs)
+        assertTrue(reporter.nonFatals.isEmpty())
+    }
+
+    @Test
+    fun `a valid row leaves no breadcrumb`() {
+        val reporter = RecordingCrashReporter()
+        RepairBreadcrumbs.reporter = reporter
+        try {
+            testEntity(id = 7, name = "Burpees").toDomain()
+        } finally {
+            RepairBreadcrumbs.reporter = NoOpCrashReporter
+        }
+        assertTrue(reporter.logs.isEmpty())
     }
 }

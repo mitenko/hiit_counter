@@ -83,6 +83,15 @@ class EntryListViewModel @Inject constructor(
         viewModelScope.launch { preferences.setThemeMode(mode) }
     }
 
+    /** Spec rev 30 §3: the "Share crash reports and usage" switch in the same dialog; on by default. */
+    val crashReportsEnabled: StateFlow<Boolean> =
+        preferences.crashReportsEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** Saved at once; TelemetryInitializer applies it to Crashlytics and Analytics. */
+    fun setCrashReportsEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferences.setCrashReportsEnabled(enabled) }
+    }
+
     /**
      * Spec R6 §3.3: one query for every row's recent points. It restarts on each resume, so the
      * window follows the date (plan Spec note 15). The 28-day window always contains this week.
