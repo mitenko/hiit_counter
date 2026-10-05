@@ -8,12 +8,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /**
  * `hiit.db` (spec §5.2). Version 2 adds `entry.hold_enabled` (R3 §5.2), version 3 adds
  * `entry.type` and `entry.cue_voice` (R4 §3.2), version 4 adds the `check_in` history table
- * (R6 §3.1), version 5 adds `entry.holds` (rev 16 §5), version 6 adds the `workout_session` run log (rev 17 §1). Schemas are exported to app/schemas and committed. Every migration is registered in
+ * (R6 §3.1), version 5 adds `entry.holds` (rev 16 §5), version 6 adds the `workout_session` run log (rev 17 §1), version 7 adds the weight columns to `entry` and `check_in` (rev 26 §5). Schemas are exported to app/schemas and committed. Every migration is registered in
  * the builder (StorageModule), and there is no destructive fallback.
  */
 @Database(
     entities = [EntryEntity::class, MetaEntity::class, CheckInEntity::class, WorkoutSessionEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class HiitDatabase : RoomDatabase() {
@@ -109,6 +109,35 @@ abstract class HiitDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        /**
+         * Spec rev 26 §5: columns with defaults only, so no row is rewritten and every existing entry
+         * reads as Reps with nothing changed. weight_holds is plan Spec note 2, fresh_start is note 13.
+         */
+        internal val MIGRATION_6_7_SQL = listOf(
+            "ALTER TABLE entry ADD COLUMN progress_mode TEXT NOT NULL DEFAULT 'REPS'",
+            "ALTER TABLE entry ADD COLUMN weight_unit TEXT",
+            "ALTER TABLE entry ADD COLUMN weights_kind TEXT NOT NULL DEFAULT 'STEPS'",
+            "ALTER TABLE entry ADD COLUMN weight_steps TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE entry ADD COLUMN weight_list TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE entry ADD COLUMN weight_holds TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE entry ADD COLUMN reps_per_set INTEGER NOT NULL DEFAULT 10",
+            "ALTER TABLE entry ADD COLUMN rep_min INTEGER NOT NULL DEFAULT 8",
+            "ALTER TABLE entry ADD COLUMN rep_max INTEGER NOT NULL DEFAULT 12",
+            "ALTER TABLE entry ADD COLUMN start_weight INTEGER",
+            "ALTER TABLE entry ADD COLUMN start_reps INTEGER",
+            "ALTER TABLE entry ADD COLUMN fresh_start INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE check_in ADD COLUMN weight INTEGER",
+            "ALTER TABLE check_in ADD COLUMN reps INTEGER",
+            "ALTER TABLE check_in ADD COLUMN unit TEXT",
+        )
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_7_SQL.forEach { db.execSQL(it) }
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
     }
 }

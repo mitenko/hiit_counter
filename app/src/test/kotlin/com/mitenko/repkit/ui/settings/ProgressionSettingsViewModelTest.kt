@@ -10,6 +10,8 @@ import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
@@ -345,5 +347,24 @@ class ProgressionSettingsViewModelTest {
         runCurrent()
         assertEquals(72, repo.find(1).counter.total)
         assertEquals(ProgressionNote(null, listOf(Move.CurrentLowered(72))), vm.note.value)
+    }
+
+    @Test
+    fun `a clean draft follows the store when the entry also has a weight group`() = runTest {
+        // The draft holds the Reps fields only (setProgression never writes the mode or the weight group),
+        // so an entry with a stored weight group must still count as clean.
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(weight = WeightConfig(unit = WeightUnit.KG)))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        runCurrent()
+        repo.overwriteCounter(1, total = 80, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // the Current page widens the cap
+        runCurrent()
+        assertEquals(80, vm.draft.value!!.cap)
+        vm.update { it.copy(floor = 40) }
+        vm.flush()
+        runCurrent()
+        // Nothing stale saved: the widened cap and the total survive, and the weight group is untouched.
+        assertEquals(40 to 80, repo.find(1).progression.let { it.floor to it.cap })
+        assertEquals(80, repo.find(1).counter.total)
+        assertEquals(WeightUnit.KG, repo.find(1).progression.weight.unit)
     }
 }

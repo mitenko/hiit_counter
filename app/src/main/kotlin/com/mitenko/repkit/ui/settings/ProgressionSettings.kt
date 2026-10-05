@@ -44,7 +44,9 @@ import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightConfig
 import com.mitenko.repkit.domain.newHold
 import com.mitenko.repkit.domain.resolveFor
 import com.mitenko.repkit.ui.common.resolve
@@ -183,7 +185,11 @@ class ProgressionSettingsViewModel @Inject constructor(
         }
     }
 
-    /** The progression as last stored. A draft whose config equals it, with no save pending, has no unsaved edits. */
+    /**
+     * The Reps fields of the progression as last stored. A draft whose config equals it, with no save
+     * pending, has no unsaved edits. The draft never carries the mode or the weight group (setProgression
+     * doesn't write them, spec rev 26 §10 note 4), so they're normalised away before comparing.
+     */
     private var stored: ProgressionConfig? = null
 
     init {
@@ -198,7 +204,7 @@ class ProgressionSettingsViewModel @Inject constructor(
                 val latest = e.progression
                 val current = _draft.value
                 if (current == null || (current.toConfig() == stored && !saver.hasPending)) setDraft(ProgressionDraft.from(latest))
-                stored = latest
+                stored = latest.copy(mode = ProgressMode.REPS, weight = WeightConfig())
             }
         }
     }

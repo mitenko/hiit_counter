@@ -7,8 +7,14 @@ import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightHold
+import com.mitenko.repkit.domain.model.WeightSteps
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.model.WeightsKind
 import com.mitenko.repkit.domain.NoOpCrashReporter
 import com.mitenko.repkit.testutil.RecordingCrashReporter
 import com.mitenko.repkit.testutil.testEntity
@@ -228,5 +234,121 @@ class EntryMappingTest {
             RepairBreadcrumbs.reporter = NoOpCrashReporter
         }
         assertTrue(reporter.logs.isEmpty())
+    }
+
+    /** Spec §6's curls: Reps then weight, 8/10/12/14/16 kg × 8–12. */
+    private fun curlsRow(total: Int? = null) = testEntity(total = total).copy(
+        progressMode = "REPS_THEN_WEIGHT", weightUnit = "KG", weightsKind = "LIST", weightList = "800,1000,1200,1400,1600",
+    )
+
+    private val curls = WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(800, 1000, 1200, 1400, 1600))
+
+    @Test
+    fun `a row as the v7 migration leaves it reads as Reps with the default weight settings`() {
+        val e = testEntity(total = 60).toDomain()
+        assertEquals(ProgressionConfig(), e.progression)
+        assertEquals(60, e.counter.total)
+        assertFalse(e.counter.freshStart)
+    }
+
+    @Test
+    fun `fresh_start maps to and from the counter's freshStart`() {
+        assertTrue(testEntity(total = 60).copy(freshStart = true).toDomain().counter.freshStart)
+        assertTrue(curlsRow().copy(freshStart = true).toDomain().counter.freshStart)
+        assertTrue(entryEntity("Curls", 0, counter = StoredCounter(freshStart = true)).freshStart)
+        assertFalse(entryEntity("Curls", 0).freshStart)
+    }
+
+    @Test
+    fun `a weight row maps field by field`() {
+        val row = curlsRow(total = 13).copy(startWeight = 1000, startReps = 9, weightHolds = "1400:8:4", repsPerSet = 6)
+        val expected = ProgressionConfig(
+            mode = ProgressMode.REPS_THEN_WEIGHT,
+            weight = curls.copy(repsPerSet = 6, startWeight = 1000, startReps = 9, holds = listOf(WeightHold(1400, 8, 4))),
+        )
+        assertEquals(expected, row.toDomain().progression)
+        assertEquals(13, row.toDomain().counter.total)
+    }
+
+    @Test
+    fun `in a weight mode a null total reads as the start level and 0 is a real level`() {
+        assertEquals(6, curlsRow().copy(startWeight = 1000, startReps = 9).toDomain().counter.total)
+        assertEquals(0, curlsRow(total = 0).copy(startWeight = 1000).toDomain().counter.total)
+        assertEquals(5, curlsRow(total = -1).copy(startWeight = 1000).toDomain().counter.total)
+        // Reps mode keeps today's rule: 0 is invalid and reads as the starting total.
+        assertEquals(48, testEntity(total = 0).toDomain().counter.total)
+    }
+
+    @Test
+    fun `unknown mode, kind and unit strings are repaired`() {
+        assertEquals(ProgressMode.REPS, testEntity().copy(progressMode = "LEGS").toDomain().progression.mode)
+        assertEquals(WeightsKind.STEPS, curlsRow().copy(weightsKind = "PLATES").toDomain().progression.weight.kind)
+        assertNull(testEntity().copy(weightUnit = "STONE").toDomain().progression.weight.unit)
+        // Plan Spec note 11: a weight mode always has a unit.
+        assertEquals(WeightUnit.KG, curlsRow().copy(weightUnit = null).toDomain().progression.weight.unit)
+        assertEquals(WeightUnit.KG, curlsRow().copy(weightUnit = "STONE").toDomain().progression.weight.unit)
+    }
+
+    @Test
+    fun `the weight list is sorted and de-duplicated, and bad steps read as the default`() {
+        assertEquals(listOf(800, 1200, 1600), curlsRow().copy(weightList = "1200,800,800,1600").toDomain().progression.weight.list)
+        assertEquals(WeightSteps.DEFAULT, testEntity().copy(weightSteps = "20:2.5").toDomain().progression.weight.steps)
+    }
+
+    @Test
+    fun `a starting point or hold that isn't on the ladder is dropped`() {
+        val w = curlsRow().copy(startWeight = 900, startReps = 13, weightHolds = "900:8:4,1400:8:4,1400:13:2,x")
+            .toDomain().progression.weight
+        assertNull(w.startWeight)
+        assertNull(w.startReps)
+        assertEquals(listOf(WeightHold(1400, 8, 4)), w.holds)
+    }
+
+    @Test
+    fun `in Weight mode two holds on one weight keep the first`() {
+        val w = curlsRow().copy(progressMode = "WEIGHT", weightHolds = "1400:8:4,1400:10:2").toDomain().progression.weight
+        assertEquals(listOf(WeightHold(1400, 8, 4)), w.holds)
+    }
+
+    @Test
+    fun `an inconsistent weight group falls back on its own, keeping the unit and the Reps progression`() {
+        val p = curlsRow().copy(weightList = "800", cap = 80).toDomain().progression
+        assertEquals(WeightConfig(unit = WeightUnit.KG), p.weight)
+        assertEquals(80, p.cap)
+        assertEquals(ProgressMode.REPS_THEN_WEIGHT, p.mode)
+    }
+
+    @Test
+    fun `an inconsistent Reps progression falls back and keeps the mode and the weight group`() {
+        val p = curlsRow().copy(floor = 80, cap = 60).toDomain().progression
+        assertEquals(ProgressionConfig(mode = ProgressMode.REPS_THEN_WEIGHT, weight = curls), p)
+    }
+
+    @Test
+    fun `a weight config is written and read back unchanged`() {
+        val p = ProgressionConfig(
+            mode = ProgressMode.WEIGHT,
+            weight = curls.copy(unit = WeightUnit.LB, repsPerSet = 6, startWeight = 1200, holds = listOf(WeightHold(1400, 8, 4))),
+        )
+        val row = entryEntity("Curls", 0, progression = p)
+        assertEquals(
+            listOf<Any?>("WEIGHT", "LB", "LIST", "2000:250:6000", "800,1000,1200,1400,1600", "1400:8:4", 6, 8, 12, 1200, null),
+            listOf(
+                row.progressMode, row.weightUnit, row.weightsKind, row.weightSteps, row.weightList, row.weightHolds,
+                row.repsPerSet, row.repMin, row.repMax, row.startWeight, row.startReps,
+            ),
+        )
+        assertEquals(p, row.toDomain().progression)
+        assertNull(entryEntity("Burpees", 0).weightUnit)
+    }
+
+    @Test
+    fun `a weight check-in row maps to a point with its load`() {
+        assertEquals(
+            CheckInPoint(Instant.ofEpochMilli(1_000), 15, 1400, 8, WeightUnit.KG),
+            CheckInEntity(1, 7, 1_000, 15, 1400, 8, "KG").toPoint(),
+        )
+        val reps = CheckInEntity(2, 7, 1_000, 62).toPoint()
+        assertEquals(listOf<Any?>(null, null, null), listOf(reps.weight, reps.reps, reps.unit))
     }
 }

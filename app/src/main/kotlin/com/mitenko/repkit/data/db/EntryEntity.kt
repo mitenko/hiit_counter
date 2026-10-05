@@ -50,4 +50,28 @@ data class EntryEntity(
     @ColumnInfo(name = "current_streak") val currentStreak: Int,
     @ColumnInfo(name = "hold_count") val holdCount: Int,
     @ColumnInfo(name = "last_check_in") val lastCheckIn: Long?,
+    /** Spec rev 26 §5 (schema v7): REPS / WEIGHT / REPS_THEN_WEIGHT. EntryMapping reads an unknown value as REPS. */
+    @ColumnInfo(name = "progress_mode", defaultValue = "REPS") val progressMode: String = "REPS",
+    /** KG / LB. NULL until the workout first switches into a weight mode (spec rev 26 §9.3). */
+    @ColumnInfo(name = "weight_unit") val weightUnit: String? = null,
+    /** STEPS / LIST (spec rev 26 §5). */
+    @ColumnInfo(name = "weights_kind", defaultValue = "STEPS") val weightsKind: String = "STEPS",
+    /** WeightCodecs "start:step:top" in hundredths; '' = WeightSteps.DEFAULT. */
+    @ColumnInfo(name = "weight_steps", defaultValue = "") val weightSteps: String = "",
+    /** WeightCodecs "800,1200,1600" in hundredths; '' = empty. */
+    @ColumnInfo(name = "weight_list", defaultValue = "") val weightList: String = "",
+    /** Weight-mode holds by value, WeightCodecs "weight:reps:for" (plan Spec note 2); '' = none. */
+    @ColumnInfo(name = "weight_holds", defaultValue = "") val weightHolds: String = "",
+    @ColumnInfo(name = "reps_per_set", defaultValue = "10") val repsPerSet: Int = 10,
+    @ColumnInfo(name = "rep_min", defaultValue = "8") val repMin: Int = 8,
+    @ColumnInfo(name = "rep_max", defaultValue = "12") val repMax: Int = 12,
+    /** NULL = the lightest weight (spec rev 26 §5). */
+    @ColumnInfo(name = "start_weight") val startWeight: Int? = null,
+    /** NULL = rep_min (spec rev 26 §5). */
+    @ColumnInfo(name = "start_reps") val startReps: Int? = null,
+    /**
+     * Set by Start fresh until the next recorded Counter check-in, which is then performed at the start
+     * (plan Spec note 13, user ruling A). Schema v7, INTEGER NOT NULL DEFAULT 0.
+     */
+    @ColumnInfo(name = "fresh_start", defaultValue = "0") val freshStart: Boolean = false,
 )

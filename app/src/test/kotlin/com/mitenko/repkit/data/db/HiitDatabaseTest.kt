@@ -260,7 +260,10 @@ class HiitDatabaseTest {
             val before = raw.rawQuery(ALL_QUERY, null).allColumns()
             HiitDatabase.MIGRATION_4_5_SQL.forEach { raw.execSQL(it) }
             assertEquals(MIGRATED_HOLDS, raw.rawQuery(HOLDS_QUERY, null).holdsColumn())
-            assertEquals(before, raw.rawQuery(ALL_QUERY, null).allColumns(except = "holds"))
+            // New query text: the connection caches each statement's column list across an ALTER TABLE.
+            val after = raw.rawQuery(ALL_QUERY_AFTER_ALTER, null).allColumns()
+            assertTrue(after.all { "holds" in it })
+            assertEquals(before, after.map { it - "holds" })
             // What Room's schema check compares with 5.json: type, NOT NULL and the '' default.
             val info = raw.rawQuery("PRAGMA table_info(entry)", null).allColumns().single { it["name"] == "holds" }
             assertEquals(listOf<Any?>("TEXT", 1L, "''"), listOf(info["type"], info["notnull"], info["dflt_value"]))
@@ -397,7 +400,103 @@ class HiitDatabaseTest {
         setsPlanned = 8, setsCompleted = 2, repsDone = null, completed = false,
     )
 
+    @Test
+    fun `entry rows round-trip the weight columns`() = runTest {
+        val row = testEntity(name = "Curls").copy(
+            progressMode = "REPS_THEN_WEIGHT", weightUnit = "LB", weightsKind = "LIST", weightSteps = "2000:500:6000",
+            weightList = "800,1600", weightHolds = "1600:8:4", repsPerSet = 6, repMin = 6, repMax = 10,
+            startWeight = 1600, startReps = 7, freshStart = true,
+        )
+        val id = db.entryDao().insert(row)
+        assertEquals(row.copy(id = id), db.entryDao().get(id))
+    }
+
+    @Test
+    fun `check-in rows round-trip the weight, reps and unit`() = runTest {
+        val a = db.entryDao().insert(testEntity(name = "A", position = 0))
+        val row = CheckInEntity(entryId = a, at = 1_000, total = 15, weight = 1400, reps = 8, unit = "KG")
+        val id = db.checkInDao().insert(row)
+        assertEquals(listOf(row.copy(id = id)), db.checkInDao().getForEntry(a))
+    }
+
+    @Test
+    fun `schema v7 exports every column exactly as the 6 to 7 migration adds it`() {
+        val json = File("schemas/com.mitenko.repkit.data.db.HiitDatabase/7.json").readText()
+        assertTrue(Regex("\"version\"\\s*:\\s*7").containsMatchIn(json))
+        assertEquals(15, HiitDatabase.MIGRATION_6_7_SQL.size)
+        HiitDatabase.MIGRATION_6_7_SQL.forEach { sql ->
+            // "ALTER TABLE t ADD COLUMN name TYPE …" ↔ Room's "`name` TYPE …" in the createSql.
+            val def = sql.substringAfter("ADD COLUMN ")
+            assertTrue(sql, json.contains("`${def.substringBefore(' ')}` ${def.substringAfter(' ')}"))
+        }
+    }
+
+    @Test
+    fun `the 6 to 7 migration SQL adds the weight columns with defaults and keeps every existing value`() {
+        // Runs everywhere (no file-based helper), so Windows also covers the rev 26 §5 SQL.
+        val raw = SQLiteDatabase.create(null)
+        try {
+            v5Schema(raw)
+            HiitDatabase.MIGRATION_5_6_SQL.forEach { raw.execSQL(it) }
+            val entriesBefore = raw.rawQuery(ALL_QUERY, null).allColumns()
+            val checkInsBefore = raw.rawQuery(CHECK_IN_QUERY, null).allColumns()
+            HiitDatabase.MIGRATION_6_7_SQL.forEach { raw.execSQL(it) }
+            // New query text: the connection caches each statement's column list, so re-running ALL_QUERY
+            // after an ALTER TABLE would still report the v6 columns.
+            val entriesAfter = raw.rawQuery(ALL_QUERY_AFTER_ALTER, null).allColumns()
+            val checkInsAfter = raw.rawQuery(CHECK_IN_QUERY_AFTER_ALTER, null).allColumns()
+            assertEquals(entriesBefore, entriesAfter.map { it - NEW_ENTRY_DEFAULTS.keys })
+            assertEquals(checkInsBefore, checkInsAfter.map { it - NEW_CHECK_IN_COLUMNS })
+            assertTrue(checkInsAfter.isNotEmpty())
+            entriesAfter.forEach { assertEquals(NEW_ENTRY_DEFAULTS, it.filterKeys { k -> k in NEW_ENTRY_DEFAULTS }) }
+            checkInsAfter.forEach { row ->
+                assertTrue(row.keys.containsAll(NEW_CHECK_IN_COLUMNS))
+                NEW_CHECK_IN_COLUMNS.forEach { assertNull(it, row[it]) }
+            }
+        } finally {
+            raw.close()
+        }
+    }
+
+    @Test
+    fun `migration 6 to 7 validates through MigrationTestHelper`() {
+        // Same Windows guard as the checks above: androidx.sqlite 2.6.1 mishandles backslash paths. CI runs it.
+        assumeFalse(System.getProperty("os.name").orEmpty().startsWith("Windows"))
+        val counters = helper.createDatabase(MIGRATION_DB_7, 6).use { db ->
+            v4Rows.forEach { db.execSQL(it) }
+            db.execSQL("UPDATE entry SET holds = hold_at || ':' || hold_for")
+            db.execSQL("INSERT INTO check_in (entry_id, at, total) VALUES (1, 1790000000000, 65)")
+            db.query(COUNTER_QUERY).allColumns()
+        }
+        helper.runMigrationsAndValidate(MIGRATION_DB_7, 7, true, HiitDatabase.MIGRATION_6_7).use { db ->
+            assertEquals(counters, db.query(COUNTER_QUERY).allColumns())
+            val point = db.query(CHECK_IN_QUERY).allColumns().single()
+            assertEquals(listOf<Any?>(1L, 1_790_000_000_000L, 65L), listOf(point["entry_id"], point["at"], point["total"]))
+            NEW_CHECK_IN_COLUMNS.forEach { assertTrue(it, it in point && point[it] == null) }
+            assertEquals(listOf("REPS", "REPS", "REPS"), db.query("SELECT progress_mode FROM entry ORDER BY id").holdsColumn())
+            assertEquals(MIGRATED_HOLDS, db.query(HOLDS_QUERY).holdsColumn())
+            db.query("SELECT COUNT(*) FROM entry WHERE weight_unit IS NULL AND weight_holds = '' AND fresh_start = 0").use {
+                it.moveToFirst()
+                assertEquals(3, it.getInt(0))
+            }
+        }
+    }
+
     private companion object {
+        const val MIGRATION_DB_7 = "migration-6-7"
+        const val COUNTER_QUERY = "SELECT id, total, last_check_in FROM entry ORDER BY id"
+        const val ALL_QUERY_AFTER_ALTER = "SELECT * FROM entry ORDER BY id ASC"
+        const val CHECK_IN_QUERY_AFTER_ALTER = "SELECT * FROM check_in ORDER BY id ASC"
+
+        /** Every column 6 → 7 adds to `entry`, with the value an existing row gets (rev 26 §5; fresh_start is plan Spec note 13). */
+        val NEW_ENTRY_DEFAULTS: Map<String, Any?> = mapOf(
+            "progress_mode" to "REPS", "weight_unit" to null, "weights_kind" to "STEPS", "weight_steps" to "",
+            "weight_list" to "", "weight_holds" to "", "reps_per_set" to 10L, "rep_min" to 8L, "rep_max" to 12L,
+            "start_weight" to null, "start_reps" to null, "fresh_start" to 0L,
+        )
+
+        /** Every column 6 → 7 adds to `check_in`, all NULL on existing rows (rev 26 §9.3). */
+        val NEW_CHECK_IN_COLUMNS = setOf("weight", "reps", "unit")
         const val MIGRATION_DB_5 = "migration-4-5"
         const val MIGRATION_DB_6 = "migration-5-6"
         const val CHECK_IN_QUERY = "SELECT * FROM check_in ORDER BY id"

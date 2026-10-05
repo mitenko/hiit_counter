@@ -1,6 +1,7 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -55,5 +56,19 @@ class HoldResetTest {
         assertFalse(counterHoldReset(64, 64))
         assertTrue(counterHoldReset(64, 65))
         assertTrue(counterHoldReset(64, 48))
+    }
+
+    @Test
+    fun `in a weight mode a Progression save resets the hold count only when the Hold switch changes`() {
+        // Spec rev 26 §10 note 21: the Reps holds don't apply in a weight mode; the draft is always built in Reps mode.
+        val weight = ProgressionConfig(mode = ProgressMode.WEIGHT)
+        assertFalse(progressionHoldReset(weight, ProgressionConfig(holds = listOf(Hold(66, 3)))))
+        assertFalse(progressionHoldReset(weight, ProgressionConfig(cap = 60))) // would turn the Reps hold at 64 off
+        assertTrue(progressionHoldReset(weight, ProgressionConfig(hold = false)))
+        assertTrue(progressionHoldReset(ProgressionConfig(mode = ProgressMode.REPS_THEN_WEIGHT, hold = false), ProgressionConfig()))
+        // Reps mode is exactly holdResetNeeded.
+        assertTrue(progressionHoldReset(base, base.copy(holds = listOf(Hold(66, 3)))))
+        assertTrue(progressionHoldReset(base, base.copy(cap = 60)))
+        assertFalse(progressionHoldReset(base, base.copy(floor = 40)))
     }
 }

@@ -6,23 +6,34 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.R
 import com.mitenko.repkit.data.db.CheckInEntity
+import com.mitenko.repkit.data.db.EntryEntity
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.data.db.WorkoutSessionEntity
 import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.RangeChange
+import com.mitenko.repkit.domain.WeightConversion
+import com.mitenko.repkit.domain.loadAt
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightHold
+import com.mitenko.repkit.domain.model.WeightSteps
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.model.WeightsKind
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.expectThrows
+import com.mitenko.repkit.testutil.testEntity
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -39,6 +50,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import java.time.Instant
 import kotlin.random.Random
 
@@ -840,5 +852,346 @@ class RoomEntryRepositoryTest {
         val copy = r.duplicate(a)
         assertEquals(holds, r.entry(copy).first()!!.progression.holds)
         assertEquals("56:3,64:4", db.entryDao().get(copy)!!.holds)
+    }
+
+    /** Spec §6's curls: Reps then weight, 8/10/12/14/16 kg × 8–12 in kg, appended at the end; [edit] varies the row. */
+    private suspend fun curlsRow(total: Int? = null, edit: (EntryEntity) -> EntryEntity = { it }): Long =
+        db.entryDao().insert(
+            edit(
+                testEntity(name = "Curls", position = db.entryDao().count(), total = total).copy(
+                    progressMode = "REPS_THEN_WEIGHT", weightUnit = "KG", weightsKind = "LIST",
+                    weightList = "800,1000,1200,1400,1600",
+                ),
+            ),
+        )
+
+    @Test
+    fun `a Reps then weight check-in logs the weight, the reps and the unit`() = runTest {
+        val r = repo()
+        val a = curlsRow()
+        r.checkIn(a, clock)
+        val day1 = clock.instant
+        clock.instant = day1.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(
+            listOf(CheckInPoint(day1, 0, 800, 8, WeightUnit.KG), CheckInPoint(clock.instant, 1, 800, 9, WeightUnit.KG)),
+            r.history(a, null).first(),
+        )
+        assertEquals(1, db.entryDao().get(a)!!.total)
+        assertEquals(listOf("KG", "KG"), db.checkInDao().getForEntry(a).map { it.unit })
+    }
+
+    @Test
+    fun `a Weight check-in logs the fixed reps per set`() = runTest {
+        val r = repo()
+        val a = curlsRow { it.copy(progressMode = "WEIGHT", repsPerSet = 6) }
+        r.checkIn(a, clock)
+        assertEquals(listOf(CheckInPoint(clock.instant, 0, 800, 6, WeightUnit.KG)), r.history(a, null).first())
+    }
+
+    @Test
+    fun `a long miss in a weight mode stops one weight lighter`() = runTest {
+        val r = repo()
+        val a = curlsRow()
+        db.entryDao().setCounter(
+            a, total = 20, bestStreak = 3, currentStreak = 3, holdCount = 0,
+            lastCheckIn = clock.instant.minusSeconds(168 * 3600L).toEpochMilli(),
+        ) // 16 kg × 8, a week ago
+        val result = r.checkIn(a, clock)
+        assertEquals(Outcome.Missed(6), result.outcome)
+        assertEquals(15, result.state.total)
+        assertEquals(CheckInPoint(clock.instant, 15, 1400, 8, WeightUnit.KG), r.history(a, null).first().single())
+    }
+
+    @Test
+    fun `Reps and Timer only points leave the weight, reps and unit NULL`() = runTest {
+        val r = repo()
+        val reps = r.create("Burpees")
+        val timerOnly = curlsRow { it.copy(type = "CHECK_IN") }
+        r.checkIn(reps, clock)
+        r.checkIn(timerOnly, clock)
+        for (id in listOf(reps, timerOnly)) {
+            val row = db.checkInDao().getForEntry(id).single()
+            assertEquals(listOf<Any?>(null, null, null), listOf(row.weight, row.reps, row.unit))
+        }
+        assertNull(db.entryDao().get(timerOnly)!!.total)
+        assertEquals(listOf(CheckInPoint(clock.instant, null)), r.history(timerOnly, null).first())
+    }
+
+    private val curls = WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(800, 1000, 1200, 1400, 1600))
+
+    @Test
+    fun `setWeightConfig keeps you on the same weight and resets the hold count only when it moves`() = runTest {
+        val r = repo()
+        val below = curlsRow(total = 12) { it.copy(holdCount = 2) } // 12 kg × 10
+        r.setWeightConfig(below, curls.copy(list = listOf(1000, 1200, 1400, 1600)))
+        assertEquals(7 to 2, db.entryDao().get(below)!!.let { it.total to it.holdCount })
+        assertEquals(Prescription.Load(1200, 10), r.entry(below).first()!!.progression.loadAt(7))
+
+        val current = curlsRow(total = 12) { it.copy(holdCount = 2) }
+        r.setWeightConfig(current, curls.copy(list = listOf(800, 1000, 1400, 1600)))
+        assertEquals(7 to 0, db.entryDao().get(current)!!.let { it.total to it.holdCount })
+        assertEquals(Prescription.Load(1000, 10), r.entry(current).first()!!.progression.loadAt(7))
+    }
+
+    @Test
+    fun `setWeightConfig sorts the list and clamps the reps into a shrunk range`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 14) // 12 kg × 12
+        r.setWeightConfig(a, curls.copy(list = listOf(1600, 800, 1200, 1000, 1400), repMax = 10))
+        val row = db.entryDao().get(a)!!
+        assertEquals(listOf<Any?>("800,1000,1200,1400,1600", 10, 8), listOf(row.weightList, row.repMax, row.total))
+        assertEquals(Prescription.Load(1200, 10), r.entry(a).first()!!.progression.loadAt(8))
+    }
+
+    @Test
+    fun `setWeightConfig drops a hold on a removed weight`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 0) { it.copy(weightHolds = "1200:8:4,1400:8:4") }
+        val holds = listOf(WeightHold(1200, 8, 4), WeightHold(1400, 8, 4))
+        r.setWeightConfig(a, curls.copy(list = listOf(800, 1000, 1400, 1600), holds = holds))
+        assertEquals("1400:8:4", db.entryDao().get(a)!!.weightHolds)
+    }
+
+    @Test
+    fun `an invalid weight draft writes nothing and the fixed draft saves`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12)
+        val before = db.entryDao().get(a)
+        expectThrows<IllegalArgumentException> { r.setWeightConfig(a, curls.copy(list = listOf(800, 1000, 1000, 1600))) }
+        expectThrows<IllegalArgumentException> { r.setWeightConfig(a, WeightConfig(unit = WeightUnit.KG, steps = WeightSteps(2000, 250, 6100))) }
+        expectThrows<IllegalArgumentException> { r.setWeightConfig(a, curls.copy(list = listOf(800))) }
+        expectThrows<IllegalArgumentException> { r.setWeightConfig(a, curls.copy(repMin = 12, repMax = 8)) }
+        // Nine holds on nine different positions, so the remap's de-duplication can't hide the excess.
+        expectThrows<IllegalArgumentException> { r.setWeightConfig(a, curls.copy(holds = List(9) { WeightHold(curls.list[it % 5], 8 + it / 5, 1) })) }
+        assertEquals(before, db.entryDao().get(a))
+        r.setWeightConfig(a, curls.copy(list = listOf(800, 1000, 1200, 1600)))
+        assertEquals("800,1000,1200,1600", db.entryDao().get(a)!!.weightList)
+    }
+
+    @Test
+    fun `setWeightConfig leaves an untouched counter untouched and moves the starting weight down`() = runTest {
+        val r = repo()
+        val a = curlsRow { it.copy(startWeight = 1200) }
+        r.setWeightConfig(a, curls.copy(list = listOf(800, 1000, 1400, 1600), startWeight = 1200))
+        val row = db.entryDao().get(a)!!
+        assertNull(row.total)
+        assertEquals(1000, row.startWeight)
+        assertEquals(5, r.entry(a).first()!!.counter.total) // 10 kg × 8
+    }
+
+    @Test
+    fun `a unit change converts before the remap and keeps the rung and the hold count`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12) { it.copy(holdCount = 2) }
+        r.setWeightConfig(a, WeightConversion.convert(r.entry(a).first()!!.progression.weight, WeightUnit.LB))
+        val row = db.entryDao().get(a)!!
+        assertEquals(listOf<Any?>("LB", "1775,2200,2650,3075,3525", 12, 2), listOf(row.weightUnit, row.weightList, row.total, row.holdCount))
+    }
+
+    @Test
+    fun `setWeightConfig keeps the stored unit when the draft has none`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 3)
+        r.setWeightConfig(a, curls.copy(unit = null))
+        assertEquals("KG", db.entryDao().get(a)!!.weightUnit)
+    }
+
+    @Test
+    fun `in Reps mode the weight group saves without touching the total or the mode`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.overwriteCounter(a, 60, 1, 1, null)
+        r.setWeightConfig(a, curls)
+        val e = r.entry(a).first()!!
+        assertEquals(60, e.counter.total)
+        assertEquals(curls, e.progression.weight)
+        assertEquals(ProgressMode.REPS, e.progression.mode)
+    }
+
+    @Test
+    fun `setProgression never touches the mode or the weight group`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12)
+        r.setProgression(a, ProgressionConfig(cap = 80))
+        val p = r.entry(a).first()!!.progression
+        assertEquals(ProgressMode.REPS_THEN_WEIGHT, p.mode)
+        assertEquals(curls, p.weight)
+        assertEquals(80, p.cap)
+        assertEquals(12, db.entryDao().get(a)!!.total)
+    }
+
+    @Test
+    fun `switchMode starts fresh and keeps the streaks, the last check-in and the history`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.checkIn(a, clock)
+        val day1 = clock.instant
+        clock.instant = day1.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        val day2 = clock.instant
+        val before = db.entryDao().get(a)!!
+        db.entryDao().setCounter(a, before.total, before.bestStreak, before.currentStreak, holdCount = 1, lastCheckIn = before.lastCheckIn)
+
+        r.switchMode(a, ProgressMode.REPS_THEN_WEIGHT, defaultUnit = WeightUnit.LB)
+        val row = db.entryDao().get(a)!!
+        assertEquals(listOf<Any?>("REPS_THEN_WEIGHT", null, 0, "LB", true), listOf(row.progressMode, row.total, row.holdCount, row.weightUnit, row.freshStart))
+        assertEquals(listOf<Any?>(2, 2, before.lastCheckIn), listOf(row.currentStreak, row.bestStreak, row.lastCheckIn))
+        assertEquals(0, r.entry(a).first()!!.counter.total) // 20 lb × 8, the default steps' start
+        assertEquals(listOf(CheckInPoint(day1, 48), CheckInPoint(day2, 49)), r.history(a, null).first())
+
+        // Plan Spec note 13 (ruling A): the first check-in after Start fresh is AT the start, the streak goes on,
+        // and the flag is cleared in the same transaction, so the next on-time check-in moves +1.
+        clock.instant = day2.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(CheckInPoint(clock.instant, 0, 2000, 8, WeightUnit.LB), r.history(a, null).first().last())
+        assertEquals(listOf<Any?>(3, false), db.entryDao().get(a)!!.let { listOf(it.currentStreak, it.freshStart) })
+        clock.instant = clock.instant.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(CheckInPoint(clock.instant, 1, 2000, 9, WeightUnit.LB), r.history(a, null).first().last())
+
+        r.switchMode(a, ProgressMode.REPS, WeightUnit.KG)
+        assertEquals(48, r.entry(a).first()!!.counter.total)
+        assertEquals(4, r.history(a, null).first().size)
+        // §9.3: once set, the workout owns its unit; a later default doesn't change it.
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        assertEquals("LB", db.entryDao().get(a)!!.weightUnit)
+    }
+
+    @Test
+    fun `a missed check-in after Start fresh stays at the start with the streak reset`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.checkIn(a, clock)
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        clock.instant = clock.instant.plusSeconds(168 * 3600)
+        val result = r.checkIn(a, clock)
+        assertEquals(Outcome.Missed(0), result.outcome)
+        val row = db.entryDao().get(a)!!
+        assertEquals(listOf<Any?>(0, 1, false), listOf(row.total, row.currentStreak, row.freshStart))
+    }
+
+    @Test
+    fun `a Timer only check-in keeps the fresh start for the first Counter check-in`() = runTest {
+        val r = repo()
+        val a = r.create("Curls", EntryType.CHECK_IN)
+        r.checkIn(a, clock)
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        clock.instant = clock.instant.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(listOf<Any?>(null, 2, true), db.entryDao().get(a)!!.let { listOf(it.total, it.currentStreak, it.freshStart) })
+
+        r.setType(a, EntryType.WORKOUT)
+        clock.instant = clock.instant.plusSeconds(24 * 3600)
+        r.checkIn(a, clock)
+        assertEquals(listOf<Any?>(0, 3, false), db.entryDao().get(a)!!.let { listOf(it.total, it.currentStreak, it.freshStart) })
+    }
+
+    @Test
+    fun `an explicit counter, a reset and a duplicate all clear the fresh start`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        val copy = r.duplicate(a)
+        assertEquals(listOf(true, false), listOf(a, copy).map { db.entryDao().get(it)!!.freshStart })
+        r.overwriteCounter(a, total = 2, bestStreak = 1, currentStreak = 1, lastCheckIn = null)
+        assertFalse(db.entryDao().get(a)!!.freshStart)
+
+        r.switchMode(a, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG)
+        assertTrue(db.entryDao().get(a)!!.freshStart)
+        r.resetProgress(a, clearHistory = false)
+        assertFalse(db.entryDao().get(a)!!.freshStart)
+        assertFalse(r.entry(a).first()!!.counter.freshStart)
+    }
+
+    @Test
+    fun `a new entry has no unit until its first switch into a weight mode`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        assertNull(db.entryDao().get(a)!!.weightUnit)
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        assertEquals("KG", db.entryDao().get(a)!!.weightUnit)
+    }
+
+    @Test
+    fun `switching to the current mode changes nothing`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        r.overwriteCounter(a, 60, 3, 3, null)
+        r.switchMode(a, ProgressMode.REPS, WeightUnit.KG)
+        assertEquals(CounterState(60, 3, 3, null, 0), r.entry(a).first()!!.counter)
+        assertNull(db.entryDao().get(a)!!.weightUnit)
+    }
+
+    @Test
+    fun `weight writes on missing ids throw EntryNotFound`() = runTest {
+        val r = repo()
+        expectThrows<EntryNotFound> { r.setWeightConfig(99, curls) }
+        expectThrows<EntryNotFound> { r.switchMode(99, ProgressMode.WEIGHT, WeightUnit.KG) }
+    }
+
+    @Test
+    fun `overwriteCounter takes a level from 0 to the top in a weight mode`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12)
+        r.overwriteCounter(a, total = 0, bestStreak = 1, currentStreak = 1, lastCheckIn = null)
+        assertEquals(0, db.entryDao().get(a)!!.total)
+        assertEquals(0, r.entry(a).first()!!.counter.total)
+        r.overwriteCounter(a, total = 24, bestStreak = 1, currentStreak = 1, lastCheckIn = null)
+        expectThrows<IllegalArgumentException> { r.overwriteCounter(a, 25, 1, 1, null) }
+        expectThrows<IllegalArgumentException> { r.overwriteCounter(a, -1, 1, 1, null) }
+        assertEquals(24, db.entryDao().get(a)!!.total)
+    }
+
+    @Test
+    fun `duplicate copies the mode and the weight group with a fresh counter`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12) { it.copy(weightHolds = "1400:8:4", startWeight = 1000, startReps = 9) }
+        val copy = r.duplicate(a)
+        val e = r.entry(copy).first()!!
+        assertEquals(r.entry(a).first()!!.progression, e.progression)
+        assertNull(db.entryDao().get(copy)!!.total)
+        assertEquals(6, e.counter.total) // the start: 10 kg × 9
+        assertEquals("KG", db.entryDao().get(copy)!!.weightUnit)
+    }
+
+    @Test
+    fun `in a weight mode the Reps floor and cap never widen for a level and never move it`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 12) // Reps then weight: levels 0..24
+        assertNull(r.overwriteCounter(a, total = 24, bestStreak = 1, currentStreak = 1, lastCheckIn = null))
+        // In Reps mode a cap of 20 would pull a total of 24 down to 20 (spec revision 28 rule 4).
+        assertNull(r.setProgression(a, ProgressionConfig(startingTotal = 5, floor = 5, cap = 20)))
+        assertEquals(24, db.entryDao().get(a)!!.total)
+        // In Reps mode a total of 23 would raise the cap to 23 (spec revision 27).
+        assertNull(r.overwriteCounter(a, total = 23, bestStreak = 1, currentStreak = 1, lastCheckIn = null))
+        assertEquals(5 to 20, r.entry(a).first()!!.progression.let { it.floor to it.cap })
+        // Past the top level is rejected, not widened.
+        expectThrows<IllegalArgumentException> { r.overwriteCounter(a, 25, 1, 1, null) }
+        assertEquals(23, db.entryDao().get(a)!!.total)
+        assertEquals(20, r.entry(a).first()!!.progression.cap)
+    }
+
+    @Test
+    fun `an unknown unit on a history row reads as null and is logged`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        db.checkInDao().insert(CheckInEntity(entryId = a, at = 1_000, total = 15, weight = 1400, reps = 8, unit = "STONE"))
+        ShadowLog.clear()
+        assertNull(r.history(a, null).first().single().unit)
+        assertTrue(ShadowLog.getLogsForTag("EntryMapping").any { it.type == android.util.Log.WARN && "STONE" in it.msg })
+    }
+
+    @Test
+    fun `in a weight mode setProgression resets the hold count only for the Hold switch and logs no level as invalid`() = runTest {
+        val r = repo()
+        val a = curlsRow(total = 0) { it.copy(holdCount = 2) } // level 0: 8 kg × 8
+        ShadowLog.clear()
+        r.setProgression(a, ProgressionConfig(holds = listOf(Hold(66, 3))))
+        r.setProgression(a, ProgressionConfig(holds = listOf(Hold(66, 3)), cap = 60))
+        assertEquals(0 to 2, db.entryDao().get(a)!!.let { it.total to it.holdCount })
+        assertFalse(ShadowLog.getLogsForTag("EntryMapping").any { "Invalid total" in it.msg })
+        r.setProgression(a, ProgressionConfig(holds = listOf(Hold(66, 3)), cap = 60, hold = false))
+        assertEquals(0 to 0, db.entryDao().get(a)!!.let { it.total to it.holdCount })
     }
 }
