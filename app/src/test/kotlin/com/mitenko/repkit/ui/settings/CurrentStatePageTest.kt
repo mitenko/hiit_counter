@@ -109,9 +109,37 @@ class CurrentStatePageTest {
         compose.onNodeWithTag("value_Current streak").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("last_check_in").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("reset_progress").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithContentDescription("Increase Best streak").performScrollTo().performClick()
-        assertEquals(25, draft.best)
-        assertEquals(65, draft.total) // a streak edit keeps the stored total in the draft, so the save writes it back unchanged
+    }
+
+    // Best streak is read-only (spec revision 29): the app keeps it current on its own.
+
+    @Test
+    fun `Best streak shows its value`() {
+        show()
+        compose.onNodeWithTag("value_Best streak").performScrollTo().assertTextEquals("24")
+    }
+
+    @Test
+    fun `Best streak has no increase or decrease buttons`() {
+        show()
+        compose.onNodeWithTag("value_Best streak").performScrollTo()
+        compose.onNodeWithContentDescription("Increase Best streak").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Decrease Best streak").assertDoesNotExist()
+    }
+
+    @Test
+    fun `tapping Best streak's value opens no edit dialog`() {
+        show()
+        compose.onNodeWithTag("value_Best streak").performScrollTo().performClick()
+        compose.onNodeWithTag("edit_field").assertDoesNotExist()
+        assertEquals(24, draft.best) // unchanged: the tap did nothing
+    }
+
+    @Test
+    fun `Best streak's info tag still works`() {
+        show()
+        compose.onNodeWithContentDescription("About Best streak").performScrollTo().performClick()
+        compose.onNodeWithTag("info_text").assertTextEquals("Your longest run of on-time check-ins. It updates on its own as your streak grows.")
     }
 
     @Test
@@ -134,12 +162,11 @@ class CurrentStatePageTest {
     }
 
     @Test
-    fun `the streak steppers name their field and the others name none`() {
+    fun `the current streak stepper names its field and the others name none`() {
         show()
         compose.onNodeWithContentDescription("Increase Current streak").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Increase Best streak").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Increase Current reps").performScrollTo().performClick()
-        assertEquals(listOf(StreakField.CURRENT, StreakField.BEST, null), fields)
+        assertEquals(listOf(StreakField.CURRENT, null), fields)
     }
 
     @Test

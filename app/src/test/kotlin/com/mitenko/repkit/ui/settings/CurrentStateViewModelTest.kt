@@ -312,10 +312,12 @@ class CurrentStateViewModelTest {
     }
 
     @Test
-    fun `a best streak lowered below the current streak stays an error and is not saved`() = runTest {
+    fun `a best streak below the current streak stays an error and is not saved (best streak is read-only, spec rev 29)`() = runTest {
+        // Best streak has no edit path in the UI any more; this exercises the validator as a safety
+        // net via the generic (field = null) update, the only way left to produce best < current.
         val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 48, bestStreak = 5, currentStreak = 4))))
         val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
-        vm.updateNow(StreakField.BEST) { it.copy(best = 3) }
+        vm.updateNow { it.copy(best = 3) }
         assertEquals(FieldMessage.AtLeastCurrentStreak, vm.validation.value.errors[Field.BEST_STREAK])
         assertEquals(4, vm.draft.value!!.current)
         assertTrue(vm.streakNote.value.isEmpty())

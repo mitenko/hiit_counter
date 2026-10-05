@@ -94,7 +94,7 @@
     <string name="info_window">Registra dentro de estas horas desde tu último registro para ir a tiempo. Los registros a tiempo mantienen tu racha y, en los entrenamientos de Contador, suman una repetición.</string>
     <string name="info_penalty_rate">Si te pasas del margen a tiempo, tu total de repeticiones baja poco a poco mientras estás fuera. Nunca baja de tu mínimo.</string>
     <string name="info_total_reps">Tu total actual de repeticiones, repartido entre las series del entrenamiento. Los cambios se aplican de inmediato.</string>
-    <string name="info_best_streak">Tu mayor serie de registros a tiempo. Nunca puede ser menor que tu racha actual.</string>
+    <string name="info_best_streak">Tu mayor racha de registros a tiempo. Se actualiza sola a medida que crece tu racha.</string>
     <string name="info_current_streak">Tu racha actual de registros a tiempo, incluido el último. Si te pasas del margen, la racha vuelve a 1.</string>
     <string name="info_last_check_in">La última vez que pulsaste Iniciar. REPKIT lo usa para calcular tu margen a tiempo y el ajuste por días perdidos. Bórralo para que tu próximo registro sea el primero.</string>
     <string name="info_sound">Reproduce pitidos de cuenta regresiva y un pitido cada vez que cambia la fase del entrenamiento.</string>

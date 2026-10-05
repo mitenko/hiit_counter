@@ -85,6 +85,35 @@ fun StepperRow(
 }
 
 /**
+ * A read-only value row (spec rev 29): the same card and label/ⓘ layout as [StepperRow], but the
+ * value is just displayed — no −/+ buttons and no tap-to-edit dialog. Best streak uses this: the
+ * app keeps it current on its own (spec R3 §6), so it isn't a field the user edits.
+ */
+@Composable
+fun ValueRow(
+    label: String,
+    valueText: String,
+    info: String? = null,
+    a11yLabel: String = label,
+) {
+    SettingsCard(Modifier.padding(vertical = 4.dp).testTag("card_$a11yLabel")) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                info?.let { InfoTag(title = label, text = it, describedAs = a11yLabel) }
+            }
+            Text(
+                valueText,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 24.dp).testTag("value_$a11yLabel"),
+            )
+        }
+    }
+}
+
+/**
  * An integer field on a [StepRange] (spec R2 §8.1). ± clamps at the hard edges and a dialog value
  * is clamped into the range. Cross-field rules are the screen's validation and are not clamped
  * here. [input] is [ValueInput.TIME] (shown as mm:ss) or [ValueInput.WHOLE]. Updates are

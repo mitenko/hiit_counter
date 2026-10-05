@@ -62,6 +62,7 @@ import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.common.SaveStatusLine
 import com.mitenko.repkit.ui.common.SettingsPageLayout
 import com.mitenko.repkit.ui.common.ValueInput
+import com.mitenko.repkit.ui.common.ValueRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +86,8 @@ import javax.inject.Inject
  * unsaved edits follows the stored counter (plan Spec note 2). A saved total outside floor..cap
  * widens the range, and [rangeNote] says which limit moved (spec revision 27). A current streak
  * edited above the best streak raises the best streak, and [streakNote] says so (spec revision 28).
+ * Best streak itself is read-only (spec revision 29): the app keeps it current, and only a current
+ * streak edit (via [update]/[updateNow] with [StreakField.CURRENT]) can raise it.
  */
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
@@ -315,11 +318,10 @@ fun CurrentStatePageContent(
             // Spec revision 27: which limit the save moved, announced politely to TalkBack.
             rangeNote?.let { MoveNote(listOf(it), tag = "range_note") }
         }
-        IntStepperField(
-            stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
-            onUpdate = { f -> onChange(StreakField.BEST) { it.copy(best = f(it.best)) } },
-            onDialogUpdate = { f -> onChangeNow(StreakField.BEST) { it.copy(best = f(it.best)) } },
-            error = validation.errors[Field.BEST_STREAK].resolve(), info = stringResource(R.string.info_best_streak),
+        // Best streak is read-only (spec revision 29): the app keeps it current on its own.
+        ValueRow(
+            stringResource(R.string.best_streak_field), draft.best.toString(),
+            info = stringResource(R.string.info_best_streak),
         )
         IntStepperField(
             stringResource(R.string.current_streak_field), draft.current, FieldRanges.STREAK, ValueInput.WHOLE,

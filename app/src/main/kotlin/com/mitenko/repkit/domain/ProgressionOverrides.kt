@@ -83,15 +83,19 @@ fun ProgressionConfig.totalMove(total: Int): Move? = when {
     else -> null
 }
 
-/** The Current page's streak fields (spec revision 28 rule 5). */
-enum class StreakField { BEST, CURRENT }
+/**
+ * The Current page's streak fields that the user can edit (spec revision 28 rule 5; amended rev 29:
+ * best streak is read-only, so this names the only one left).
+ */
+enum class StreakField { CURRENT }
 
 data class StreakResolution(val best: Int, val current: Int, val moves: List<Move>)
 
 /**
  * Spec revision 28 rule 5: a current streak edited above the best streak raises the best streak to
- * match. A best streak edited below the current streak stays an error (no rule lowers the current
- * streak).
+ * match. With no streak field edited, nothing moves; the domain validator's bestStreak >=
+ * currentStreak rule stays as a safety net even though the UI no longer offers a way to violate it
+ * (spec revision 29).
  */
 fun resolveStreaks(best: Int, current: Int, edited: StreakField?): StreakResolution =
     if (edited == StreakField.CURRENT && current > best) {

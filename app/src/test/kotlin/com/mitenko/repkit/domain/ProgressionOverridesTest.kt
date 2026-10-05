@@ -163,14 +163,15 @@ class ProgressionOverridesTest {
     }
 
     @Test
-    fun `a best streak lowered below the current streak stays an error`() {
-        val r = resolveStreaks(best = 3, current = 4, edited = StreakField.BEST)
+    fun `a best streak below the current streak stays an error (best streak is read-only, spec rev 29)`() {
+        // Best streak has no edit path any more (spec revision 29), so the only way the domain sees
+        // best < current is with no streak field edited; the validator still catches it as a safety net.
+        val r = resolveStreaks(best = 3, current = 4, edited = null)
         assertEquals(StreakResolution(3, 4, emptyList()), r)
         assertEquals(
             FieldMessage.AtLeastCurrentStreak,
             SettingsValidator.currentState(50, r.best, r.current, null, java.time.Instant.EPOCH).errors[Field.BEST_STREAK],
         )
-        assertEquals(StreakResolution(3, 4, emptyList()), resolveStreaks(best = 3, current = 4, edited = null))
     }
 
     // Rule 6: the hint says why a hold is outside the range.
