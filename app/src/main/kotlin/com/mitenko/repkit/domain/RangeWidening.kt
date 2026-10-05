@@ -2,13 +2,16 @@ package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.ProgressionConfig
 
-/** Which limit a Current total moved (spec revision 27); the UI turns it into a note. */
-sealed interface RangeChange {
+/**
+ * Which limit a Current total moved (spec revision 27); the UI turns it into a note. Spec revision
+ * 28 makes these two of the [Move]s a Progression edit can cause too.
+ */
+sealed interface RangeChange : Move {
     /** Maximum reps (cap) raised to [to]. */
-    data class RaisedMax(val to: Int) : RangeChange
+    data class RaisedMax(override val to: Int) : RangeChange
 
     /** Minimum reps (floor) lowered to [to]. */
-    data class LoweredMin(val to: Int) : RangeChange
+    data class LoweredMin(override val to: Int) : RangeChange
 }
 
 /**

@@ -264,6 +264,13 @@
     <string name="hint_hold_disabled">Hold disabled</string>
     <string name="range_raised_max">Maximum reps raised to %1$d</string>
     <string name="range_lowered_min">Minimum reps lowered to %1$d</string>
+    <string name="hint_hold_above_max">Hold at %1$d is above the maximum (%2$d)</string>
+    <string name="hint_hold_below_min">Hold at %1$d is below the minimum (%2$d)</string>
+    <string name="moved_starting_raised">Starting reps raised to %1$d</string>
+    <string name="moved_starting_lowered">Starting reps lowered to %1$d</string>
+    <string name="moved_current_raised">Current reps raised to %1$d</string>
+    <string name="moved_current_lowered">Current reps lowered to %1$d</string>
+    <string name="moved_best_streak_raised">Best streak raised to %1$d</string>
     <string name="error_in_the_future">Can\'t be in the future</string>
     <string name="error_enter_name">Enter a name</string>
     <plurals name="error_name_too_long">

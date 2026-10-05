@@ -32,11 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,17 +43,21 @@ import com.mitenko.repkit.di.ApplicationScope
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldRanges
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.SettingsValidator
+import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryNotFound
+import com.mitenko.repkit.domain.resolveStreaks
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.DateFormats
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.IntStepperField
+import com.mitenko.repkit.ui.common.MoveNote
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.common.SaveStatusLine
 import com.mitenko.repkit.ui.common.SettingsPageLayout
@@ -83,7 +83,8 @@ import javax.inject.Inject
  * The Current page (spec R3 §6). It uses the same draft and save pipeline as Timing. overwriteCounter
  * keeps the hold count unless the total changes (§6.3). While the pager is open, a draft without
  * unsaved edits follows the stored counter (plan Spec note 2). A saved total outside floor..cap
- * widens the range, and [rangeNote] says which limit moved (spec revision 27).
+ * widens the range, and [rangeNote] says which limit moved (spec revision 27). A current streak
+ * edited above the best streak raises the best streak, and [streakNote] says so (spec revision 28).
  */
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
@@ -101,6 +102,15 @@ class CurrentStateViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, ValidationResult())
 
     private val _rangeNote = MutableStateFlow<RangeChange?>(null)
+
+    private val _streakNote = MutableStateFlow<List<Move>>(emptyList())
+
+    /**
+     * Spec revision 28 rule 5: what the last edit moved (the best streak), shown under Current
+     * streak until the next edit or a page change ([clearStreakNote]). It comes from the draft,
+     * not a save, so no late write can bring it back.
+     */
+    val streakNote: StateFlow<List<Move>> = _streakNote.asStateFlow()
 
     /**
      * Spec revision 27: the limit the last save moved, shown under Current reps until the total is
@@ -159,10 +169,16 @@ class CurrentStateViewModel @Inject constructor(
     }
 
     /** A stepper change: saved 400 ms after the last one. */
-    fun update(transform: (Draft) -> Draft) = edit(transform, now = false)
+    fun update(transform: (Draft) -> Draft) = edit(null, transform, now = false)
+
+    /** A stepper change to a streak [field]; a current streak above the best raises the best (spec revision 28). */
+    fun update(field: StreakField?, transform: (Draft) -> Draft) = edit(field, transform, now = false)
 
     /** A dialog OK, a date or time pick, or Clear: saved at once. */
-    fun updateNow(transform: (Draft) -> Draft) = edit(transform, now = true)
+    fun updateNow(transform: (Draft) -> Draft) = edit(null, transform, now = true)
+
+    /** A dialog OK on a streak [field]: saved at once, with the same override as [update]. */
+    fun updateNow(field: StreakField?, transform: (Draft) -> Draft) = edit(field, transform, now = true)
 
     fun flush() = saver.flush()
 
@@ -170,6 +186,11 @@ class CurrentStateViewModel @Inject constructor(
     fun clearRangeNote() {
         noteGeneration++
         _rangeNote.value = null
+    }
+
+    /** Leaving the page hides the best-streak note (spec revision 28). */
+    fun clearStreakNote() {
+        _streakNote.value = emptyList()
     }
 
     override fun onCleared() {
@@ -201,10 +222,14 @@ class CurrentStateViewModel @Inject constructor(
         }
     }
 
-    private fun edit(transform: (Draft) -> Draft, now: Boolean) {
+    private fun edit(field: StreakField?, transform: (Draft) -> Draft, now: Boolean) {
         val before = _draft.value ?: return
-        val d = transform(before)
+        val raw = transform(before)
+        // Spec revision 28 rule 5: the edited streak wins; the draft shows the raised best at once.
+        val streaks = resolveStreaks(raw.best, raw.current, field)
+        val d = raw.copy(best = streaks.best, current = streaks.current)
         if (d.total != before.total) clearRangeNote()
+        _streakNote.value = streaks.moves
         setDraft(d)
         when {
             !validate(d).isValid -> saver.cancel()
@@ -246,14 +271,20 @@ fun CurrentStatePage(vm: CurrentStateViewModel, showTotal: Boolean = true) {
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val rangeNote by vm.rangeNote.collectAsStateWithLifecycle()
+    val streakNote by vm.streakNote.collectAsStateWithLifecycle()
     draft?.let {
         CurrentStatePageContent(
             it, validation, status, vm.zone, vm::now,
-            onChange = vm::update, onChangeNow = vm::updateNow, onResetProgress = vm::resetProgress,
-            showTotal = showTotal, rangeNote = rangeNote,
+            onChange = { field, transform -> vm.update(field, transform) },
+            onChangeNow = { field, transform -> vm.updateNow(field, transform) },
+            onResetProgress = vm::resetProgress,
+            showTotal = showTotal, rangeNote = rangeNote, streakNote = streakNote,
         )
     }
 }
+
+/** A draft edit from the Current page; [field] is the streak the user changed, else null (spec revision 28). */
+typealias CurrentEdit = (field: StreakField?, transform: (CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit
 
 @Composable
 fun CurrentStatePageContent(
@@ -262,11 +293,12 @@ fun CurrentStatePageContent(
     status: SaveStatus,
     zone: ZoneId,
     now: () -> Instant,
-    onChange: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
-    onChangeNow: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
+    onChange: CurrentEdit,
+    onChangeNow: CurrentEdit,
     onResetProgress: (clearHistory: Boolean) -> Unit,
     showTotal: Boolean = true,
     rangeNote: RangeChange? = null,
+    streakNote: List<Move> = emptyList(),
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -276,37 +308,27 @@ fun CurrentStatePageContent(
         if (showTotal) {
             IntStepperField(
                 stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
-                onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
-                onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
+                onUpdate = { f -> onChange(null) { it.copy(total = f(it.total)) } },
+                onDialogUpdate = { f -> onChangeNow(null) { it.copy(total = f(it.total)) } },
                 error = validation.errors[Field.TOTAL].resolve(), info = stringResource(R.string.info_total_reps),
             )
             // Spec revision 27: which limit the save moved, announced politely to TalkBack.
-            rangeNote?.let { note ->
-                Text(
-                    note.text(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite }
-                        .testTag("range_note"),
-                )
-            }
+            rangeNote?.let { MoveNote(listOf(it), tag = "range_note") }
         }
         IntStepperField(
             stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(best = f(it.best)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(best = f(it.best)) } },
+            onUpdate = { f -> onChange(StreakField.BEST) { it.copy(best = f(it.best)) } },
+            onDialogUpdate = { f -> onChangeNow(StreakField.BEST) { it.copy(best = f(it.best)) } },
             error = validation.errors[Field.BEST_STREAK].resolve(), info = stringResource(R.string.info_best_streak),
         )
         IntStepperField(
             stringResource(R.string.current_streak_field), draft.current, FieldRanges.STREAK, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(current = f(it.current)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(current = f(it.current)) } },
+            onUpdate = { f -> onChange(StreakField.CURRENT) { it.copy(current = f(it.current)) } },
+            onDialogUpdate = { f -> onChangeNow(StreakField.CURRENT) { it.copy(current = f(it.current)) } },
             error = validation.errors[Field.CURRENT_STREAK].resolve(), info = stringResource(R.string.info_current_streak),
         )
+        // Spec revision 28 rule 5: the best streak this edit raised.
+        if (streakNote.isNotEmpty()) MoveNote(streakNote, tag = "streak_note")
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(lastLabel, style = MaterialTheme.typography.labelLarge)
             InfoTag(lastLabel, stringResource(R.string.info_last_check_in))
@@ -324,7 +346,7 @@ fun CurrentStatePageContent(
                     .testTag("last_check_in"),
             )
             TextButton(
-                onClick = { onChangeNow { it.copy(lastCheckIn = null) } },
+                onClick = { onChangeNow(null) { it.copy(lastCheckIn = null) } },
                 enabled = draft.lastCheckIn != null,
                 modifier = Modifier.testTag("clear_last_check_in"),
             ) {
@@ -347,7 +369,7 @@ fun CurrentStatePageContent(
             zone = zone,
             onPicked = { t ->
                 picking = false
-                onChangeNow { it.copy(lastCheckIn = t) }
+                onChangeNow(null) { it.copy(lastCheckIn = t) }
             },
             onDismiss = { picking = false },
         )
@@ -388,12 +410,6 @@ fun CurrentStatePageContent(
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
-}
-
-@Composable
-private fun RangeChange.text(): String = when (this) {
-    is RangeChange.RaisedMax -> stringResource(R.string.range_raised_max, to)
-    is RangeChange.LoweredMin -> stringResource(R.string.range_lowered_min, to)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

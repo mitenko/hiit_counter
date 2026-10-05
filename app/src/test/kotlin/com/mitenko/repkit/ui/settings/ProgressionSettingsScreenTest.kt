@@ -3,6 +3,10 @@ package com.mitenko.repkit.ui.settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -17,6 +21,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Move
+import com.mitenko.repkit.domain.ProgressionField
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
@@ -39,6 +46,10 @@ class ProgressionSettingsScreenTest {
     private var resets = 0
     private var nowEdits = 0
 
+    /** The field each edit named (spec revision 28), in order. */
+    private val fields = mutableListOf<ProgressionField?>()
+    private var note by mutableStateOf<ProgressionNote?>(null)
+
     private fun show(initial: ProgressionConfig, windowOnly: Boolean = false) {
         draft = ProgressionDraft.from(initial)
         compose.setContent {
@@ -46,21 +57,73 @@ class ProgressionSettingsScreenTest {
                 val validation = SettingsValidator.progression(draft.toConfig())
                 ProgressionPageContent(
                     draft, validation, SaveStatus.of(validation, failed = false),
-                    onChange = { draft = it(draft) }, onChangeNow = { nowEdits++; draft = it(draft) }, onReset = { resets++ },
-                    windowOnly = windowOnly,
+                    onChange = { field, f -> fields += field; draft = f(draft) },
+                    onChangeNow = { field, f -> fields += field; nowEdits++; draft = f(draft) },
+                    onReset = { resets++ },
+                    windowOnly = windowOnly, note = note,
                 )
             }
         }
     }
 
     @Test
-    fun `cross-field errors show inline with Not saved, and the hold hint shows`() {
+    fun `an unresolved cross-field error still shows inline with Not saved, and the hold hints show`() {
+        // Edits resolve these (spec revision 28); a draft that arrives out of order, e.g. restored, still shows the error.
         show(ProgressionConfig(startingTotal = 40))
         compose.onNodeWithTag("support_Starting reps").assertTextEquals("Must be ≥ floor")
         compose.onNodeWithTag("save_status").assertTextEquals("Not saved: fix the highlighted field")
         draft = ProgressionDraft.from(ProgressionConfig(holds = listOf(Hold(64, 0))))
         compose.onNodeWithTag("support_Hold 1 at").performScrollTo().assertTextEquals("Hold disabled")
         compose.onNodeWithTag("save_status").assertTextEquals("Saved")
+        // Spec revision 28 rule 6: an outside hold says which bound.
+        draft = ProgressionDraft.from(ProgressionConfig(cap = 60, holds = listOf(Hold(64, 4))))
+        compose.onNodeWithTag("support_Hold 1 at").performScrollTo().assertTextEquals("Hold at 64 is above the maximum (60)")
+        draft = ProgressionDraft.from(ProgressionConfig(holds = listOf(Hold(40, 4))))
+        compose.onNodeWithTag("support_Hold 1 at").performScrollTo().assertTextEquals("Hold at 40 is below the minimum (48)")
+        compose.onNodeWithTag("save_status").assertTextEquals("Saved")
+    }
+
+    @Test
+    fun `the reps steppers name their field and the other rows name none`() {
+        show(ProgressionConfig())
+        listOf("Starting reps", "Minimum reps", "Maximum reps", "Hold 1 at", "On-time window (hours)").forEach {
+            compose.onNodeWithContentDescription("Increase $it").performScrollTo().performClick()
+        }
+        assertEquals(listOf(ProgressionField.STARTING_TOTAL, ProgressionField.FLOOR, ProgressionField.CAP, null, null), fields)
+    }
+
+    @Test
+    fun `the note shows under the edited field, every move on one line, as a polite live region`() {
+        note = ProgressionNote(ProgressionField.FLOOR, listOf(Move.StartingRaised(50), Move.CurrentRaised(50)))
+        show(ProgressionConfig(startingTotal = 50, floor = 50))
+        compose.onNodeWithTag("progression_note").performScrollTo()
+            .assertTextEquals("Starting reps raised to 50 · Current reps raised to 50")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        // Under Minimum reps: below its row, above Maximum reps.
+        val floorRow = compose.onNodeWithTag("value_Minimum reps").fetchSemanticsNode().boundsInRoot
+        val noteBox = compose.onNodeWithTag("progression_note").fetchSemanticsNode().boundsInRoot
+        val capRow = compose.onNodeWithTag("value_Maximum reps").fetchSemanticsNode().boundsInRoot
+        assertTrue(noteBox.top >= floorRow.bottom && noteBox.bottom <= capRow.top)
+    }
+
+    @Test
+    fun `each move has its own text`() {
+        show(ProgressionConfig())
+        mapOf(
+            RangeChange.RaisedMax(80) to "Maximum reps raised to 80",
+            RangeChange.LoweredMin(40) to "Minimum reps lowered to 40",
+            Move.StartingRaised(50) to "Starting reps raised to 50",
+            Move.StartingLowered(45) to "Starting reps lowered to 45",
+            Move.CurrentRaised(52) to "Current reps raised to 52",
+            Move.CurrentLowered(60) to "Current reps lowered to 60",
+        ).forEach { (move, text) ->
+            note = ProgressionNote(ProgressionField.CAP, listOf(move))
+            compose.onNodeWithTag("progression_note").performScrollTo().assertTextEquals(text)
+        }
+        note = ProgressionNote(null, listOf(Move.CurrentLowered(72))) // Reset to defaults: under its button
+        compose.onNodeWithTag("progression_note").performScrollTo().assertTextEquals("Current reps lowered to 72")
+        note = null
+        compose.onNodeWithTag("progression_note").assertDoesNotExist()
     }
 
     @Test

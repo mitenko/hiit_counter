@@ -51,7 +51,8 @@ class SettingsValidatorTest {
     fun `hold outside floor to cap is allowed with a hint`() {
         val r = SettingsValidator.progression(holds(Hold(80, 4)))
         assertTrue(r.isValid)
-        assertEquals(mapOf(0 to FieldMessage.HoldDisabled), r.holdHints)
+        // Spec revision 28 rule 6: the hint says which bound the hold is past.
+        assertEquals(mapOf(0 to FieldMessage.HoldOutsideRange(80, 72, isAbove = true)), r.holdHints)
         assertEquals(mapOf(0 to FieldMessage.HoldDisabled), SettingsValidator.progression(holds(Hold(64, 0))).holdHints)
         assertTrue(SettingsValidator.progression(ProgressionConfig()).holdHints.isEmpty())
     }
@@ -68,7 +69,7 @@ class SettingsValidatorTest {
             ),
             r.holdErrors,
         )
-        assertEquals(mapOf(2 to FieldMessage.HoldDisabled), r.holdHints)
+        assertEquals(mapOf(2 to FieldMessage.HoldOutsideRange(40, 48, isAbove = false)), r.holdHints)
     }
 
     @Test

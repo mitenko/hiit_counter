@@ -4,6 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldMessage
 import com.mitenko.repkit.domain.HoldField
+import com.mitenko.repkit.domain.Move
+import com.mitenko.repkit.domain.ProgressionField
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
@@ -12,12 +15,17 @@ import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.common.SaveStatus
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -217,5 +225,125 @@ class ProgressionSettingsViewModelTest {
         val restored = ProgressionSettingsViewModel(handle, repo, backgroundScope)
         assertEquals(listOf(Hold(56, 3), Hold(60, 2), Hold(64, 4)), restored.draft.value!!.holds)
         assertEquals(SaveStatus.INVALID, restored.status.value)
+    }
+
+    // Spec revision 28: the field you edit wins.
+
+    @Test
+    fun `a minimum raised above starting reps raises them in the draft at once, then the save moves the current total`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 48, holdCount = 2))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.update(ProgressionField.FLOOR) { it.copy(floor = 50) }
+        assertEquals(50, vm.draft.value!!.startingTotal) // before any save
+        assertEquals(SaveStatus.SAVED, vm.status.value)
+        assertEquals(ProgressionNote(ProgressionField.FLOOR, listOf(Move.StartingRaised(50))), vm.note.value)
+        advanceTimeBy(400)
+        runCurrent()
+        assertEquals(ProgressionConfig(startingTotal = 50, floor = 50), repo.find(1).progression)
+        assertEquals(CounterState(total = 50, holdCount = 0), repo.find(1).counter)
+        assertEquals(ProgressionNote(ProgressionField.FLOOR, listOf(Move.StartingRaised(50), Move.CurrentRaised(50))), vm.note.value)
+    }
+
+    @Test
+    fun `a maximum lowered below starting reps lowers them and the save lowers the current total`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(startingTotal = 60), counter = CounterState(total = 66))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.updateNow(ProgressionField.CAP) { it.copy(cap = 55) }
+        assertEquals(55, vm.draft.value!!.startingTotal)
+        runCurrent()
+        assertEquals(ProgressionConfig(startingTotal = 55, cap = 55), repo.find(1).progression)
+        assertEquals(55, repo.find(1).counter.total)
+        assertEquals(ProgressionNote(ProgressionField.CAP, listOf(Move.StartingLowered(55), Move.CurrentLowered(55))), vm.note.value)
+    }
+
+    @Test
+    fun `starting reps above the maximum raise it and below the minimum lower it`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.updateNow(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = 80) }
+        assertEquals(80, vm.draft.value!!.cap)
+        assertEquals(ProgressionNote(ProgressionField.STARTING_TOTAL, listOf(RangeChange.RaisedMax(80))), vm.note.value)
+        runCurrent()
+        assertEquals(ProgressionConfig(startingTotal = 80, cap = 80), repo.find(1).progression)
+        vm.updateNow(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = 40) }
+        assertEquals(40, vm.draft.value!!.floor)
+        assertEquals(ProgressionNote(ProgressionField.STARTING_TOTAL, listOf(RangeChange.LoweredMin(40))), vm.note.value)
+        runCurrent()
+        assertEquals(ProgressionConfig(startingTotal = 40, floor = 40, cap = 80), repo.find(1).progression)
+        assertEquals(48, repo.find(1).counter.total) // inside 40..80, so it stays
+    }
+
+    @Test
+    fun `a field-less edit resolves nothing, so an out-of-order draft stays invalid`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.update { it.copy(floor = 50) }
+        assertEquals(48, vm.draft.value!!.startingTotal)
+        assertEquals(SaveStatus.INVALID, vm.status.value)
+        assertNull(vm.note.value)
+    }
+
+    @Test
+    fun `the note clears on the next edit and on a page change`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.update(ProgressionField.FLOOR) { it.copy(floor = 49) }
+        assertEquals(ProgressionNote(ProgressionField.FLOOR, listOf(Move.StartingRaised(49))), vm.note.value)
+        vm.update { it.copy(windowHours = 30) } // any next edit
+        assertNull(vm.note.value)
+        vm.update(ProgressionField.FLOOR) { it.copy(floor = 50) }
+        assertEquals(ProgressionNote(ProgressionField.FLOOR, listOf(Move.StartingRaised(50))), vm.note.value)
+        // A page change flushes the pending save, then hides the note, as the pager does.
+        vm.flush()
+        vm.clearNote()
+        assertNull(vm.note.value)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(50, repo.find(1).counter.total)
+        assertNull(vm.note.value)
+    }
+
+    @Test
+    fun `a save that finishes after the note was dismissed never brings it back`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 66))))
+        val gate = CompletableDeferred<Unit>()
+        repo.progressionGate = gate
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.updateNow(ProgressionField.CAP) { it.copy(cap = 60) }
+        runCurrent()
+        assertEquals(1, repo.progressionWrites) // in flight, held by the gate
+        vm.clearNote() // the user changed page
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(60, repo.find(1).counter.total)
+        assertNull(vm.note.value)
+    }
+
+    @Test
+    fun `a page change right after its flush drops the note even though the queued write moves the total`() = runTest {
+        // Production order on a page change: flush, then clearNote, with nothing run in between.
+        // A queued (not eager) dispatcher makes the write start only after clearNote.
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 66))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        runCurrent() // the draft loads
+        vm.update(ProgressionField.CAP) { it.copy(cap = 60) }
+        vm.flush()
+        vm.clearNote()
+        runCurrent()
+        assertEquals(1, repo.progressionWrites)
+        assertEquals(60, repo.find(1).counter.total) // a real Move happened
+        assertNull(vm.note.value)
+    }
+
+    @Test
+    fun `reset to defaults notes a moved current total under the reset button`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(cap = 90), counter = CounterState(total = 85))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.update(ProgressionField.CAP) { it.copy(cap = 95) }
+        vm.resetToDefaults()
+        runCurrent()
+        assertEquals(72, repo.find(1).counter.total)
+        assertEquals(ProgressionNote(null, listOf(Move.CurrentLowered(72))), vm.note.value)
     }
 }

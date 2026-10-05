@@ -8,6 +8,7 @@ import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.EntryNames
 import com.mitenko.repkit.domain.InvalidEntryName
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RangeChange
@@ -16,6 +17,7 @@ import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.counterHoldReset
 import com.mitenko.repkit.domain.holdResetNeeded
 import com.mitenko.repkit.domain.rangeChange
+import com.mitenko.repkit.domain.totalMove
 import com.mitenko.repkit.domain.widenedFor
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CueConfig
@@ -59,8 +61,14 @@ interface EntryRepository {
 
     suspend fun setTiming(id: Long, timing: TimingConfig)
 
-    /** One transaction: holdCount is reset only if holdResetNeeded says so (R3 §6.3, rev 16 §4). */
-    suspend fun setProgression(id: Long, progression: ProgressionConfig)
+    /**
+     * One transaction: holdCount is reset only if holdResetNeeded says so (R3 §6.3, rev 16 §4).
+     * Spec revision 28 rule 4: a Counter entry's stored total outside the new floor..cap moves to
+     * the nearer limit in the same transaction, resetting the hold count ([counterHoldReset]), and
+     * that move is returned. A NULL total stays NULL (it follows the starting total); a Timer only
+     * entry's total is never moved. Returns null when the total didn't move.
+     */
+    suspend fun setProgression(id: Long, progression: ProgressionConfig): Move?
 
     suspend fun setCues(id: Long, cues: CueConfig)
 
@@ -196,13 +204,24 @@ class RoomEntryRepository(
         found(id, with(timing) { dao.setTiming(id, prepareSec, sets, workSec, restSec, cooldownSec) })
     }
 
-    override suspend fun setProgression(id: Long, progression: ProgressionConfig) {
+    override suspend fun setProgression(id: Long, progression: ProgressionConfig): Move? {
         require(SettingsValidator.progression(progression).isValid) { "Invalid progression: $progression" }
         gate.awaitReady()
-        db.withTransaction {
+        return db.withTransaction {
+            val row = dao.get(id) ?: throw EntryNotFound(id)
             // Compared with the row's effective (repaired) progression, the one checkIn uses.
-            val old = dao.get(id)?.progression() ?: throw EntryNotFound(id)
-            writeProgression(id, old, progression)
+            val entry = row.toDomain()
+            val progressionReset = writeProgression(id, entry.progression, progression)
+            // Spec revision 28 rule 4: only a stored total moves; NULL keeps following the starting total.
+            val stored = validTotal(row.total)
+            val move = if (entry.type == EntryType.WORKOUT && stored != null) progression.totalMove(stored) else null
+            if (move != null && stored != null) {
+                val c = entry.counter
+                // As in overwriteCounter: the hold count restarts when the progression or the total says so.
+                val holdCount = if (progressionReset || counterHoldReset(stored, move.to)) 0 else c.holdCount
+                dao.setCounter(id, move.to, c.bestStreak, c.currentStreak, holdCount, c.lastCheckIn?.toEpochMilli())
+            }
+            move
         }
     }
 

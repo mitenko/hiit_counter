@@ -5,6 +5,7 @@ import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.EntryNames
 import com.mitenko.repkit.domain.InvalidEntryName
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RangeChange
@@ -12,6 +13,7 @@ import com.mitenko.repkit.domain.RepProgression
 import com.mitenko.repkit.domain.counterHoldReset
 import com.mitenko.repkit.domain.holdResetNeeded
 import com.mitenko.repkit.domain.rangeChange
+import com.mitenko.repkit.domain.totalMove
 import com.mitenko.repkit.domain.widenedFor
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
@@ -35,7 +37,7 @@ import java.time.Instant
  * suspend call waits for [readiness], missing ids throw EntryNotFound, invalid names throw
  * IllegalArgumentException, positions stay contiguous, the hold count follows the R3 §6.3 rules,
  * a Timer only entry's check-in keeps its total (R4 §3.1), and a recorded check-in logs one
- * point in [points] (R6 §3.2), and a Counter total outside floor..cap widens it (rev 27). Settings validation is left to the ViewModels under test. The write
+ * point in [points] (R6 §3.2), a Counter total outside floor..cap widens it (rev 27), and a Progression save moves a Counter total into the new floor..cap (rev 28). Settings validation is left to the ViewModels under test. The write
  * counters, [writeError] and [checkInGate] let the tests count, fail and hold individual calls.
  */
 class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = true) : EntryRepository {
@@ -55,6 +57,9 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
 
     /** When set, overwriteCounter suspends on it after counting the call, so a test can hold a counter save in flight. */
     var counterGate: CompletableDeferred<Unit>? = null
+
+    /** When set, setProgression suspends on it after counting the call, so a test can hold a progression save in flight. */
+    var progressionGate: CompletableDeferred<Unit>? = null
 
     /** When set, create suspends on it after validating the name, so a test can hold a create in flight. */
     var createGate: CompletableDeferred<Unit>? = null
@@ -140,13 +145,19 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         edit(id) { it.copy(timing = timing) }
     }
 
-    override suspend fun setProgression(id: Long, progression: ProgressionConfig) {
+    /** Moves a Counter entry's total into the new floor..cap as Room does (spec revision 28 rule 4). */
+    override suspend fun setProgression(id: Long, progression: ProgressionConfig): Move? {
         progressionWrites++
+        progressionGate?.await()
         failIfAsked()
+        var move: Move? = null
         edit(id) {
-            val holdCount = if (holdResetNeeded(it.progression, progression)) 0 else it.counter.holdCount
-            it.copy(progression = progression, counter = it.counter.copy(holdCount = holdCount))
+            move = if (it.type == EntryType.WORKOUT) progression.totalMove(it.counter.total) else null
+            val reset = holdResetNeeded(it.progression, progression) || move != null
+            val holdCount = if (reset) 0 else it.counter.holdCount
+            it.copy(progression = progression, counter = it.counter.copy(total = move?.to ?: it.counter.total, holdCount = holdCount))
         }
+        return move
     }
 
     override suspend fun setCues(id: Long, cues: CueConfig) = edit(id) { it.copy(cues = cues) }

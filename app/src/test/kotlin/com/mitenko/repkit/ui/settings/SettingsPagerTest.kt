@@ -51,13 +51,16 @@ class SettingsPagerTest {
     /** The last [show]'s Current page ViewModel, so a test can flush its pending save. */
     private lateinit var currentVm: CurrentStateViewModel
 
+    /** The last [show]'s Progression page ViewModel, so a test can flush its pending save. */
+    private lateinit var progressionVm: ProgressionSettingsViewModel
+
     private fun checkInRepo() = FakeEntryRepository(listOf(testEntry(1, name = "Stretch", type = EntryType.CHECK_IN)))
 
     private fun show(initial: SettingsPage = SettingsPage.TIMING, repo: FakeEntryRepository = this.repo) {
         val appScope = MainScope()
         val pagerVm = SettingsPagerViewModel(handle(), repo)
         val timingVm = TimingSettingsViewModel(handle(), repo, appScope)
-        val progressionVm = ProgressionSettingsViewModel(handle(), repo, appScope)
+        val progressionVm = ProgressionSettingsViewModel(handle(), repo, appScope).also { this.progressionVm = it }
         val currentVm = CurrentStateViewModel(handle(), repo, FakeClock(), appScope).also { this.currentVm = it }
         val cuesVm = CuesSettingsViewModel(handle(), repo, FakeVoiceAvailability())
         compose.setContent {
@@ -182,6 +185,39 @@ class SettingsPagerTest {
             assertEquals(80, repo.find(1).progression.cap)
             assertEquals(49, repo.find(1).progression.startingTotal)
         }
+    }
+
+    @Test
+    fun `raising the minimum moves starting reps at once and the current total on save, with one note, gone after a page change`() {
+        show(initial = SettingsPage.PROGRESSION)
+        compose.onNodeWithContentDescription("Increase Minimum reps").performScrollTo().performClick()
+        compose.onNodeWithTag("value_Starting reps").performScrollTo().assertTextEquals("49")
+        compose.onNodeWithTag("progression_note").performScrollTo().assertTextEquals("Starting reps raised to 49")
+        compose.runOnIdle { progressionVm.flush() }
+        compose.onNodeWithTag("progression_note").performScrollTo()
+            .assertTextEquals("Starting reps raised to 49 · Current reps raised to 49")
+        compose.runOnIdle {
+            assertEquals(49, repo.find(1).progression.startingTotal)
+            assertEquals(49, repo.find(1).counter.total)
+        }
+        tab(SettingsPage.CURRENT).performClick()
+        compose.onNodeWithTag("value_Current reps").performScrollTo().assertTextEquals("49")
+        tab(SettingsPage.PROGRESSION).performClick()
+        compose.onNodeWithTag("value_Minimum reps").performScrollTo().assertTextEquals("49")
+        compose.onNodeWithTag("progression_note").assertDoesNotExist()
+    }
+
+    @Test
+    fun `raising the current streak past the best raises the best at once with a note`() {
+        show(initial = SettingsPage.CURRENT)
+        compose.onNodeWithContentDescription("Increase Current streak").performScrollTo().performClick()
+        compose.onNodeWithTag("value_Best streak").performScrollTo().assertTextEquals("1")
+        compose.onNodeWithTag("streak_note").performScrollTo().assertTextEquals("Best streak raised to 1")
+        tab(SettingsPage.CUES).performClick()
+        compose.runOnIdle { assertEquals(1, repo.find(1).counter.bestStreak) }
+        tab(SettingsPage.CURRENT).performClick()
+        compose.onNodeWithTag("value_Current streak").assertIsDisplayed()
+        compose.onNodeWithTag("streak_note").assertDoesNotExist()
     }
 
     @Test
