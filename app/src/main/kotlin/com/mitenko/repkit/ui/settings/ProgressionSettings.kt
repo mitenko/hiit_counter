@@ -37,17 +37,21 @@ import com.mitenko.repkit.di.ApplicationScope
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldRanges
 import com.mitenko.repkit.domain.HoldField
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.PenaltyDraft
+import com.mitenko.repkit.domain.ProgressionField
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.newHold
+import com.mitenko.repkit.domain.resolveFor
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.IntStepperField
+import com.mitenko.repkit.ui.common.MoveNote
 import com.mitenko.repkit.ui.common.PenaltyStepperField
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.common.SaveStatusLine
@@ -95,6 +99,9 @@ data class ProgressionDraft(
     /** ✕ on hold [index]. Removing the last one leaves an empty list; the switch is untouched. */
     fun withoutHold(index: Int) = copy(holds = holds.filterIndexed { i, _ -> i != index })
 
+    /** Takes the reps fields from [c] (an override's result, spec revision 28); the penalty keeps its draft form. */
+    fun withRange(c: ProgressionConfig) = copy(startingTotal = c.startingTotal, floor = c.floor, cap = c.cap)
+
     companion object {
         fun from(c: ProgressionConfig) = ProgressionDraft(
             c.startingTotal, c.floor, c.cap, c.holds, c.windowHours, PenaltyDraft.of(c.penaltyHoursPerRep), c.hold,
@@ -103,10 +110,24 @@ data class ProgressionDraft(
 }
 
 /**
+ * What a Progression edit moved (spec revision 28), shown under [at]: the field the user edited,
+ * or Reset to defaults when null. [moves] are the draft's own moves first, then a current total the
+ * save moved.
+ */
+data class ProgressionNote(val at: ProgressionField?, val moves: List<Move>)
+
+/**
+ * A draft edit from the page. [field] is the field the user changed when it can push another
+ * (spec revision 28), else null.
+ */
+typealias ProgressionEdit = (field: ProgressionField?, transform: (ProgressionDraft) -> ProgressionDraft) -> Unit
+
+/**
  * The Progression page (spec R3 §5.3, §6). It uses the same draft and save pipeline as Timing. The
  * Hold switch and Reset to defaults save at once; setProgression keeps the hold count unless the
  * hold itself changes (§6.3). While the pager is open, a draft without unsaved edits follows the
- * stored progression (spec revision 27).
+ * stored progression (spec revision 27). An edit that conflicts with another field wins: the other
+ * values move to fit, and [note] says what moved (spec revision 28).
  */
 @HiltViewModel
 class ProgressionSettingsViewModel @Inject constructor(
@@ -124,9 +145,35 @@ class ProgressionSettingsViewModel @Inject constructor(
     val status: StateFlow<SaveStatus> = combine(validation, failed) { v, f -> SaveStatus.of(v, f) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SaveStatus.SAVED)
 
-    private val saver = AutoSaver<ProgressionConfig>(viewModelScope) { config ->
+    private val _note = MutableStateFlow<ProgressionNote?>(null)
+
+    /**
+     * Spec revision 28: what the last edit moved, until the next edit or a page change
+     * ([clearNote]). A current total moved by the save is added when the save lands.
+     */
+    val note: StateFlow<ProgressionNote?> = _note.asStateFlow()
+
+    /**
+     * Advanced by [clearNote]. Each save carries the value from when it was queued, and only adds to
+     * the note if this hasn't moved since: a page change's flush-then-clear drops it even when the
+     * write itself starts later.
+     */
+    private var noteGeneration = 0L
+
+    /** A queued progression write and the note generation it was queued in. */
+    private data class Save(val config: ProgressionConfig, val generation: Long)
+
+    private fun save(config: ProgressionConfig) = Save(config, noteGeneration)
+
+    /** Where a total moved by a save is noted: the last edited field that can push another, or null after Reset. */
+    private var noteAnchor: ProgressionField? = null
+
+    private val saver = AutoSaver<Save>(viewModelScope) { (config, generation) ->
         try {
-            repo.setProgression(entryId, config)
+            val moved = repo.setProgression(entryId, config)
+            if (moved != null && noteGeneration == generation) {
+                _note.value = ProgressionNote(noteAnchor, _note.value?.moves.orEmpty() + moved)
+            }
             failed.value = false
         } catch (e: EntryNotFound) {
             markMissing()
@@ -142,7 +189,7 @@ class ProgressionSettingsViewModel @Inject constructor(
     init {
         val restored = _draft.value
         // A valid draft restored after process death may never have been written; the write is idempotent if it was.
-        if (restored != null && SettingsValidator.progression(restored.toConfig()).isValid) saver.schedule(restored.toConfig())
+        if (restored != null && SettingsValidator.progression(restored.toConfig()).isValid) saver.schedule(save(restored.toConfig()))
         viewModelScope.launch {
             // Spec revision 27: the pager keeps this page alive while the Current page can widen
             // floor..cap, so a draft without unsaved edits follows the store. Compared as configs,
@@ -157,10 +204,16 @@ class ProgressionSettingsViewModel @Inject constructor(
     }
 
     /** A stepper change: saved 400 ms after the last one. */
-    fun update(transform: (ProgressionDraft) -> ProgressionDraft) = edit(transform, now = false)
+    fun update(transform: (ProgressionDraft) -> ProgressionDraft) = edit(null, transform, now = false)
+
+    /** A stepper change to [field]; the values it conflicts with move to fit (spec revision 28). */
+    fun update(field: ProgressionField?, transform: (ProgressionDraft) -> ProgressionDraft) = edit(field, transform, now = false)
 
     /** A dialog OK or the Hold switch: saved at once. */
-    fun updateNow(transform: (ProgressionDraft) -> ProgressionDraft) = edit(transform, now = true)
+    fun updateNow(transform: (ProgressionDraft) -> ProgressionDraft) = edit(null, transform, now = true)
+
+    /** A dialog OK on [field]: saved at once, with the same override as [update]. */
+    fun updateNow(field: ProgressionField?, transform: (ProgressionDraft) -> ProgressionDraft) = edit(field, transform, now = true)
 
     /** "+ Add hold": saved at once (spec rev 16 §6). */
     fun addHold() = updateNow { it.withNewHold() }
@@ -169,22 +222,37 @@ class ProgressionSettingsViewModel @Inject constructor(
     fun removeHold(index: Int) = updateNow { it.withoutHold(index) }
 
     /** After the confirmation (spec R3 §6.4): the draft becomes the defaults and saves at once. */
-    fun resetToDefaults() = updateNow { ProgressionDraft.from(ProgressionConfig()) }
+    fun resetToDefaults() {
+        noteAnchor = null
+        updateNow { ProgressionDraft.from(ProgressionConfig()) }
+    }
 
     fun flush() = saver.flush()
+
+    /** The next edit or a page change hides the note (spec revision 28). */
+    fun clearNote() {
+        noteGeneration++
+        _note.value = null
+    }
 
     override fun onCleared() {
         saver.flushIn(appScope)
     }
 
-    private fun edit(transform: (ProgressionDraft) -> ProgressionDraft, now: Boolean) {
-        val d = _draft.value?.let(transform) ?: return
+    private fun edit(field: ProgressionField?, transform: (ProgressionDraft) -> ProgressionDraft, now: Boolean) {
+        val raw = _draft.value?.let(transform) ?: return
+        // Spec revision 28: the edited field wins, and the draft shows the moved values at once.
+        val resolution = raw.toConfig().resolveFor(field)
+        val d = if (resolution.moves.isEmpty()) raw else raw.withRange(resolution.config)
+        clearNote()
+        if (field != null) noteAnchor = field
+        if (resolution.moves.isNotEmpty()) _note.value = ProgressionNote(field, resolution.moves)
         setDraft(d)
         val config = d.toConfig()
         when {
             !SettingsValidator.progression(config).isValid -> saver.cancel()
-            now -> saver.saveNow(config)
-            else -> saver.schedule(config)
+            now -> saver.saveNow(save(config))
+            else -> saver.schedule(save(config))
         }
     }
 
@@ -222,10 +290,14 @@ fun ProgressionPage(vm: ProgressionSettingsViewModel, windowOnly: Boolean = fals
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val note by vm.note.collectAsStateWithLifecycle()
     draft?.let {
         ProgressionPageContent(
-            it, validation, status, onChange = vm::update, onChangeNow = vm::updateNow, onReset = vm::resetToDefaults,
-            windowOnly = windowOnly,
+            it, validation, status,
+            onChange = { field, transform -> vm.update(field, transform) },
+            onChangeNow = { field, transform -> vm.updateNow(field, transform) },
+            onReset = vm::resetToDefaults,
+            windowOnly = windowOnly, note = note,
         )
     }
 }
@@ -235,10 +307,11 @@ fun ProgressionPageContent(
     draft: ProgressionDraft,
     validation: ValidationResult,
     status: SaveStatus,
-    onChange: ((ProgressionDraft) -> ProgressionDraft) -> Unit,
-    onChangeNow: ((ProgressionDraft) -> ProgressionDraft) -> Unit,
+    onChange: ProgressionEdit,
+    onChangeNow: ProgressionEdit,
     onReset: () -> Unit,
     windowOnly: Boolean = false,
+    note: ProgressionNote? = null,
 ) {
     val errors = validation.errors
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -246,70 +319,74 @@ fun ProgressionPageContent(
         if (!windowOnly) {
             IntStepperField(
                 stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange { it.copy(startingTotal = f(it.startingTotal)) } },
-                onDialogUpdate = { f -> onChangeNow { it.copy(startingTotal = f(it.startingTotal)) } },
+                onUpdate = { f -> onChange(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
+                onDialogUpdate = { f -> onChangeNow(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
                 error = errors[Field.STARTING_TOTAL].resolve(), info = stringResource(R.string.info_starting_total),
             )
+            NoteUnder(note, ProgressionField.STARTING_TOTAL)
             IntStepperField(
                 stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange { it.copy(floor = f(it.floor)) } },
-                onDialogUpdate = { f -> onChangeNow { it.copy(floor = f(it.floor)) } },
+                onUpdate = { f -> onChange(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
+                onDialogUpdate = { f -> onChangeNow(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
                 error = errors[Field.FLOOR].resolve(), info = stringResource(R.string.info_floor),
             )
+            NoteUnder(note, ProgressionField.FLOOR)
             IntStepperField(
                 stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange { it.copy(cap = f(it.cap)) } },
-                onDialogUpdate = { f -> onChangeNow { it.copy(cap = f(it.cap)) } },
+                onUpdate = { f -> onChange(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
+                onDialogUpdate = { f -> onChangeNow(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
                 error = errors[Field.CAP].resolve(), info = stringResource(R.string.info_cap),
             )
+            NoteUnder(note, ProgressionField.CAP)
             // Spec R3 §5.3, rev 16 §6: the switch sits directly above the holds; off hides the list but keeps its values.
             SwitchRow(
                 stringResource(R.string.hold), draft.hold,
-                onChange = { on -> onChangeNow { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
+                onChange = { on -> onChangeNow(null) { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
             )
             AnimatedVisibility(visible = draft.hold) {
                 Column {
                     draft.holds.forEachIndexed { i, hold ->
                         val holdErrors = validation.holdErrors[i].orEmpty()
-                        HoldHeader(number = i + 1, onRemove = { onChangeNow { it.withoutHold(i) } })
+                        HoldHeader(number = i + 1, onRemove = { onChangeNow(null) { it.withoutHold(i) } })
                         IntStepperField(
                             stringResource(R.string.hold_at), hold.at, FieldRanges.REPS, ValueInput.WHOLE,
-                            onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
-                            onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                            onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                            onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
                             error = holdErrors[HoldField.AT].resolve(), hint = validation.holdHints[i].resolve(), info = stringResource(R.string.info_hold_at),
                             a11yLabel = stringResource(R.string.hold_n_at, i + 1),
                         )
                         IntStepperField(
                             stringResource(R.string.hold_for), hold.forCount, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
-                            onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
-                            onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                            onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                            onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
                             error = holdErrors[HoldField.FOR].resolve(), info = stringResource(R.string.info_hold_for),
                             a11yLabel = stringResource(R.string.hold_n_for, i + 1),
                         )
                     }
                     AddHoldButton(
                         enabled = draft.holds.size < ProgressionConfig.MAX_HOLDS,
-                        onClick = { onChangeNow { it.withNewHold() } },
+                        onClick = { onChangeNow(null) { it.withNewHold() } },
                     )
                 }
             }
         }
         IntStepperField(
             stringResource(R.string.window_hours), draft.windowHours, FieldRanges.WINDOW_HOURS, ValueInput.WHOLE,
-            onUpdate = { f -> onChange { it.copy(windowHours = f(it.windowHours)) } },
-            onDialogUpdate = { f -> onChangeNow { it.copy(windowHours = f(it.windowHours)) } },
+            onUpdate = { f -> onChange(null) { it.copy(windowHours = f(it.windowHours)) } },
+            onDialogUpdate = { f -> onChangeNow(null) { it.copy(windowHours = f(it.windowHours)) } },
             error = errors[Field.WINDOW_HOURS].resolve(), info = stringResource(R.string.info_window),
         )
         if (!windowOnly) {
             PenaltyStepperField(
                 stringResource(R.string.penalty_rate), draft.penalty,
-                onUpdate = { f -> onChange { it.copy(penalty = f(it.penalty)) } },
-                onDialogUpdate = { f -> onChangeNow { it.copy(penalty = f(it.penalty)) } },
+                onUpdate = { f -> onChange(null) { it.copy(penalty = f(it.penalty)) } },
+                onDialogUpdate = { f -> onChangeNow(null) { it.copy(penalty = f(it.penalty)) } },
                 error = errors[Field.PENALTY_RATE].resolve(), info = stringResource(R.string.info_penalty_rate),
             )
             OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 16.dp).testTag("reset_defaults")) {
                 Text(stringResource(R.string.reset_defaults))
             }
+            NoteUnder(note, null)
         }
     }
     // Spec R3 §6.4: confirmed, then applied at once.
@@ -357,4 +434,10 @@ private fun AddHoldButton(enabled: Boolean, onClick: () -> Unit) {
         Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(18.dp))
         Text(stringResource(R.string.add_hold), modifier = Modifier.padding(start = 8.dp))
     }
+}
+
+/** The note under the field [at], if the last edit was there (spec revision 28). */
+@Composable
+private fun NoteUnder(note: ProgressionNote?, at: ProgressionField?) {
+    if (note != null && note.at == at) MoveNote(note.moves, tag = "progression_note")
 }

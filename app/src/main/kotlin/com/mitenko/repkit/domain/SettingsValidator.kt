@@ -50,8 +50,14 @@ sealed interface FieldMessage {
     /** A later hold at the same total as an earlier one. */
     data class DuplicateHold(val at: Int) : FieldMessage
 
-    /** Hint: the hold can never apply (outside floor..cap, or held for 0). */
+    /** Hint: the hold can never apply (held for 0, or at the cap itself). */
     data object HoldDisabled : FieldMessage
+
+    /**
+     * Hint (spec revision 28 rule 6): the hold at [at] is outside floor..cap, so it's inactive.
+     * [bound] is the cap when [isAbove], else the floor.
+     */
+    data class HoldOutsideRange(val at: Int, val bound: Int, val isAbove: Boolean) : FieldMessage
 
     data object InTheFuture : FieldMessage
 }
@@ -107,9 +113,16 @@ object SettingsValidator {
         c.holds.forEachIndexed { i, h ->
             // Spec rev 16 §3: the later duplicate carries the error.
             if (h.at >= 1 && !seen.add(h.at)) holdErrors.getOrPut(i, ::mutableMapOf)[HoldField.AT] = FieldMessage.DuplicateHold(h.at)
-            if (i !in holdErrors && !c.isActive(h)) holdHints[i] = FieldMessage.HoldDisabled
+            if (i !in holdErrors && !c.isActive(h)) holdHints[i] = holdHint(h.at, c)
         }
         return ValidationResult(e, holdErrors = holdErrors, holdHints = holdHints)
+    }
+
+    /** Why an inactive hold is inactive (spec revision 28 rule 6): outside floor..cap first, then the plain hint. */
+    private fun holdHint(at: Int, c: ProgressionConfig): FieldMessage = when {
+        at > c.cap -> FieldMessage.HoldOutsideRange(at, c.cap, isAbove = true)
+        at < c.floor -> FieldMessage.HoldOutsideRange(at, c.floor, isAbove = false)
+        else -> FieldMessage.HoldDisabled
     }
 
     fun currentState(

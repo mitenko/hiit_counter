@@ -6,7 +6,10 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.repkit.domain.Field
+import com.mitenko.repkit.domain.FieldMessage
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.RangeChange
+import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.ProgressionConfig
@@ -273,5 +276,50 @@ class CurrentStateViewModelTest {
         assertEquals(listOf(1L to true), repo.resets)
         assertTrue(repo.points.value[1L].isNullOrEmpty())
         assertEquals(CounterState(total = 48), repo.find(1).counter)
+    }
+
+    // Spec revision 28 rule 5.
+
+    @Test
+    fun `a current streak raised above the best streak raises the best at once, saves both and notes it`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 48, bestStreak = 4, currentStreak = 4))))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.update(StreakField.CURRENT) { it.copy(current = 5) }
+        assertEquals(CurrentStateViewModel.Draft(48, 5, 5, null), vm.draft.value)
+        assertEquals(SaveStatus.SAVED, vm.status.value)
+        assertEquals(listOf(Move.BestStreakRaised(5)), vm.streakNote.value)
+        advanceTimeBy(400)
+        runCurrent()
+        assertEquals(CounterState(total = 48, bestStreak = 5, currentStreak = 5), repo.find(1).counter)
+        assertEquals(listOf(Move.BestStreakRaised(5)), vm.streakNote.value)
+        vm.updateNow(StreakField.CURRENT) { it.copy(current = 3) } // the next edit, which moves nothing
+        assertTrue(vm.streakNote.value.isEmpty())
+        assertEquals(5, vm.draft.value!!.best)
+    }
+
+    @Test
+    fun `the best-streak note clears on the next edit of any field and on a page change`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.update(StreakField.CURRENT) { it.copy(current = 1) }
+        assertEquals(listOf(Move.BestStreakRaised(1)), vm.streakNote.value)
+        vm.update { it.copy(total = 50) }
+        assertTrue(vm.streakNote.value.isEmpty())
+        vm.update(StreakField.CURRENT) { it.copy(current = 2) }
+        assertEquals(listOf(Move.BestStreakRaised(2)), vm.streakNote.value)
+        vm.clearStreakNote()
+        assertTrue(vm.streakNote.value.isEmpty())
+    }
+
+    @Test
+    fun `a best streak lowered below the current streak stays an error and is not saved`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 48, bestStreak = 5, currentStreak = 4))))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.updateNow(StreakField.BEST) { it.copy(best = 3) }
+        assertEquals(FieldMessage.AtLeastCurrentStreak, vm.validation.value.errors[Field.BEST_STREAK])
+        assertEquals(4, vm.draft.value!!.current)
+        assertTrue(vm.streakNote.value.isEmpty())
+        runCurrent()
+        assertEquals(0, repo.counterWrites)
     }
 }

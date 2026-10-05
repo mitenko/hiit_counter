@@ -35,6 +35,8 @@ class FieldMessagesTest {
         assertEquals("At most 8 holds", FieldMessage.TooManyHolds(8).english())
         assertEquals("Already a hold at 64", FieldMessage.DuplicateHold(64).english())
         assertEquals("Hold disabled", FieldMessage.HoldDisabled.english())
+        assertEquals("Hold at 80 is above the maximum (72)", FieldMessage.HoldOutsideRange(80, 72, isAbove = true).english())
+        assertEquals("Hold at 40 is below the minimum (48)", FieldMessage.HoldOutsideRange(40, 48, isAbove = false).english())
         assertEquals("Can't be in the future", FieldMessage.InTheFuture.english())
     }
 

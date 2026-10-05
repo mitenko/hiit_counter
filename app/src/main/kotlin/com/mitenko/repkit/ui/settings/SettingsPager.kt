@@ -119,10 +119,12 @@ fun SettingsPagerRoute(
             val title = name?.let { stringResource(R.string.entry_settings_title, it) } ?: stringResource(R.string.settings)
             SettingsTopBar(title, onBack = leave)
             // The visible tabs depend on the type, so they wait until the entry has loaded (spec R4 §4.6).
-            // Spec revision 27: a page change also hides the Current page's range note.
+            // Spec revisions 27 and 28: a page change also hides the Current and Progression notes.
             val onPageChange = {
                 flushAll()
                 currentVm.clearRangeNote()
+                currentVm.clearStreakNote()
+                progressionVm.clearNote()
             }
             type?.let { SettingsTabs(it, initialPage, onPageChange = onPageChange, timingVm, progressionVm, currentVm, cuesVm) }
         }

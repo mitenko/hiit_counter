@@ -201,6 +201,13 @@
     <string name="hint_hold_disabled">होल्ड बंद है</string>
     <string name="range_raised_max">अधिकतम रेप्स बढ़ाकर %1$d किए गए</string>
     <string name="range_lowered_min">न्यूनतम रेप्स घटाकर %1$d किए गए</string>
+    <string name="hint_hold_above_max">%1$d पर होल्ड अधिकतम (%2$d) से ऊपर है</string>
+    <string name="hint_hold_below_min">%1$d पर होल्ड न्यूनतम (%2$d) से नीचे है</string>
+    <string name="moved_starting_raised">शुरुआती रेप्स बढ़ाकर %1$d किए गए</string>
+    <string name="moved_starting_lowered">शुरुआती रेप्स घटाकर %1$d किए गए</string>
+    <string name="moved_current_raised">वर्तमान रेप्स बढ़ाकर %1$d किए गए</string>
+    <string name="moved_current_lowered">वर्तमान रेप्स घटाकर %1$d किए गए</string>
+    <string name="moved_best_streak_raised">सबसे लंबी स्ट्रीक बढ़ाकर %1$d की गई</string>
     <string name="error_in_the_future">भविष्य का समय नहीं हो सकता</string>
     <string name="error_enter_name">नाम लिखें</string>
     <plurals name="error_name_too_long">

@@ -18,7 +18,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.RangeChange
+import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.theme.HiitTheme
@@ -40,18 +42,21 @@ class CurrentStatePageTest {
     private var draft by mutableStateOf(CurrentStateViewModel.Draft(65, 24, 4, Instant.parse("2026-09-23T12:00:00Z")))
     private var immediate = 0
 
+    /** The field each edit named (spec revision 28), in order. */
+    private val fields = mutableListOf<StreakField?>()
+
     /** Each reset's Clear history too value, in order. */
     private val resets = mutableListOf<Boolean>()
 
-    private fun show(showTotal: Boolean = true, rangeNote: RangeChange? = null) {
+    private fun show(showTotal: Boolean = true, rangeNote: RangeChange? = null, streakNote: List<Move> = emptyList()) {
         compose.setContent {
             HiitTheme {
                 CurrentStatePageContent(
                     draft, ValidationResult(), SaveStatus.SAVED, ZoneOffset.UTC, now = { Instant.parse("2026-09-24T12:00:00Z") },
-                    onChange = { draft = it(draft) },
-                    onChangeNow = { immediate++; draft = it(draft) },
+                    onChange = { field, f -> fields += field; draft = f(draft) },
+                    onChangeNow = { field, f -> fields += field; immediate++; draft = f(draft) },
                     onResetProgress = { resets += it },
-                    showTotal = showTotal, rangeNote = rangeNote,
+                    showTotal = showTotal, rangeNote = rangeNote, streakNote = streakNote,
                 )
             }
         }
@@ -126,5 +131,28 @@ class CurrentStatePageTest {
     fun `no moved limit, no note`() {
         show()
         compose.onNodeWithTag("range_note").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the streak steppers name their field and the others name none`() {
+        show()
+        compose.onNodeWithContentDescription("Increase Current streak").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Increase Best streak").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Increase Current reps").performScrollTo().performClick()
+        assertEquals(listOf(StreakField.CURRENT, StreakField.BEST, null), fields)
+    }
+
+    @Test
+    fun `a raised best streak shows its note under Current streak as a polite live region`() {
+        show(streakNote = listOf(Move.BestStreakRaised(5)))
+        compose.onNodeWithTag("streak_note").performScrollTo().assertTextEquals("Best streak raised to 5")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        compose.onNodeWithTag("range_note").assertDoesNotExist()
+    }
+
+    @Test
+    fun `no streak move, no streak note`() {
+        show()
+        compose.onNodeWithTag("streak_note").assertDoesNotExist()
     }
 }

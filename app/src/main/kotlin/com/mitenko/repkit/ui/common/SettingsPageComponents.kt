@@ -18,8 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.ValidationResult
 
 /** What a page's status line says (spec R3 §6.2). */
@@ -76,4 +81,23 @@ fun SettingsPageLayout(footer: @Composable () -> Unit = {}, content: @Composable
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), content = content)
         footer()
     }
+}
+
+/**
+ * What an edit moved (spec revisions 27 and 28), under the field that caused it: the moves joined
+ * on one line, announced politely to TalkBack.
+ */
+@Composable
+fun MoveNote(moves: List<Move>, tag: String) {
+    Text(
+        noteText(moves),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .testTag(tag),
+    )
 }

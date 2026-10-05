@@ -193,6 +193,13 @@
     <string name="hint_hold_disabled">保持已停用</string>
     <string name="range_raised_max">最多次数已提高到 %1$d</string>
     <string name="range_lowered_min">最少次数已降低到 %1$d</string>
+    <string name="hint_hold_above_max">保持 %1$d 高于最多次数（%2$d）</string>
+    <string name="hint_hold_below_min">保持 %1$d 低于最少次数（%2$d）</string>
+    <string name="moved_starting_raised">初始次数已提高到 %1$d</string>
+    <string name="moved_starting_lowered">初始次数已降低到 %1$d</string>
+    <string name="moved_current_raised">当前次数已提高到 %1$d</string>
+    <string name="moved_current_lowered">当前次数已降低到 %1$d</string>
+    <string name="moved_best_streak_raised">最长连续已提高到 %1$d</string>
     <string name="error_in_the_future">不能是将来的时间</string>
     <string name="error_enter_name">请输入名称</string>
     <plurals name="error_name_too_long">

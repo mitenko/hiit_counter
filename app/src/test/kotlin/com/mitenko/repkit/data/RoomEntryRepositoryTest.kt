@@ -9,6 +9,7 @@ import com.mitenko.repkit.data.db.CheckInEntity
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.data.db.WorkoutSessionEntity
 import com.mitenko.repkit.domain.InvalidEntryName
+import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RangeChange
@@ -520,6 +521,58 @@ class RoomEntryRepositoryTest {
         val a = r.create("Stretch", EntryType.CHECK_IN)
         assertNull(r.overwriteCounter(a, total = 80, bestStreak = 1, currentStreak = 1, lastCheckIn = null))
         assertEquals(ProgressionConfig(), r.entry(a).first()!!.progression)
+    }
+
+    @Test
+    fun `setProgression lowers a stored total above the new cap in the same write and reports it`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = 66, bestStreak = 3, currentStreak = 2, holdCount = 2, lastCheckIn = null)
+        assertEquals(Move.CurrentLowered(60), r.setProgression(a, ProgressionConfig(cap = 60, holds = listOf(Hold(56, 4)))))
+        val e = r.entry(a).first()!!
+        assertEquals(60, e.counter.total)
+        assertEquals(CounterState(60, 3, 2, null, 0), e.counter)
+        assertEquals(60, e.progression.cap)
+    }
+
+    @Test
+    fun `setProgression raises a stored total below the new floor and resets the hold count`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = 50, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+        // A floor and starting edit alone keeps the holds, so only the total change resets the count.
+        assertEquals(Move.CurrentRaised(55), r.setProgression(a, ProgressionConfig(startingTotal = 55, floor = 55)))
+        assertEquals(CounterState(55, 1, 1, null, 0), r.entry(a).first()!!.counter)
+    }
+
+    @Test
+    fun `setProgression keeps a total inside the range and returns no move`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        db.entryDao().setCounter(a, total = 60, bestStreak = 1, currentStreak = 1, holdCount = 3, lastCheckIn = null)
+        assertNull(r.setProgression(a, ProgressionConfig(floor = 50, startingTotal = 50, cap = 70)))
+        assertEquals(CounterState(60, 1, 1, null, 3), r.entry(a).first()!!.counter)
+    }
+
+    @Test
+    fun `setProgression leaves a NULL total NULL, following the starting total`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        assertNull(r.setProgression(a, ProgressionConfig(startingTotal = 55, floor = 55)))
+        assertNull(db.entryDao().get(a)!!.total)
+        assertEquals(55, r.entry(a).first()!!.counter.total)
+        assertNull(r.setProgression(a, ProgressionConfig(startingTotal = 40, floor = 40, cap = 40)))
+        assertNull(db.entryDao().get(a)!!.total)
+        assertEquals(40, r.entry(a).first()!!.counter.total)
+    }
+
+    @Test
+    fun `a Timer only entry's stored total is never clamped`() = runTest {
+        val r = repo()
+        val a = r.create("Stretch", EntryType.CHECK_IN)
+        db.entryDao().setCounter(a, total = 66, bestStreak = 1, currentStreak = 1, holdCount = 2, lastCheckIn = null)
+        assertNull(r.setProgression(a, ProgressionConfig(cap = 60, holds = listOf(Hold(56, 4)))))
+        assertEquals(66, db.entryDao().get(a)!!.total)
     }
 
     @Test
