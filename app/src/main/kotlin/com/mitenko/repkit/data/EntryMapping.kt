@@ -8,14 +8,21 @@ import com.mitenko.repkit.domain.EntryNames
 import com.mitenko.repkit.domain.NoOpCrashReporter
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.SettingsValidator
+import com.mitenko.repkit.domain.WeightValidator
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightHold
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.model.WeightsKind
+import com.mitenko.repkit.domain.startLevel
 import java.time.Instant
 
 private const val TAG = "EntryMapping"
@@ -36,9 +43,12 @@ private fun logRepair(id: Long?, field: String, detail: String) {
     RepairBreadcrumbs.reporter.log(if (id == null) "EntryMapping: repaired $field" else "EntryMapping: entry $id repaired $field")
 }
 
-/** A stored total below 1 is invalid and reads as NULL (spec §5.2). */
-internal fun validTotal(raw: Int?): Int? {
-    if (raw == null || raw >= 1) return raw
+/**
+ * A stored total below [min] is invalid and reads as NULL (spec §5.2): [min] is 1 in Reps mode and 0,
+ * the lightest level, in a weight mode (spec rev 26 §2, plan Spec note 3).
+ */
+internal fun validTotal(raw: Int?, min: Int = 1): Int? {
+    if (raw == null || raw >= min) return raw
     logRepair(null, "total", "Invalid total=$raw; reading as NULL")
     return null
 }
@@ -75,6 +85,8 @@ internal fun EntryEntity.timing(): TimingConfig {
 /** Per-field repair, then the progression group falls back to defaults only if still inconsistent. */
 internal fun EntryEntity.progression(): ProgressionConfig {
     val d = ProgressionConfig()
+    val mode = mode()
+    val weight = weightConfig(mode)
     val c = ProgressionConfig(
         startingTotal = checked(id, "starting_total", startingTotal, d.startingTotal) { it >= 1 },
         floor = checked(id, "floor", floor, d.floor) { it >= 1 },
@@ -86,10 +98,74 @@ internal fun EntryEntity.progression(): ProgressionConfig {
         },
         // Spec R3 §5.2: a boolean column (default true); every stored value is valid, and the group fallback gives true.
         hold = holdEnabled,
+        mode = mode,
+        weight = weight,
     )
     if (SettingsValidator.progression(c).isValid) return c
     logRepair(id, "progression", "Entry $id: progression inconsistent ($c); using default progression")
-    return d
+    // Spec rev 26 §5: the weight group is repaired on its own, so a Reps fallback keeps it and the mode.
+    return d.copy(mode = mode, weight = weight)
+}
+
+/** Spec rev 26 §5: an unknown progress_mode is logged and reads as REPS. */
+internal fun EntryEntity.mode(): ProgressMode =
+    ProgressMode.entries.firstOrNull { it.name == progressMode }
+        ?: ProgressMode.REPS.also { logRepair(id, "progress_mode", "Entry $id: unknown progress_mode=$progressMode; reading as REPS") }
+
+/**
+ * Spec rev 26 §5, repaired per field like the progression:
+ * - unknown strings read as their defaults;
+ * - malformed steps read as the default steps, and a malformed list as empty;
+ * - the list is sorted and de-duplicated;
+ * - reps per set or a rep range outside 1..100 reads as its default;
+ * - a starting point or hold that isn't on the ladder is dropped (in Weight mode, so is a later hold on the same weight).
+ *
+ * A group that is still invalid falls back to the defaults with the row's unit, on its own, so a bad
+ * weight group never resets the Reps progression and the reverse. A weight mode with no unit (only a
+ * corrupt row: §9.3 writes one on the first switch) reads as KG (plan Spec note 11).
+ */
+internal fun EntryEntity.weightConfig(mode: ProgressMode): WeightConfig {
+    val d = WeightConfig()
+    val storedUnit = weightUnit?.let { s ->
+        WeightUnit.entries.firstOrNull { it.name == s } ?: null.also { logRepair(id, "weight_unit", "Entry $id: unknown weight_unit=$s") }
+    }
+    val unit = storedUnit
+        ?: if (mode.usesWeights) WeightUnit.KG.also { logRepair(id, "weight_unit", "Entry $id: no weight_unit in $mode; reading as KG") } else null
+    val kind = WeightsKind.entries.firstOrNull { it.name == weightsKind }
+        ?: d.kind.also { logRepair(id, "weights_kind", "Entry $id: unknown weights_kind=$weightsKind; reading as ${d.kind}") }
+    val steps = checked(id, "weight_steps", WeightCodecs.decodeSteps(weightSteps), d.steps) { it != null }!!
+    val list = checked(id, "weight_list", WeightCodecs.decodeList(weightList), d.list) { it != null }!!.sorted().distinct()
+    val perSet = checked(id, "reps_per_set", repsPerSet, d.repsPerSet) { it in 1..WeightConfig.MAX_REPS }
+    val rangeOk = repMin in 1..WeightConfig.MAX_REPS && repMax in 1..WeightConfig.MAX_REPS && repMin < repMax
+    if (!rangeOk) logRepair(id, "rep_range", "Entry $id: invalid rep range $repMin..$repMax; using ${d.repMin}..${d.repMax}")
+    val min = if (rangeOk) repMin else d.repMin
+    val max = if (rangeOk) repMax else d.repMax
+    val ladder = WeightConfig(kind = kind, steps = steps, list = list).weights.toSet()
+    val c = WeightConfig(
+        unit = unit,
+        kind = kind,
+        steps = steps,
+        list = list,
+        repsPerSet = perSet,
+        repMin = min,
+        repMax = max,
+        startWeight = checked(id, "start_weight", startWeight, null) { it == null || it in ladder },
+        startReps = checked(id, "start_reps", startReps, null) { it == null || it in min..max },
+        holds = storedWeightHolds(ladder, min..max, mode),
+    )
+    if (WeightValidator.validate(c, mode).isEmpty()) return c
+    logRepair(id, "weight", "Entry $id: weight settings inconsistent ($c); using defaults")
+    return WeightConfig(unit = unit)
+}
+
+/** The weight_holds column, item by item: off-ladder or out-of-range holds dropped, then later collisions, then holds past the 8th. */
+private fun EntryEntity.storedWeightHolds(ladder: Set<Int>, reps: IntRange, mode: ProgressMode): List<WeightHold> {
+    val repaired = WeightCodecs.decodeHolds(weightHolds)
+        .filter { it.weight in ladder && it.reps in reps }
+        .distinctBy { if (mode == ProgressMode.WEIGHT) it.weight to 0 else it.weight to it.reps }
+        .take(ProgressionConfig.MAX_HOLDS)
+    if (WeightCodecs.encodeHolds(repaired) != weightHolds) logRepair(id, "weight_holds", "Entry $id: repaired weight_holds=$weightHolds to $repaired")
+    return repaired
 }
 
 /**
@@ -115,12 +191,15 @@ private fun EntryEntity.legacyHold(): Hold {
     )
 }
 
-internal fun EntryEntity.counter(startingTotal: Int): CounterState = CounterState(
-    total = validTotal(total) ?: startingTotal,
+/** [minTotal] is 0 in a weight mode (spec rev 26 §2), so level 0 is a real value. */
+internal fun EntryEntity.counter(startingTotal: Int, minTotal: Int = 1): CounterState = CounterState(
+    total = validTotal(total, minTotal) ?: startingTotal,
     bestStreak = checked(id, "best_streak", bestStreak, 0) { it >= 0 },
     currentStreak = checked(id, "current_streak", currentStreak, 0) { it >= 0 },
     lastCheckIn = lastCheckIn?.let(Instant::ofEpochMilli),
     holdCount = checked(id, "hold_count", holdCount, 0) { it >= 0 },
+    // Plan Spec note 13 (user ruling A): a boolean column (default 0); every stored value is valid.
+    freshStart = freshStart,
 )
 
 /** Read repair (spec R4 §3.2): an unknown type string is logged and reads as a Workout. */
@@ -138,13 +217,22 @@ internal fun EntryEntity.toDomain(): Entry {
         timing = timing(),
         progression = progression,
         cues = CueConfig(cueSound, cueVibration, cueVoice),
-        counter = counter(progression.startingTotal),
+        counter = counter(progression.startLevel(), minTotal = if (progression.mode.usesWeights) 0 else 1),
         type = entryType(),
     )
 }
 
-/** A history row as a domain point (spec R6 §3.3). */
-internal fun CheckInEntity.toPoint(): CheckInPoint = CheckInPoint(Instant.ofEpochMilli(at), total)
+/** A history row as a domain point (spec R6 §3.3, rev 26 §9.3). An unknown unit string reads as null and is logged. */
+internal fun CheckInEntity.toPoint(): CheckInPoint = CheckInPoint(
+    at = Instant.ofEpochMilli(at),
+    total = total,
+    weight = weight,
+    reps = reps,
+    unit = unit?.let { u ->
+        WeightUnit.entries.firstOrNull { it.name == u }
+            ?: null.also { logRepair(entryId, "check_in.unit", "Check-in $id of entry $entryId: unknown unit=$u; reading as null") }
+    },
+)
 
 /** The counter group as stored: [total] null means "reads as the starting total". */
 internal data class StoredCounter(
@@ -153,6 +241,8 @@ internal data class StoredCounter(
     val currentStreak: Int = 0,
     val holdCount: Int = 0,
     val lastCheckIn: Long? = null,
+    /** Plan Spec note 13: Start fresh sets it; every other write leaves it false. */
+    val freshStart: Boolean = false,
 )
 
 /** Rev 16 §5: the legacy hold_at / hold_for columns mirror the first hold (64 / 4 for an empty list). */
@@ -194,4 +284,16 @@ internal fun entryEntity(
     currentStreak = counter.currentStreak,
     holdCount = counter.holdCount,
     lastCheckIn = counter.lastCheckIn,
+    freshStart = counter.freshStart,
+    progressMode = progression.mode.name,
+    weightUnit = progression.weight.unit?.name,
+    weightsKind = progression.weight.kind.name,
+    weightSteps = WeightCodecs.encodeSteps(progression.weight.steps),
+    weightList = WeightCodecs.encodeList(progression.weight.list),
+    weightHolds = WeightCodecs.encodeHolds(progression.weight.holds),
+    repsPerSet = progression.weight.repsPerSet,
+    repMin = progression.weight.repMin,
+    repMax = progression.weight.repMax,
+    startWeight = progression.weight.startWeight,
+    startReps = progression.weight.startReps,
 )

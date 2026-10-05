@@ -83,4 +83,45 @@ interface EntryDao {
             "hold_count = :holdCount, last_check_in = :lastCheckIn WHERE id = :id",
     )
     suspend fun setCounter(id: Long, total: Int?, bestStreak: Int, currentStreak: Int, holdCount: Int, lastCheckIn: Long?): Int
+
+    /** Plan Spec note 13: the Start fresh flag alone. checkIn writes the engine's result; explicit counter writes clear it. */
+    @Query("UPDATE entry SET fresh_start = :freshStart WHERE id = :id")
+    suspend fun setFreshStart(id: Long, freshStart: Boolean): Int
+
+    /**
+     * Spec rev 26 §2, §9.2: the weight group, the remapped [total] and the hold count in one UPDATE.
+     * The repository decides [total] and [resetHoldCount] in the same transaction.
+     */
+    @Query(
+        "UPDATE entry SET weight_unit = :unit, weights_kind = :kind, weight_steps = :steps, weight_list = :list, " +
+            "weight_holds = :holds, reps_per_set = :repsPerSet, rep_min = :repMin, rep_max = :repMax, " +
+            "start_weight = :startWeight, start_reps = :startReps, total = :total, " +
+            "hold_count = CASE WHEN :resetHoldCount THEN 0 ELSE hold_count END WHERE id = :id",
+    )
+    suspend fun setWeightConfig(
+        id: Long,
+        unit: String?,
+        kind: String,
+        steps: String,
+        list: String,
+        holds: String,
+        repsPerSet: Int,
+        repMin: Int,
+        repMax: Int,
+        startWeight: Int?,
+        startReps: Int?,
+        total: Int?,
+        resetHoldCount: Boolean,
+    ): Int
+
+    /**
+     * Spec rev 26 §2 "Start fresh", §9.3: the mode, an untouched counter (NULL = the new mode's start)
+     * and hold count 0, plus [unit] only if the row has none yet. Streaks, last check-in and history stay.
+     * Plan Spec note 13: fresh_start = 1, so the next Counter check-in is performed at the start.
+     */
+    @Query(
+        "UPDATE entry SET progress_mode = :mode, total = NULL, hold_count = 0, fresh_start = 1, " +
+            "weight_unit = COALESCE(weight_unit, :unit) WHERE id = :id",
+    )
+    suspend fun switchMode(id: Long, mode: String, unit: String?): Int
 }

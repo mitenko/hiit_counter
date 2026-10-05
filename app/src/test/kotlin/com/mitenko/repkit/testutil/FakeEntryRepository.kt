@@ -8,12 +8,20 @@ import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.ProgressionScale
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.RepProgression
+import com.mitenko.repkit.domain.WeightConversion
 import com.mitenko.repkit.domain.counterHoldReset
 import com.mitenko.repkit.domain.holdResetNeeded
+import com.mitenko.repkit.domain.loadAt
+import com.mitenko.repkit.domain.progressionHoldReset
 import com.mitenko.repkit.domain.rangeChange
+import com.mitenko.repkit.domain.remapWeights
+import com.mitenko.repkit.domain.scale
+import com.mitenko.repkit.domain.startLevel
 import com.mitenko.repkit.domain.totalMove
+import com.mitenko.repkit.domain.weightHoldResetNeeded
 import com.mitenko.repkit.domain.widenedFor
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
@@ -21,8 +29,11 @@ import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,8 +84,12 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     var progressionWrites = 0
     var counterWrites = 0
     var typeWrites = 0
+    var weightWrites = 0
 
-    /** Thrown once by the next setTiming, setProgression, overwriteCounter or setType (a repository-side rejection). */
+    /** Every switchMode call as (id, mode), including failed ones. */
+    val modeSwitches = mutableListOf<Pair<Long, ProgressMode>>()
+
+    /** Thrown once by the next setTiming, setProgression, setWeightConfig, switchMode, overwriteCounter or setType (a repository-side rejection). */
     var writeError: Throwable? = null
 
     override val entries: Flow<List<Entry>> = flow {
@@ -114,7 +129,7 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
                 id = newId,
                 name = EntryNames.duplicateName(source.name, " copy"),
                 position = it.size,
-                counter = CounterState(total = source.progression.startingTotal),
+                counter = CounterState(total = source.progression.startLevel()),
             )
         }
         return newId
@@ -152,10 +167,13 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         failIfAsked()
         var move: Move? = null
         edit(id) {
-            move = if (it.type == EntryType.WORKOUT) progression.totalMove(it.counter.total) else null
-            val reset = holdResetNeeded(it.progression, progression) || move != null
+            // Like Room, setProgression never writes the mode or the weight group (plan Spec note 4).
+            val merged = progression.copy(mode = it.progression.mode, weight = it.progression.weight)
+            // Like Room, only a Reps-mode Counter total moves into the new floor..cap (a weight level never does).
+            move = if (it.type == EntryType.WORKOUT && !merged.mode.usesWeights) merged.totalMove(it.counter.total) else null
+            val reset = progressionHoldReset(it.progression, merged) || move != null
             val holdCount = if (reset) 0 else it.counter.holdCount
-            it.copy(progression = progression, counter = it.counter.copy(total = move?.to ?: it.counter.total, holdCount = holdCount))
+            it.copy(progression = merged, counter = it.counter.copy(total = move?.to ?: it.counter.total, holdCount = holdCount))
         }
         return move
     }
@@ -168,6 +186,40 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         edit(id) { it.copy(type = type) }
     }
 
+    /** Room's remap without its validation (settings validation is left to the ViewModels under test). */
+    override suspend fun setWeightConfig(id: Long, weight: WeightConfig) {
+        weightWrites++
+        failIfAsked()
+        edit(id) {
+            val stored = it.progression
+            val mode = stored.mode
+            val draft = weight.copy(list = weight.list.sorted(), unit = weight.unit ?: stored.weight.unit)
+            val old = draft.unit?.let { u -> WeightConversion.convert(stored.weight, u) } ?: stored.weight
+            val remapMode = if (mode.usesWeights) mode else ProgressMode.REPS_THEN_WEIGHT
+            val remap = remapWeights(remapMode, old, draft, if (mode.usesWeights) it.counter.total else null)
+            val holdCount = if (mode.usesWeights && weightHoldResetNeeded(mode, old, remap)) 0 else it.counter.holdCount
+            it.copy(
+                progression = stored.copy(weight = remap.config),
+                counter = it.counter.copy(total = remap.level ?: it.counter.total, holdCount = holdCount),
+            )
+        }
+    }
+
+    /** Like Room: Start fresh, including the fresh-start flag (plan Spec note 13). */
+    override suspend fun switchMode(id: Long, mode: ProgressMode, defaultUnit: WeightUnit) {
+        modeSwitches += id to mode
+        failIfAsked()
+        edit(id) {
+            if (it.progression.mode == mode) return@edit it
+            val unit = it.progression.weight.unit ?: defaultUnit.takeIf { mode.usesWeights }
+            val progression = it.progression.copy(mode = mode, weight = it.progression.weight.copy(unit = unit))
+            it.copy(
+                progression = progression,
+                counter = it.counter.copy(total = progression.startLevel(), holdCount = 0, freshStart = true),
+            )
+        }
+    }
+
     override suspend fun checkIn(id: Long, clock: Clock): CheckInResult {
         readiness.await()
         checkInCalls++
@@ -175,11 +227,15 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         checkInError?.let { throw it }
         val e = find(id)
         val countsReps = e.type == EntryType.WORKOUT
-        val result = RepProgression.checkIn(e.counter, e.progression, clock.now(), clock.zone(), countsReps)
+        val result = RepProgression.checkInByMode(e.counter, e.progression, clock.now(), clock.zone(), countsReps)
         if (result.outcome != Outcome.AlreadyToday) {
             edit(id) { it.copy(counter = result.state) }
-            // Spec R6 §3.2: one point per recorded check-in; a Timer only point has no total.
-            val point = CheckInPoint(clock.now(), if (countsReps) result.state.total else null)
+            // Spec R6 §3.2: one point per recorded check-in; a Timer only point has no total. Rev 26 §9.3: weight modes add the load.
+            val load = if (countsReps) e.progression.loadAt(result.state.total) else null
+            val point = CheckInPoint(
+                clock.now(), if (countsReps) result.state.total else null, load?.weight, load?.reps,
+                load?.let { e.progression.weight.unit },
+            )
             points.update { all -> all + (id to (all[id].orEmpty() + point)) }
         }
         return result
@@ -192,7 +248,11 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         failIfAsked()
         var change: RangeChange? = null
         edit(id) {
-            val widened = if (it.type == EntryType.WORKOUT) it.progression.widenedFor(total) else it.progression
+            // Like Room: a weight-mode level must lie in 0..top, and floor..cap (rep totals) never widen for it.
+            val scale = it.progression.scale()
+            if (scale is ProgressionScale.Ladder) require(total in scale.minLevel..scale.maxLevel) { "Invalid level $total" }
+            val reps = scale !is ProgressionScale.Ladder
+            val widened = if (it.type == EntryType.WORKOUT && reps) it.progression.widenedFor(total) else it.progression
             change = rangeChange(it.progression, widened)
             val reset = holdResetNeeded(it.progression, widened) || counterHoldReset(it.counter.total, total)
             val holdCount = if (reset) 0 else it.counter.holdCount
@@ -201,10 +261,10 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         return change
     }
 
-    /** Room stores a NULL total, which resolves to startingTotal; the fake stores startingTotal directly. */
+    /** Room stores a NULL total, which resolves to the start level; the fake stores the start level directly. */
     override suspend fun resetProgress(id: Long, clearHistory: Boolean) {
         resets += id to clearHistory
-        edit(id) { it.copy(counter = CounterState(total = it.progression.startingTotal)) }
+        edit(id) { it.copy(counter = CounterState(total = it.progression.startLevel())) }
         if (clearHistory) points.update { it - id }
     }
 

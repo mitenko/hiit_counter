@@ -11,8 +11,12 @@ data class ProgressionConfig(
     val holds: List<Hold> = listOf(DEFAULT_HOLD),
     val windowHours: Int = 36,
     val penaltyHoursPerRep: Double = 19.5,
-    /** The Hold switch (spec R3 §5.1, rev 16 §2). Off keeps every hold stored, but unused. */
+    /** The Hold switch (spec R3 §5.1, rev 16 §2). Off keeps every hold stored, but unused. All modes share it. */
     val hold: Boolean = true,
+    /** Spec rev 26 §1: what a check-in moves. In a weight mode, CounterState.total is the level on the ladder. */
+    val mode: ProgressMode = ProgressMode.REPS,
+    /** Spec rev 26 §2: the weight settings, kept in every mode. */
+    val weight: WeightConfig = WeightConfig(),
 ) {
     /** A hold takes effect only with the switch on, a positive count and floor ≤ at < cap. */
     fun isActive(h: Hold): Boolean = hold && h.forCount > 0 && h.at >= floor && h.at < cap

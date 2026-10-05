@@ -1,8 +1,9 @@
 package com.mitenko.repkit.domain.model
 
 /**
- * One HIIT entry (spec §5.1). Invariant: [counter].total is always a real value — a stored
- * NULL total is resolved to [progression].startingTotal when the row is mapped.
+ * One HIIT entry (spec §5.1). Invariant: [counter].total is always a real value — a stored NULL total
+ * is resolved to the progression's start level when the row is mapped: startingTotal in Reps mode,
+ * the starting weight × reps in a weight mode (spec rev 26 §2).
  */
 data class Entry(
     val id: Long,

@@ -147,11 +147,13 @@ A remap (§9.2) runs before validation, so after an edit the starting weight and
 | `weights_kind` | TEXT NOT NULL DEFAULT 'STEPS' | STEPS / LIST |
 | `weight_steps` | TEXT NOT NULL DEFAULT '' | "start:step:top" in hundredths; '' = default 2000:250:6000 |
 | `weight_list` | TEXT NOT NULL DEFAULT '' | "800,1200,1600" in hundredths |
+| `weight_holds` | TEXT NOT NULL DEFAULT '' | weight-mode holds by value, "weight:reps:for" in hundredths (§10 note 2) |
 | `reps_per_set` | INTEGER NOT NULL DEFAULT 10 | Weight mode |
 | `rep_min` / `rep_max` | INTEGER NOT NULL DEFAULT 8 / 12 | Reps then weight |
 | `start_weight` / `start_reps` | INTEGER NULL | starting point; NULL = the lightest weight / rep_min |
+| `fresh_start` | INTEGER NOT NULL DEFAULT 0 | 1 after Start fresh until the next Counter check-in, which is performed at the start (§10 note 13) |
 
-- `holds` keeps storing positions. The UI shows them as weight (× reps).
+- `holds` keeps the Reps holds. Weight-mode holds are stored by value in `weight_holds` (§10 note 2), and the engine sees them as positions.
 - In weight modes, `total` stores the **position**. The legacy `starting_total`, `floor` and `cap` stay for Reps mode only.
 - `check_in` gains `weight` (INTEGER NULL, hundredths), `reps` (INTEGER NULL) and `unit` (TEXT NULL). They are written by the check-in transaction in weight modes and stay NULL for Reps and Timer Only, so history never depends on later edits to the weights.
 - The app-wide unit default lives in AppPreferences (`weight_unit_default`, KG unless the locale is US/LR/MM, then LB) **(proposed)**.
@@ -267,3 +269,52 @@ Suggested resolution: add one validation table for every field in Weight and Rep
 **Resolution (adopted):** the validation matrix is §3.1 below. Every rule shows inline on its field, and a draft with any error never saves (R3).
 
 These items are manageable design tensions, not blockers to the overall direction, but they should be resolved before the model and migration work starts so the implementation is stable and testable.
+
+## 10. Implementation notes (PR 1, 2026-10-05)
+
+Recorded from `docs/superpowers/plans/2026-10-05-weight-model.md`. Note 13 records the user's ruling (option A, 2026-10-05); notes 17–22 were added while the plan was carried out.
+
+1. `missFloor` is "no floor" (`Int.MIN_VALUE`) in Reps mode, not the identity: with the identity, §9.1 step 3 would cancel every Reps penalty.
+   - §2 says `missFloor` is "identity for Reps mode", but §9.1 step 3 is `next = max(raw, missFloor(start), min)`. With the identity, `missFloor(start) = start`, so every Reps penalty would be cancelled.
+   - Ruling: `ProgressionScale.Reps.missFloor` returns `Int.MIN_VALUE`. Then `max(raw, MIN, floor)` equals today's `max(floor, total − penalty)` exactly.
+2. **Weight-mode holds are stored by value in a new column, `entry.weight_holds`** (TEXT NOT NULL DEFAULT ''), as `weight:reps:for` items. This is a deviation from §5, which said "`holds` keeps storing positions". Three reasons:
+   - `HoldsCodec` and `SettingsValidator` reject `at < 1`, but level 0 (the lightest weight × min reps) is a valid hold.
+   - One shared column would read a Reps hold (64) as level 64 after a switch, and a Weight level as a different Reps-then-weight level. That breaks "each mode's settings are remembered".
+   - Stored values make the §9.2 hold remap a plain filter.
+
+   The engine still sees **level** holds: `engineConfig()` converts them. `ProgressionConfig.holds` (Reps) is untouched. The Hold switch (`hold_enabled`) is shared by all modes.
+3. **A level can be 0.** `validTotal` reads a stored total below 1 as NULL. It gains a `min` parameter, which is 0 in a weight mode. A NULL total in a weight mode reads as the **start level**, so the existing "NULL = untouched" rule carries over: Reset progress and Start fresh both write NULL.
+4. **The remap lives in a new `setWeightConfig(id, WeightConfig)`, not in `setProgression`.**
+   - The existing Reps page builds its save from `ProgressionDraft.toConfig()`, which rebuilds a `ProgressionConfig` from the Reps fields only. If `setProgression` wrote the weight group, every Reps-page save would wipe it.
+   - So `setProgression` stays byte-for-byte the same, and never writes the mode or the weight columns. `setWeightConfig` writes the weight group, with the §9.2 remap and validation.
+5. **`switchMode(id, mode, defaultUnit)` takes the app default as a parameter.** The caller (PR 2's ViewModel) reads `AppPreferences.weightUnitDefault`, which keeps the repository free of DataStore.
+   - Start fresh means: total NULL (the new mode's start level), hold count 0, `fresh_start = 1` (note 13), and `weight_unit = COALESCE(weight_unit, defaultUnit)` when entering a weight mode. Streaks, the last check-in and the history are kept.
+   - Switching to the current mode is a no-op.
+6. **What a weight-mode `check_in` row stores.** Its `total` is the **level**, so a Workout point keeps a non-NULL total, and PR 3 tells the mode families apart by `weight IS NOT NULL` (§9.4). `weight`, `reps` and `unit` are written only for a Counter (`WORKOUT`) check-in in a weight mode. They stay NULL for Reps and for Timer Only, including a Timer Only entry whose stored mode is a weight mode.
+7. **Validation is typed and string-free.** `WeightValidator.validate(config, mode): List<WeightProblem>` covers every row of §3.1. PR 2 maps each problem to a field and a string. "At most 2 decimals" is automatic with integer hundredths; parsing input is PR 2's job.
+8. **A unit change can merge weights, and Steps become My weights.**
+   - §9.2 says ties "can't arise". They can after a unit change: 1.00 and 1.25 lb both round to 0.50 kg. `WeightConversion.convert(config, to)` keeps the first of any merged weights, and clamps every value to 25..99 975.
+   - A converted step (2.5 kg = 5.51 lb) isn't one of the step choices, so a converted Steps config becomes a **My weights** list of the converted values. The stored `steps` value is left as it was.
+9. **Hold-count reset on a weight save** (§9.2 step 5, read literally): the count resets when the current load (weight value, reps per set) changes. In Weight mode, that includes a reps-per-set edit. It also resets when the weight-hold list changes (order counts, as in rev 16 §4), or when the set of active holds changes (a hold that lands on the top level is inactive, as in Reps).
+10. **Two holds in one place.** In Weight mode, two holds on one weight with different reps sit on the same position. The validator reports the later one, and read-repair keeps the first. In Reps then weight they are different positions.
+11. **A weight mode with no unit** can only come from a corrupt row, because §9.3 writes the unit on the first switch. Such a row reads as KG and is logged, so check-ins always record a unit. An unknown unit on a `check_in` row reads as NULL and is logged too.
+12. **Where things live:**
+    - The weight codecs go in `data/WeightCodecs.kt`, next to `HoldsCodec`, following the existing pattern even though they are pure.
+    - `defaultWeightUnit(country)` is pure domain code. `AppPreferences` takes a `country: () -> String` parameter, which defaults to `Locale.getDefault().country`.
+13. **Ruling (user, 2026-10-05, option A): the first check-in after Start fresh is performed AT the starting point.** It does not go +1, and the streak continues.
+    - **Storage:** v7 also adds `entry.fresh_start INTEGER NOT NULL DEFAULT 0`. Every existing row reads 0, so nothing changes. `CounterState.freshStart` maps to and from it.
+    - **Engine (`RepProgression.checkIn`):** when `state.freshStart` is true and the outcome is not AlreadyToday:
+      - **On time:** the position stays at the start (no +1). The streak goes +1 and `lastCheckIn = now`. The hold count follows `startingHoldCount(position)`, so if the start is itself a hold, that day counts as day 1.
+      - **Missed:** the position stays at the start, with no penalty (`Missed(0)`). The streak resets to 1, as for any miss.
+      - **First** (no last check-in): unchanged.
+      - A recorded Counter check-in returns `freshStart = false`. With the flag false, the engine behaves byte-for-byte as before, in every mode including Reps.
+    - **Repository:** `switchMode` writes `fresh_start = 1` with total NULL and hold count 0; `checkIn` writes the engine's returned flag in the same transaction (note 18); `resetProgress` and `overwriteCounter` write 0 (Reset clears the last check-in, so the First rule covers it; an explicit Current edit means the user chose the position); `duplicate` writes 0.
+14. **Cosmetic:** §9.5 says "the validation matrix is §3.1 below", but §3.1 is above it.
+15. **The brainstorm's simulation isn't in the repo.** The expected positions in the engine and remap tests are computed from §2 and §9.1. They agree with §2's one example: 16 kg × 8 plus a 6-day absence lands on 14 kg × 8. "A 6-day absence" means the check-ins are 168 h apart: the penalty is 6, the raw level is 14 (12 kg × 12), and the floor is 15 (14 kg × 8).
+16. **Error precedence in `overwriteCounter`:** a total of exactly 0 is now checked inside the transaction (0 is a valid level in a weight mode). So `overwriteCounter(missingId, total = 0, …)` throws `EntryNotFound` instead of `IllegalArgumentException`. Everything else is unchanged: Reps still rejects 0, and a negative total is still rejected up front.
+17. **Timer only keeps `freshStart`** (ruling, batch 1 review). A Timer only check-in moves only the streaks and the date (R4 §3.1), so it also keeps the flag. A Counter → Timer only → Counter round trip after Start fresh still performs the first Counter check-in at the start.
+18. **`checkIn` persists the flag** (batch 3 review). The check-in transaction writes the engine's returned `freshStart` (`EntryDao.setFreshStart`) alongside the counter and the history point. Without it, `switchMode` would set the flag and nothing would clear it, so every later check-in would stay at the start.
+19. **In-memory migration tests use new query text after an ALTER TABLE.** The framework connection caches each statement's column list, so re-running the same `SELECT *` after `ADD COLUMN` reports the old columns and makes a before/after comparison vacuous. The 4 → 5 and 6 → 7 tests query with distinct text after the migration.
+20. **Revisions 27 and 28 apply to Reps mode only** (rebase onto main, 2026-10-05). Floor..cap are rep totals, but in a weight mode the total is a level on the ladder. So in a weight mode `overwriteCounter` never widens floor..cap (rev 27): it accepts a level in 0..top and rejects anything else (note 16). And `setProgression` never moves a weight-mode level into the new floor..cap (rev 28 rule 4). Both still work exactly as on main for a Reps-mode Counter entry.
+21. **The hold count on a Progression save in a weight mode** (final review ruling). `setProgression` resets `hold_count` only when the shared Hold switch changes (`old.hold != new.hold`, `progressionHoldReset`). Reps-hold, floor and cap edits don't apply to a level, so they keep the count. Weight-hold edits go through `setWeightConfig`'s own rule (note 9). Reps mode is unchanged (`holdResetNeeded`). The Progression page compares its draft with the stored Reps fields only (mode and weight group normalised away), so an entry with a weight group still follows changes made elsewhere, such as the Current page's widening (rev 27).
+22. **Release order** (final review). PR 2 makes `switchMode` reachable, but only PR 3 teaches the timer, the voice, the chart and the tile about levels. So either PR 2 and PR 3 ship in the same release, or PR 2 keeps the Progress by switch hidden until PR 3 lands. Also, `FakeEntryRepository.setWeightConfig` always remaps and skips validation, unlike Room: it never keeps an untouched (NULL) counter untouched, because the fake stores resolved totals. PR 2's ViewModel tests must not rely on it for "untouched stays untouched" or for rejecting invalid drafts; use `RoomEntryRepository` for those.

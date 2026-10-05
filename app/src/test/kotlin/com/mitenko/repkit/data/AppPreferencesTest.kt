@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -79,5 +80,28 @@ class AppPreferencesTest {
         assertFalse(prefs.crashReportsEnabled.first())
         prefs.setCrashReportsEnabled(true)
         assertTrue(prefs.crashReportsEnabled.first())
+    }
+
+    @Test
+    fun `weightUnitDefault follows the locale when absent`() = runTest {
+        val store = store()
+        listOf("US" to WeightUnit.LB, "LR" to WeightUnit.LB, "MM" to WeightUnit.LB, "GB" to WeightUnit.KG, "" to WeightUnit.KG)
+            .forEach { (country, unit) -> assertEquals(country, unit, AppPreferences(store) { country }.weightUnitDefault.first()) }
+    }
+
+    @Test
+    fun `setWeightUnitDefault round trips and wins over the locale`() = runTest {
+        val prefs = AppPreferences(store()) { "US" }
+        prefs.setWeightUnitDefault(WeightUnit.KG)
+        assertEquals(WeightUnit.KG, prefs.weightUnitDefault.first())
+        prefs.setWeightUnitDefault(WeightUnit.LB)
+        assertEquals(WeightUnit.LB, prefs.weightUnitDefault.first())
+    }
+
+    @Test
+    fun `an unknown stored unit reads as the locale default`() = runTest {
+        val store = store()
+        store.edit { it[stringPreferencesKey("weight_unit_default")] = "STONE" }
+        assertEquals(WeightUnit.KG, AppPreferences(store) { "GB" }.weightUnitDefault.first())
     }
 }
