@@ -24,10 +24,26 @@ android {
         buildConfigField("boolean", "CRASHLYTICS_IN_DEBUG", (project.findProperty("crashlyticsInDebug") == "true").toString())
     }
 
+    // Play upload key (spec rev 31): read from the user-level ~/.gradle/gradle.properties, never from the repo.
+    // Without these properties (CI, build workers) the release build is unsigned and is signed afterwards.
+    val uploadStoreFile = providers.gradleProperty("repkitUploadStoreFile").orNull
+    signingConfigs {
+        if (uploadStoreFile != null) {
+            create("upload") {
+                storeFile = file(uploadStoreFile)
+                storePassword = providers.gradleProperty("repkitUploadStorePassword").get()
+                keyAlias = providers.gradleProperty("repkitUploadKeyAlias").get()
+                keyPassword = providers.gradleProperty("repkitUploadKeyPassword").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("upload")
         }
     }
 
