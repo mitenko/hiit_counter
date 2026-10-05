@@ -9,14 +9,14 @@
     <string name="pause">暂停</string>
     <string name="resume">继续</string>
     <string name="skip_back">后退</string>
-    <string name="skip_forward">跳过</string>
+    <string name="skip_forward">向前跳过</string>
     <string name="stop">停止</string>
     <string name="cancel">取消</string>
     <string name="stop_workout_title">停止训练？</string>
     <string name="stop_workout_body">你今天的打卡已记录。</string>
     <string name="notification_channel_name">训练计时器</string>
     <string name="back">返回</string>
-    <string name="settings_timing">时间</string>
+    <string name="settings_timing">计时</string>
     <string name="settings_progression">进阶</string>
     <string name="settings_current_state">当前</string>
     <string name="settings_cues">提示</string>
@@ -26,24 +26,24 @@
     <string name="rest">休息</string>
     <string name="cooldown">放松</string>
     <string name="total_duration">总计 %1$s</string>
-    <string name="decrease">减少%1$s</string>
-    <string name="increase">增加%1$s</string>
+    <string name="decrease">减少 %1$s</string>
+    <string name="increase">增加 %1$s</string>
     <string name="starting_total">初始次数</string>
     <string name="floor">最少次数</string>
     <string name="cap">最多次数</string>
     <string name="hold_at">保持在</string>
-    <string name="hold_for">保持天数（打卡次数）</string>
+    <string name="hold_for">保持次数（打卡次数）</string>
     <string name="hold_n">保持 %1$d</string>
     <string name="remove_hold">删除保持 %1$d</string>
     <string name="add_hold">添加保持</string>
     <string name="hold_n_at">保持 %1$d 的次数</string>
-    <string name="hold_n_for">保持 %1$d 的天数</string>
+    <string name="hold_n_for">保持 %1$d 的打卡次数</string>
     <string name="window_hours">准时窗口（小时）</string>
-    <string name="penalty_rate">缺勤调整（每次数的小时数）</string>
+    <string name="penalty_rate">漏打卡调整（每次的小时数）</string>
     <string name="reset_defaults">恢复默认设置</string>
     <string name="current_total">当前次数</string>
-    <string name="best_streak_field">最长连续</string>
-    <string name="current_streak_field">当前连续</string>
+    <string name="best_streak_field">最长连续记录</string>
+    <string name="current_streak_field">当前连续记录</string>
     <string name="last_check_in_field">上次打卡</string>
     <string name="clear">清除</string>
     <string name="none">—</string>
@@ -96,7 +96,7 @@
     <string name="info_total_reps">你当前的总次数，会分配到训练的各组中。修改立即生效。</string>
     <string name="info_best_streak">你最长的准时打卡连续记录。会随着连续记录增长自动更新。</string>
     <string name="info_current_streak">你当前的准时打卡连续记录，包括最近一次。错过窗口会让连续记录重置为 1。</string>
-    <string name="info_last_check_in">你上次点击“开始”的时间。REPKIT 用它来计算准时窗口和缺勤调整。清除后，下次打卡将算作第一次。</string>
+    <string name="info_last_check_in">你上次点击“开始”的时间。REPKIT 用它来计算准时窗口和漏打卡调整。清除后，下次打卡将算作第一次。</string>
     <string name="info_sound">播放倒计时提示音，并在训练阶段切换时发出提示音。</string>
     <string name="info_vibration">训练阶段切换时振动，即使屏幕关闭也会振动。</string>
     <string name="check_in">打卡</string>
@@ -141,8 +141,8 @@
     <plurals name="reps_changed_sets">
         <item quantity="other">已更新 %1$d 组</item>
     </plurals>
-    <string name="reps_holding">保持在 %1$d · 第 %2$d/%3$d 次</string>
-    <string name="tab_timing">时间</string>
+    <string name="reps_holding">保持在 %1$d · 第 %2$d/%3$d 次打卡</string>
+    <string name="tab_timing">计时</string>
     <string name="tab_progression">进阶</string>
     <string name="tab_cues">提示</string>
     <string name="clear_history_too">同时清除历史</string>
@@ -185,7 +185,7 @@
     <string name="error_greater_than_zero">须大于 0</string>
     <string name="error_at_least_floor">须 ≥ 最少次数</string>
     <string name="error_at_least_starting_total">须 ≥ 初始次数</string>
-    <string name="error_at_least_current_streak">须 ≥ 当前连续</string>
+    <string name="error_at_least_current_streak">须 ≥ 当前连续记录</string>
     <plurals name="error_too_many_holds">
         <item quantity="other">最多 %1$d 个保持</item>
     </plurals>
@@ -199,7 +199,7 @@
     <string name="moved_starting_lowered">初始次数已降低到 %1$d</string>
     <string name="moved_current_raised">当前次数已提高到 %1$d</string>
     <string name="moved_current_lowered">当前次数已降低到 %1$d</string>
-    <string name="moved_best_streak_raised">最长连续已提高到 %1$d</string>
+    <string name="moved_best_streak_raised">最长连续记录已提高到 %1$d</string>
     <string name="error_in_the_future">不能是将来的时间</string>
     <string name="error_enter_name">请输入名称</string>
     <plurals name="error_name_too_long">
