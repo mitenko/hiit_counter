@@ -164,6 +164,22 @@ class StepperRowTest {
         assertEquals(12, value)
     }
 
+    // ValueRow (spec rev 29): a read-only value, no steppers, no edit dialog.
+
+    @Test
+    fun `ValueRow shows its value with no steppers and no edit dialog`() {
+        compose.setContent {
+            HiitTheme { Column { ValueRow("BEST", "24", info = "About as high as it gets.") } }
+        }
+        compose.onNodeWithTag("value_BEST").assertTextEquals("24")
+        compose.onNodeWithContentDescription("Increase BEST").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Decrease BEST").assertDoesNotExist()
+        compose.onNodeWithTag("value_BEST").performClick()
+        compose.onNodeWithTag("edit_field").assertDoesNotExist()
+        compose.onNodeWithContentDescription("About BEST").performClick()
+        compose.onNodeWithTag("info_text").assertTextEquals("About as high as it gets.")
+    }
+
     @Test
     fun `the row is one rounded card holding its label, buttons and value`() {
         showInt(8, FieldRanges.SETS, ValueInput.WHOLE, "SETS")

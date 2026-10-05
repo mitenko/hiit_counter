@@ -122,7 +122,7 @@
 
     <string name="info_total_reps">Your current rep total, divided across the workout\'s sets. Changes take effect immediately.</string>
 
-    <string name="info_best_streak">Your longest run of on-time check-ins. It can never be lower than your current streak.</string>
+    <string name="info_best_streak">Your longest run of on-time check-ins. It updates on its own as your streak grows.</string>
 
     <string name="info_current_streak">Your current run of on-time check-ins, including the latest one. Missing the window resets the streak to 1.</string>
 

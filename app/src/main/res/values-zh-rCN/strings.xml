@@ -94,7 +94,7 @@
     <string name="info_window">在上次打卡后的这么多小时内打卡即为准时。准时打卡会延续你的连续记录，在计数训练中还会增加一次。</string>
     <string name="info_penalty_rate">如果错过准时窗口，你离开期间总次数会逐渐减少，但不会低于最少次数。</string>
     <string name="info_total_reps">你当前的总次数，会分配到训练的各组中。修改立即生效。</string>
-    <string name="info_best_streak">你最长的准时打卡连续记录。不会低于当前连续记录。</string>
+    <string name="info_best_streak">你最长的准时打卡连续记录。会随着连续记录增长自动更新。</string>
     <string name="info_current_streak">你当前的准时打卡连续记录，包括最近一次。错过窗口会让连续记录重置为 1。</string>
     <string name="info_last_check_in">你上次点击“开始”的时间。REPKIT 用它来计算准时窗口和缺勤调整。清除后，下次打卡将算作第一次。</string>
     <string name="info_sound">播放倒计时提示音，并在训练阶段切换时发出提示音。</string>
