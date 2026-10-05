@@ -7,6 +7,7 @@ import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.EntryNames
+import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.RepProgression
@@ -98,12 +99,15 @@ interface MigrationGate {
  * Room-backed [EntryRepository]. Suspend calls return on the caller's dispatcher: ViewModels call
  * it from viewModelScope (Main) and keep calling TimerController on Main — never wrap it in
  * withContext(Dispatchers.IO) around controller calls (spec §5.3 threading).
- * [validationClock] is only used to reject a last check-in in the future.
+ * [validationClock] is only used to reject a last check-in in the future. [copySuffix] is the
+ * duplicate name's suffix from resources (" copy" in English, spec revision 24), read per call so it
+ * follows the current locale.
  */
 class RoomEntryRepository(
     private val db: HiitDatabase,
     private val gate: MigrationGate,
     private val validationClock: Clock,
+    private val copySuffix: () -> String,
 ) : EntryRepository {
     private val dao = db.entryDao()
     private val checkIns = db.checkInDao()
@@ -137,7 +141,7 @@ class RoomEntryRepository(
             val source = dao.get(id)?.toDomain() ?: throw EntryNotFound(id)
             dao.insert(
                 entryEntity(
-                    name = EntryNames.duplicateName(source.name),
+                    name = EntryNames.duplicateName(source.name, copySuffix()),
                     position = dao.count(),
                     timing = source.timing,
                     progression = source.progression,
@@ -272,7 +276,7 @@ class RoomEntryRepository(
 
     private fun requireName(raw: String): String = when (val check = EntryNames.validate(raw)) {
         is NameCheck.Ok -> check.name
-        else -> throw IllegalArgumentException(EntryNames.errorMessage(check))
+        else -> throw InvalidEntryName(check)
     }
 
     private fun found(id: Long, updatedRows: Int) {

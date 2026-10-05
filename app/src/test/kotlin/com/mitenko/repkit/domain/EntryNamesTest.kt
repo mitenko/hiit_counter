@@ -1,7 +1,6 @@
 package com.mitenko.repkit.domain
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,22 +33,25 @@ class EntryNamesTest {
 
     @Test
     fun `duplicate appends copy`() {
-        assertEquals("Burpees copy", EntryNames.duplicateName("Burpees"))
+        assertEquals("Burpees copy", EntryNames.duplicateName("Burpees", " copy"))
     }
 
     @Test
     fun `long names are cut so the suffix survives`() {
-        val dup = EntryNames.duplicateName("x".repeat(40))
+        val dup = EntryNames.duplicateName("x".repeat(40), " copy")
         assertEquals("x".repeat(35) + " copy", dup)
         assertEquals(40, dup.length)
-        assertTrue(dup.endsWith(EntryNames.COPY_SUFFIX))
+        assertTrue(dup.endsWith(" copy"))
         assertEquals(NameCheck.Ok(dup), EntryNames.validate(dup))
     }
 
     @Test
-    fun `error messages explain the failure`() {
-        assertEquals("Enter a name", EntryNames.errorMessage(NameCheck.Empty))
-        assertEquals("Use at most 40 characters", EntryNames.errorMessage(NameCheck.TooLong))
-        assertNull(EntryNames.errorMessage(NameCheck.Ok("Burpees")))
+    fun `a suffix longer than the limit never cuts below an empty base`() {
+        assertEquals("y".repeat(41), EntryNames.duplicateName("Burpees", "y".repeat(41)))
+    }
+
+    @Test
+    fun `an invalid name exception carries the typed check`() {
+        assertEquals(NameCheck.TooLong, InvalidEntryName(NameCheck.TooLong).check)
     }
 }

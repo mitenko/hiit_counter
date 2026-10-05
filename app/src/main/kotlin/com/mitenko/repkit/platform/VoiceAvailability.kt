@@ -7,7 +7,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Whether this device can say the Voice cue (spec R4 §4.7): a text-to-speech engine that
- * initialises with an English voice. Used by the Cues page, outside any run (plan Spec note 4).
+ * initialises with a voice in the app's language or, failing that, English (spec revision 24). Used by the Cues page, outside any run (plan Spec note 4).
  */
 interface VoiceAvailability {
     suspend fun check(): Boolean

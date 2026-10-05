@@ -160,7 +160,7 @@ class V1MigratorTest {
     fun `a create racing the migration still yields Workout first and never an empty list`() = runTest {
         seed(V1Migrator.COUNTER_FILE) { it[V1Keys.TOTAL] = 65 }
         val m = migrator(appPreferences())
-        val repo = RoomEntryRepository(db, m, FakeClock())
+        val repo = RoomEntryRepository(db, m, FakeClock()) { " copy" }
         val seen = mutableListOf<List<String>>()
         val collector = backgroundScope.launch { repo.entries.collect { list -> seen += list.map { it.name } } }
         repo.create("Burpees")

@@ -1,9 +1,12 @@
 package com.mitenko.repkit.domain
 
-import com.mitenko.repkit.domain.model.Phase
-import com.mitenko.repkit.domain.model.TimerState
 import java.util.Locale
 
+/**
+ * Times as digits. These deliberately use [Locale.ENGLISH], not the device locale (spec revision
+ * 24): the timer must always show the digits 0–9, whatever the language, so a locale with its own
+ * digits never changes the countdown. Words around the times come from resources.
+ */
 object TimerText {
     fun formatMmSs(sec: Int): String = String.format(Locale.ENGLISH, "%02d:%02d", sec / 60, sec % 60)
 
@@ -13,25 +16,4 @@ object TimerText {
     fun formatDuration(sec: Int): String =
         if (sec >= 3600) String.format(Locale.ENGLISH, "%d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60)
         else formatMmSs(sec)
-
-    fun phaseName(phase: Phase): String = when (phase) {
-        Phase.PREPARE -> "Get ready"
-        Phase.WORK -> "Work"
-        Phase.REST -> "Rest"
-        Phase.COOLDOWN -> "Cooldown"
-        Phase.DONE -> "Done"
-    }
-
-    /** `"<entryName> · <Phase> · Set n/N"` with the name frozen in the run's snapshot (spec §7.6). */
-    fun notificationTitle(entryName: String?, s: TimerState): String =
-        listOfNotNull(entryName, phaseName(s.phase), "Set ${s.set}/${s.sets}").joinToString(" · ")
-
-    /** The first notification, before any timer state: `"<entryName> · Starting…"`. */
-    fun startingTitle(entryName: String?): String = if (entryName != null) "$entryName · Starting…" else "Starting workout…"
-
-    fun notificationBody(s: TimerState): String = when {
-        s.phase == Phase.DONE -> "Workout complete"
-        s.paused -> "Paused · ${formatMmSs(s.phaseSecondsLeft)} left"
-        else -> "${formatMmSs(s.phaseSecondsLeft)} left"
-    }
 }

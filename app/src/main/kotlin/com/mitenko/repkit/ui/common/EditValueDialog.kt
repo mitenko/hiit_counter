@@ -1,5 +1,6 @@
 package com.mitenko.repkit.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -23,14 +24,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import com.mitenko.repkit.R
-import com.mitenko.repkit.domain.SettingsValidator
 
 /** How the edit dialog reads its text (spec §8.2, §8.3). */
-enum class ValueInput(val keyboardType: KeyboardType, val invalidMessage: String) {
+enum class ValueInput(val keyboardType: KeyboardType, @param:StringRes val invalidMessage: Int) {
     /** m:ss or plain seconds; Ascii so the keyboard has ':'. */
-    TIME(KeyboardType.Ascii, "Use m:ss or seconds"),
-    WHOLE(KeyboardType.Number, SettingsValidator.NOT_A_NUMBER),
-    DECIMAL(KeyboardType.Decimal, SettingsValidator.NOT_A_NUMBER),
+    TIME(KeyboardType.Ascii, R.string.error_time_format),
+    WHOLE(KeyboardType.Number, R.string.error_enter_number),
+    DECIMAL(KeyboardType.Decimal, R.string.error_enter_number),
 }
 
 /**
@@ -63,7 +63,7 @@ fun <T : Any> EditValueDialog(
                 singleLine = true,
                 isError = parsed == null,
                 supportingText = if (parsed == null) {
-                    { Text(input.invalidMessage) }
+                    { Text(stringResource(input.invalidMessage)) }
                 } else {
                     null
                 },

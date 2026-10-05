@@ -1,11 +1,15 @@
 package com.mitenko.repkit.data
 
+import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.R
 import com.mitenko.repkit.data.db.CheckInEntity
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.data.db.WorkoutSessionEntity
+import com.mitenko.repkit.domain.InvalidEntryName
+import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
@@ -57,7 +61,9 @@ class RoomEntryRepositoryTest {
         db.close()
     }
 
-    private fun repo(gate: MigrationGate = open) = RoomEntryRepository(db, gate, clock)
+    private fun repo(gate: MigrationGate = open) = RoomEntryRepository(db, gate, clock) {
+        ApplicationProvider.getApplicationContext<Context>().getString(R.string.copy_suffix)
+    }
 
     private suspend fun order() = db.entryDao().getAll().map { it.name to it.position }
 
@@ -101,8 +107,8 @@ class RoomEntryRepositoryTest {
     @Test
     fun `create rejects invalid names and writes nothing`() = runTest {
         val r = repo()
-        assertEquals("Enter a name", expectThrows<IllegalArgumentException> { r.create("   ") }.message)
-        assertEquals("Use at most 40 characters", expectThrows<IllegalArgumentException> { r.create("x".repeat(41)) }.message)
+        assertEquals(NameCheck.Empty, expectThrows<InvalidEntryName> { r.create("   ") }.check)
+        assertEquals(NameCheck.TooLong, expectThrows<InvalidEntryName> { r.create("x".repeat(41)) }.check)
         assertEquals(0, db.entryDao().count())
     }
 

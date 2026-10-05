@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
+import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.theme.HiitColors
 import com.mitenko.repkit.ui.theme.HiitTheme
 
@@ -103,16 +104,17 @@ fun TimerScreen(
                     Stat(R.string.elapsed_label, ui.elapsedText)
                 }
             }
+            val description = ui.description.resolve()
             BoxWithConstraints(Modifier.fillMaxWidth(0.85f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                 // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
                 val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
                 DualRing(ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = HiitColors.SetRing, modifier = Modifier.fillMaxSize())
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = ui.description },
+                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
                 ) {
                     ui.label?.let {
-                        Text(it, color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
+                        Text(it.resolve(), color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
                     }
                     ui.centerNumber?.let {
                         Text(

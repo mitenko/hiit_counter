@@ -2,6 +2,7 @@ package com.mitenko.repkit.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
 import com.mitenko.repkit.domain.Field
+import com.mitenko.repkit.domain.FieldMessage
 import com.mitenko.repkit.domain.HoldField
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.Hold
@@ -108,7 +109,7 @@ class ProgressionSettingsViewModelTest {
     fun `with the hold off the hold checks and hint are skipped`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holds = listOf(Hold(64, 0))))))
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
-        assertEquals(mapOf(0 to "Hold disabled"), vm.validation.value.holdHints)
+        assertEquals(mapOf(0 to FieldMessage.HoldDisabled), vm.validation.value.holdHints)
         vm.updateNow { it.copy(hold = false) }
         assertTrue(vm.validation.value.holdHints.isEmpty())
         vm.update { it.copy(holds = listOf(Hold(80, 0))) } // hidden, and at or above the cap: it would give the hint with the hold on
@@ -187,7 +188,7 @@ class ProgressionSettingsViewModelTest {
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
         vm.updateNow { it.updateHold(1) { h -> h.copy(at = 56) } }
         runCurrent()
-        assertEquals(mapOf(1 to mapOf(HoldField.AT to "Already a hold at 56")), vm.validation.value.holdErrors)
+        assertEquals(mapOf(1 to mapOf(HoldField.AT to FieldMessage.DuplicateHold(56))), vm.validation.value.holdErrors)
         assertEquals(SaveStatus.INVALID, vm.status.value)
         assertEquals(0, repo.progressionWrites)
         assertEquals(two, repo.find(1).progression)

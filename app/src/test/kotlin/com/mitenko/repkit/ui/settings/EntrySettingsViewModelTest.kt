@@ -1,6 +1,7 @@
 package com.mitenko.repkit.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
+import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.TimerController
@@ -15,6 +16,7 @@ import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
+import com.mitenko.repkit.ui.common.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -68,6 +70,15 @@ class EntrySettingsViewModelTest {
         runCurrent()
         assertEquals("Kettlebell Lunges", repo.find(1).name)
         assertEquals("Kettlebell Lunges", h.vm.uiState.value.name)
+    }
+
+    @Test
+    fun `an invalid rename shows the name check's message from resources`() = runTest {
+        val h = harness()
+        h.vm.rename("   ")
+        runCurrent()
+        assertEquals(UiText.Res(R.string.error_enter_name), h.vm.uiState.value.error)
+        assertEquals("Burpees", repo.find(1).name)
     }
 
     @Test

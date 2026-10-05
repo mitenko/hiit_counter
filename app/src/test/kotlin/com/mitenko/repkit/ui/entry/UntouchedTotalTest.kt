@@ -48,7 +48,7 @@ class UntouchedTotalTest {
             val open = object : MigrationGate {
                 override suspend fun awaitReady() = Unit
             }
-            val repo = RoomEntryRepository(db, open, clock)
+            val repo = RoomEntryRepository(db, open, clock) { " copy" }
             val id = repo.create("Burpees")
             assertNull(db.entryDao().get(id)!!.total)
             val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }

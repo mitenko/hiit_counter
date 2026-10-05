@@ -44,6 +44,7 @@ import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.newHold
+import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.IntStepperField
@@ -236,19 +237,19 @@ fun ProgressionPageContent(
                 stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
                 onUpdate = { f -> onChange { it.copy(startingTotal = f(it.startingTotal)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(startingTotal = f(it.startingTotal)) } },
-                error = errors[Field.STARTING_TOTAL], info = stringResource(R.string.info_starting_total),
+                error = errors[Field.STARTING_TOTAL].resolve(), info = stringResource(R.string.info_starting_total),
             )
             IntStepperField(
                 stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
                 onUpdate = { f -> onChange { it.copy(floor = f(it.floor)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(floor = f(it.floor)) } },
-                error = errors[Field.FLOOR], info = stringResource(R.string.info_floor),
+                error = errors[Field.FLOOR].resolve(), info = stringResource(R.string.info_floor),
             )
             IntStepperField(
                 stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
                 onUpdate = { f -> onChange { it.copy(cap = f(it.cap)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(cap = f(it.cap)) } },
-                error = errors[Field.CAP], info = stringResource(R.string.info_cap),
+                error = errors[Field.CAP].resolve(), info = stringResource(R.string.info_cap),
             )
             // Spec R3 §5.3, rev 16 §6: the switch sits directly above the holds; off hides the list but keeps its values.
             SwitchRow(
@@ -264,14 +265,14 @@ fun ProgressionPageContent(
                             stringResource(R.string.hold_at), hold.at, FieldRanges.REPS, ValueInput.WHOLE,
                             onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
                             onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
-                            error = holdErrors[HoldField.AT], hint = validation.holdHints[i], info = stringResource(R.string.info_hold_at),
+                            error = holdErrors[HoldField.AT].resolve(), hint = validation.holdHints[i].resolve(), info = stringResource(R.string.info_hold_at),
                             a11yLabel = stringResource(R.string.hold_n_at, i + 1),
                         )
                         IntStepperField(
                             stringResource(R.string.hold_for), hold.forCount, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
                             onUpdate = { f -> onChange { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
                             onDialogUpdate = { f -> onChangeNow { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
-                            error = holdErrors[HoldField.FOR], info = stringResource(R.string.info_hold_for),
+                            error = holdErrors[HoldField.FOR].resolve(), info = stringResource(R.string.info_hold_for),
                             a11yLabel = stringResource(R.string.hold_n_for, i + 1),
                         )
                     }
@@ -286,14 +287,14 @@ fun ProgressionPageContent(
             stringResource(R.string.window_hours), draft.windowHours, FieldRanges.WINDOW_HOURS, ValueInput.WHOLE,
             onUpdate = { f -> onChange { it.copy(windowHours = f(it.windowHours)) } },
             onDialogUpdate = { f -> onChangeNow { it.copy(windowHours = f(it.windowHours)) } },
-            error = errors[Field.WINDOW_HOURS], info = stringResource(R.string.info_window),
+            error = errors[Field.WINDOW_HOURS].resolve(), info = stringResource(R.string.info_window),
         )
         if (!windowOnly) {
             PenaltyStepperField(
                 stringResource(R.string.penalty_rate), draft.penalty,
                 onUpdate = { f -> onChange { it.copy(penalty = f(it.penalty)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(penalty = f(it.penalty)) } },
-                error = errors[Field.PENALTY_RATE], info = stringResource(R.string.info_penalty_rate),
+                error = errors[Field.PENALTY_RATE].resolve(), info = stringResource(R.string.info_penalty_rate),
             )
             OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 16.dp).testTag("reset_defaults")) {
                 Text(stringResource(R.string.reset_defaults))
