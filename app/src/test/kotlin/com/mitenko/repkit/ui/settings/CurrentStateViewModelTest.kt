@@ -6,20 +6,24 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.repkit.domain.Field
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
+import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.common.SaveStatus
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -72,6 +76,63 @@ class CurrentStateViewModelTest {
         vm.updateNow { it.copy(lastCheckIn = last) }
         runCurrent()
         assertEquals(last, repo.find(1).counter.lastCheckIn)
+    }
+
+    @Test
+    fun `a saved total above the cap raises it and notes it until the total is edited again`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.updateNow { it.copy(total = 80) }
+        runCurrent()
+        assertEquals(80, repo.find(1).progression.cap)
+        assertEquals(RangeChange.RaisedMax(80), vm.rangeNote.value)
+        vm.update { it.copy(best = 5) } // a streak edit keeps the note
+        assertEquals(RangeChange.RaisedMax(80), vm.rangeNote.value)
+        vm.update { it.copy(total = 79) } // inside the new range
+        assertNull(vm.rangeNote.value)
+        vm.flush()
+        runCurrent()
+        assertNull(vm.rangeNote.value)
+        assertEquals(80, repo.find(1).progression.cap)
+    }
+
+    @Test
+    fun `a saved total below the floor lowers it and notes it, and leaving the page hides the note`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.update { it.copy(total = 40) }
+        advanceTimeBy(400)
+        runCurrent()
+        assertEquals(40, repo.find(1).progression.floor)
+        assertEquals(RangeChange.LoweredMin(40), vm.rangeNote.value)
+        vm.clearRangeNote()
+        assertNull(vm.rangeNote.value)
+    }
+
+    @Test
+    fun `a save that finishes after the note was dismissed never brings it back`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val gate = CompletableDeferred<Unit>()
+        repo.counterGate = gate
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.updateNow { it.copy(total = 80) }
+        runCurrent()
+        assertEquals(1, repo.counterWrites) // in flight, held by the gate
+        vm.clearRangeNote() // the user changed page
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(80, repo.find(1).progression.cap)
+        assertNull(vm.rangeNote.value)
+    }
+
+    @Test
+    fun `a saved total inside the range moves nothing and shows no note`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.updateNow { it.copy(total = 72) }
+        runCurrent()
+        assertEquals(ProgressionConfig(), repo.find(1).progression)
+        assertNull(vm.rangeNote.value)
     }
 
     @Test

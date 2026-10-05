@@ -3,9 +3,14 @@ package com.mitenko.repkit.ui.settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -13,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.theme.HiitTheme
@@ -37,7 +43,7 @@ class CurrentStatePageTest {
     /** Each reset's Clear history too value, in order. */
     private val resets = mutableListOf<Boolean>()
 
-    private fun show(showTotal: Boolean = true) {
+    private fun show(showTotal: Boolean = true, rangeNote: RangeChange? = null) {
         compose.setContent {
             HiitTheme {
                 CurrentStatePageContent(
@@ -45,7 +51,7 @@ class CurrentStatePageTest {
                     onChange = { draft = it(draft) },
                     onChangeNow = { immediate++; draft = it(draft) },
                     onResetProgress = { resets += it },
-                    showTotal = showTotal,
+                    showTotal = showTotal, rangeNote = rangeNote,
                 )
             }
         }
@@ -101,5 +107,24 @@ class CurrentStatePageTest {
         compose.onNodeWithContentDescription("Increase Best streak").performScrollTo().performClick()
         assertEquals(25, draft.best)
         assertEquals(65, draft.total) // a streak edit keeps the stored total in the draft, so the save writes it back unchanged
+    }
+
+    @Test
+    fun `a moved limit shows its note under Current reps as a polite live region`() {
+        show(rangeNote = RangeChange.RaisedMax(80))
+        compose.onNodeWithTag("range_note").assertTextEquals("Maximum reps raised to 80")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+    }
+
+    @Test
+    fun `a lowered floor has its own note`() {
+        show(rangeNote = RangeChange.LoweredMin(40))
+        compose.onNodeWithTag("range_note").assertTextEquals("Minimum reps lowered to 40")
+    }
+
+    @Test
+    fun `no moved limit, no note`() {
+        show()
+        compose.onNodeWithTag("range_note").assertDoesNotExist()
     }
 }

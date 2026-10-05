@@ -7,9 +7,12 @@ import com.mitenko.repkit.domain.EntryNames
 import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.RepProgression
 import com.mitenko.repkit.domain.counterHoldReset
 import com.mitenko.repkit.domain.holdResetNeeded
+import com.mitenko.repkit.domain.rangeChange
+import com.mitenko.repkit.domain.widenedFor
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
@@ -32,7 +35,7 @@ import java.time.Instant
  * suspend call waits for [readiness], missing ids throw EntryNotFound, invalid names throw
  * IllegalArgumentException, positions stay contiguous, the hold count follows the R3 §6.3 rules,
  * a Timer only entry's check-in keeps its total (R4 §3.1), and a recorded check-in logs one
- * point in [points] (R6 §3.2). Settings validation is left to the ViewModels under test. The write
+ * point in [points] (R6 §3.2), and a Counter total outside floor..cap widens it (rev 27). Settings validation is left to the ViewModels under test. The write
  * counters, [writeError] and [checkInGate] let the tests count, fail and hold individual calls.
  */
 class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = true) : EntryRepository {
@@ -49,6 +52,9 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     /** When set, checkIn suspends on it after counting the call, so a test can hold a check-in in flight. */
     var checkInGate: CompletableDeferred<Unit>? = null
     val moves = mutableListOf<Pair<Long, Int>>()
+
+    /** When set, overwriteCounter suspends on it after counting the call, so a test can hold a counter save in flight. */
+    var counterGate: CompletableDeferred<Unit>? = null
 
     /** When set, create suspends on it after validating the name, so a test can hold a create in flight. */
     var createGate: CompletableDeferred<Unit>? = null
@@ -168,13 +174,20 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
         return result
     }
 
-    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?) {
+    /** Widens a Counter entry's floor..cap to include [total] as Room does (spec revision 27). */
+    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?): RangeChange? {
         counterWrites++
+        counterGate?.await()
         failIfAsked()
+        var change: RangeChange? = null
         edit(id) {
-            val holdCount = if (counterHoldReset(it.counter.total, total)) 0 else it.counter.holdCount
-            it.copy(counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount))
+            val widened = if (it.type == EntryType.WORKOUT) it.progression.widenedFor(total) else it.progression
+            change = rangeChange(it.progression, widened)
+            val reset = holdResetNeeded(it.progression, widened) || counterHoldReset(it.counter.total, total)
+            val holdCount = if (reset) 0 else it.counter.holdCount
+            it.copy(progression = widened, counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount))
         }
+        return change
     }
 
     /** Room stores a NULL total, which resolves to startingTotal; the fake stores startingTotal directly. */

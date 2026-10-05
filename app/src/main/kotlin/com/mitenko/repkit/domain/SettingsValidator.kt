@@ -53,9 +53,6 @@ sealed interface FieldMessage {
     /** Hint: the hold can never apply (outside floor..cap, or held for 0). */
     data object HoldDisabled : FieldMessage
 
-    /** Hint: the total is outside floor..cap and is clamped at the next check-in. */
-    data object OutsideFloorCap : FieldMessage
-
     data object InTheFuture : FieldMessage
 }
 
@@ -121,16 +118,14 @@ object SettingsValidator {
         currentStreak: Int,
         lastCheckIn: Instant?,
         now: Instant,
-        config: ProgressionConfig,
     ): ValidationResult {
+        // Spec revision 27: a total outside floor..cap is fine; saving it widens the range.
         val e = mutableMapOf<Field, FieldMessage>()
-        val hints = mutableMapOf<Field, FieldMessage>()
         if (total < 1) e[Field.TOTAL] = FieldMessage.AtLeastOne
-        else if (total !in config.floor..config.cap) hints[Field.TOTAL] = FieldMessage.OutsideFloorCap
         if (currentStreak < 0) e[Field.CURRENT_STREAK] = FieldMessage.ZeroOrMore
         if (bestStreak < 0) e[Field.BEST_STREAK] = FieldMessage.ZeroOrMore
         else if (bestStreak < currentStreak) e[Field.BEST_STREAK] = FieldMessage.AtLeastCurrentStreak
         if (lastCheckIn != null && lastCheckIn.isAfter(now)) e[Field.LAST_CHECK_IN] = FieldMessage.InTheFuture
-        return ValidationResult(e, hints)
+        return ValidationResult(e)
     }
 }

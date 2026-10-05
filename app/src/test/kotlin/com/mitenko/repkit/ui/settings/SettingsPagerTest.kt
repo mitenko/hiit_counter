@@ -22,6 +22,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
@@ -47,6 +48,9 @@ class SettingsPagerTest {
 
     private fun handle() = SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L))
 
+    /** The last [show]'s Current page ViewModel, so a test can flush its pending save. */
+    private lateinit var currentVm: CurrentStateViewModel
+
     private fun checkInRepo() = FakeEntryRepository(listOf(testEntry(1, name = "Stretch", type = EntryType.CHECK_IN)))
 
     private fun show(initial: SettingsPage = SettingsPage.TIMING, repo: FakeEntryRepository = this.repo) {
@@ -54,7 +58,7 @@ class SettingsPagerTest {
         val pagerVm = SettingsPagerViewModel(handle(), repo)
         val timingVm = TimingSettingsViewModel(handle(), repo, appScope)
         val progressionVm = ProgressionSettingsViewModel(handle(), repo, appScope)
-        val currentVm = CurrentStateViewModel(handle(), repo, FakeClock(), appScope)
+        val currentVm = CurrentStateViewModel(handle(), repo, FakeClock(), appScope).also { this.currentVm = it }
         val cuesVm = CuesSettingsViewModel(handle(), repo, FakeVoiceAvailability())
         compose.setContent {
             HiitTheme {
@@ -154,6 +158,42 @@ class SettingsPagerTest {
             assertEquals(1, repo.timingWrites)
             assertEquals(9, repo.find(1).timing.sets)
         }
+    }
+
+    @Test
+    fun `Current raising the cap shows on the already loaded Progression page, which never writes its stale cap back`() {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 79))))
+        show(initial = SettingsPage.PROGRESSION, repo = repo)
+        compose.onNodeWithTag("value_Maximum reps").performScrollTo().assertTextEquals("72")
+        tab(SettingsPage.CURRENT).performClick()
+        compose.onNodeWithContentDescription("Increase Current reps").performScrollTo().performClick()
+        compose.runOnIdle { currentVm.flush() }
+        compose.onNodeWithTag("range_note").assertTextEquals("Maximum reps raised to 80")
+        compose.runOnIdle { assertEquals(80, repo.find(1).progression.cap) }
+
+        tab(SettingsPage.PROGRESSION).performClick()
+        compose.onNodeWithTag("value_Maximum reps").performScrollTo().assertTextEquals("80")
+        compose.runOnIdle { assertEquals(0, repo.progressionWrites) }
+        // A later Progression edit saves on top of the new cap, not the stale one.
+        compose.onNodeWithContentDescription("Increase Starting reps").performScrollTo().performClick()
+        tab(SettingsPage.CUES).performClick()
+        compose.runOnIdle {
+            assertEquals(1, repo.progressionWrites)
+            assertEquals(80, repo.find(1).progression.cap)
+            assertEquals(49, repo.find(1).progression.startingTotal)
+        }
+    }
+
+    @Test
+    fun `leaving the Current page hides its range note`() {
+        show(initial = SettingsPage.CURRENT)
+        compose.onNodeWithContentDescription("Decrease Current reps").performScrollTo().performClick()
+        compose.runOnIdle { currentVm.flush() }
+        compose.onNodeWithTag("range_note").assertTextEquals("Minimum reps lowered to 47")
+        tab(SettingsPage.CUES).performClick()
+        tab(SettingsPage.CURRENT).performClick()
+        compose.onNodeWithTag("value_Current reps").assertIsDisplayed()
+        compose.onNodeWithTag("range_note").assertDoesNotExist()
     }
 
     @Test

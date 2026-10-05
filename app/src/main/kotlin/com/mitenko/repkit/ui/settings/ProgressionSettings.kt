@@ -62,7 +62,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -105,7 +105,8 @@ data class ProgressionDraft(
 /**
  * The Progression page (spec R3 §5.3, §6). It uses the same draft and save pipeline as Timing. The
  * Hold switch and Reset to defaults save at once; setProgression keeps the hold count unless the
- * hold itself changes (§6.3).
+ * hold itself changes (§6.3). While the pager is open, a draft without unsaved edits follows the
+ * stored progression (spec revision 27).
  */
 @HiltViewModel
 class ProgressionSettingsViewModel @Inject constructor(
@@ -135,13 +136,23 @@ class ProgressionSettingsViewModel @Inject constructor(
         }
     }
 
+    /** The progression as last stored. A draft whose config equals it, with no save pending, has no unsaved edits. */
+    private var stored: ProgressionConfig? = null
+
     init {
         val restored = _draft.value
-        when {
-            restored == null ->
-                viewModelScope.launch { repo.entry(entryId).first()?.let { setDraft(ProgressionDraft.from(it.progression)) } }
-            // A valid draft restored after process death may never have been written; the write is idempotent if it was.
-            SettingsValidator.progression(restored.toConfig()).isValid -> saver.schedule(restored.toConfig())
+        // A valid draft restored after process death may never have been written; the write is idempotent if it was.
+        if (restored != null && SettingsValidator.progression(restored.toConfig()).isValid) saver.schedule(restored.toConfig())
+        viewModelScope.launch {
+            // Spec revision 27: the pager keeps this page alive while the Current page can widen
+            // floor..cap, so a draft without unsaved edits follows the store. Compared as configs,
+            // so the penalty's draft form can't make a clean draft look edited.
+            repo.entry(entryId).filterNotNull().collect { e ->
+                val latest = e.progression
+                val current = _draft.value
+                if (current == null || (current.toConfig() == stored && !saver.hasPending)) setDraft(ProgressionDraft.from(latest))
+                stored = latest
+            }
         }
     }
 

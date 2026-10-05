@@ -11,6 +11,7 @@ import com.mitenko.repkit.data.db.WorkoutSessionEntity
 import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
@@ -459,6 +460,66 @@ class RoomEntryRepositoryTest {
         assertEquals(2, r.entry(a).first()!!.counter.holdCount)
         r.overwriteCounter(a, total = 49, bestStreak = 1, currentStreak = 0, lastCheckIn = null)
         assertEquals(0, r.entry(a).first()!!.counter.holdCount)
+    }
+
+    @Test
+    fun `overwriteCounter above the cap raises the cap in the same write and reports it`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        val p = ProgressionConfig(startingTotal = 50, floor = 48, cap = 72, holds = listOf(Hold(64, 4)), windowHours = 30)
+        r.setProgression(a, p)
+        assertEquals(RangeChange.RaisedMax(80), r.overwriteCounter(a, total = 80, bestStreak = 2, currentStreak = 1, lastCheckIn = null))
+        val e = r.entry(a).first()!!
+        assertEquals(p.copy(cap = 80), e.progression)
+        assertEquals(CounterState(80, 2, 1, null, 0), e.counter)
+        assertEquals(Hold(64, 4).at, db.entryDao().get(a)!!.holdAt) // the legacy columns still mirror the first hold
+    }
+
+    @Test
+    fun `overwriteCounter below the floor lowers the floor`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        assertEquals(RangeChange.LoweredMin(40), r.overwriteCounter(a, total = 40, bestStreak = 0, currentStreak = 0, lastCheckIn = null))
+        val e = r.entry(a).first()!!
+        assertEquals(ProgressionConfig(floor = 40), e.progression)
+        assertEquals(48, e.progression.startingTotal)
+        assertEquals(40, e.counter.total)
+    }
+
+    @Test
+    fun `overwriteCounter inside the range leaves the progression alone`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        for (total in listOf(48, 60, 72)) {
+            assertNull(r.overwriteCounter(a, total, 0, 0, null))
+            assertEquals(ProgressionConfig(), r.entry(a).first()!!.progression)
+        }
+    }
+
+    @Test
+    fun `a widening overwrite resets the hold count only as holdResetNeeded says`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        // A hold at the cap is inactive; raising the cap activates it, which resets the hold count.
+        r.setProgression(a, ProgressionConfig(holds = listOf(Hold(72, 4))))
+        db.entryDao().setCounter(a, total = 80, bestStreak = 1, currentStreak = 1, holdCount = 2, lastCheckIn = null)
+        r.overwriteCounter(a, total = 80, bestStreak = 3, currentStreak = 1, lastCheckIn = null)
+        assertEquals(0, r.entry(a).first()!!.counter.holdCount)
+        assertEquals(80, r.entry(a).first()!!.progression.cap)
+        // The default hold (64) stays active when the cap rises, so an unchanged total keeps the count.
+        val b = r.create("Lunges")
+        db.entryDao().setCounter(b, total = 90, bestStreak = 1, currentStreak = 1, holdCount = 2, lastCheckIn = null)
+        assertEquals(RangeChange.RaisedMax(90), r.overwriteCounter(b, total = 90, bestStreak = 4, currentStreak = 1, lastCheckIn = null))
+        assertEquals(2, r.entry(b).first()!!.counter.holdCount)
+        assertEquals(ProgressionConfig(cap = 90), r.entry(b).first()!!.progression)
+    }
+
+    @Test
+    fun `a Timer only entry's overwrite never widens its range`() = runTest {
+        val r = repo()
+        val a = r.create("Stretch", EntryType.CHECK_IN)
+        assertNull(r.overwriteCounter(a, total = 80, bestStreak = 1, currentStreak = 1, lastCheckIn = null))
+        assertEquals(ProgressionConfig(), r.entry(a).first()!!.progression)
     }
 
     @Test
