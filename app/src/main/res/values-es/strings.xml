@@ -118,6 +118,8 @@
     <string name="theme_system">Predeterminado del sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
+    <string name="crash_reports">Compartir informes de errores y uso</string>
+    <string name="info_crash_reports">Envía informes de errores anónimos y estadísticas de uso básicas al desarrollador, para ayudar a corregir errores y mejorar REPKIT. No incluye datos de tus entrenamientos.</string>
     <string name="week_count">%1$d× esta semana</string>
     <plurals name="tile_desc">
         <item quantity="one">%1$d registro en las últimas 4 semanas</item>

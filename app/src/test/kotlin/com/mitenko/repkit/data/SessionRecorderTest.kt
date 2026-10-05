@@ -6,11 +6,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.data.db.WorkoutSessionDao
 import com.mitenko.repkit.data.db.WorkoutSessionEntity
+import com.mitenko.repkit.domain.NoOpCrashReporter
 import com.mitenko.repkit.domain.RunSummary
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.testutil.RecordingCrashReporter
 import com.mitenko.repkit.testutil.testEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -55,7 +57,7 @@ class SessionRecorderTest {
     @Test
     fun `a recorded summary becomes one row`() = runTest {
         val a = db.entryDao().insert(testEntity(name = "A", position = 0))
-        val recorder = SessionRecorder(db, backgroundScope)
+        val recorder = SessionRecorder(db, backgroundScope, NoOpCrashReporter)
         recorder.record(summary(a, repsDone = 64))
         recorder.record(summary(a, repsDone = null).copy(completed = false, startedAt = start.plusSeconds(600)))
         advanceTimeBy(1)
@@ -79,11 +81,13 @@ class SessionRecorderTest {
 
     @Test
     fun `a summary for an entry that no longer exists is dropped without crashing`() = runTest {
-        val recorder = SessionRecorder(db, backgroundScope)
+        val reporter = RecordingCrashReporter()
+        val recorder = SessionRecorder(db, backgroundScope, reporter)
         recorder.record(summary(entryId = 99, repsDone = 64))
         advanceTimeBy(1)
         runCurrent()
         assertTrue(db.workoutSessionDao().getForEntry(99).isEmpty())
+        assertEquals(1, reporter.nonFatals.size)
         // The recorder still works afterwards.
         val a = db.entryDao().insert(testEntity(name = "A", position = 0))
         recorder.record(summary(a, repsDone = 64))
@@ -104,21 +108,26 @@ class SessionRecorderTest {
             override suspend fun getForEntry(entryId: Long) = saved.filter { it.entryId == entryId }
             override suspend fun deleteForEntry(entryId: Long) = 0
         }
-        val recorder = SessionRecorder(dao, backgroundScope)
+        val reporter = RecordingCrashReporter()
+        val recorder = SessionRecorder(dao, backgroundScope, reporter)
         recorder.record(summary(entryId = 1, repsDone = 64))
         advanceTimeBy(1)
         runCurrent() // an uncaught exception here would fail the test when runTest ends
         assertTrue(saved.isEmpty())
+        // Spec rev 30 §4: the caught failure is also reported once as a non-fatal.
+        assertEquals(1, reporter.nonFatals.size)
+        assertEquals("disk on fire", reporter.nonFatals.single().first.message)
         fail = false
         recorder.record(summary(entryId = 1, repsDone = 64))
         runCurrent()
         assertEquals(1, saved.size)
+        assertEquals(1, reporter.nonFatals.size)
     }
 
     @Test
     fun `a stopped run on a controller wired to the recorder is stored`() = runTest {
         val a = db.entryDao().insert(testEntity(name = "A", position = 0))
-        val recorder = SessionRecorder(db, backgroundScope)
+        val recorder = SessionRecorder(db, backgroundScope, NoOpCrashReporter)
         val c = TimerController(backgroundScope, wallNow = { start.plusMillis(testScheduler.currentTime) }, runLog = recorder) {
             testScheduler.currentTime
         }

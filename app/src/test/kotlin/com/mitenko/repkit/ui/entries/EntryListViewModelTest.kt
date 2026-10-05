@@ -60,6 +60,7 @@ class EntryListViewModelTest {
         EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade).also { vm ->
             backgroundScope.launch { vm.uiState.collect {} }
             backgroundScope.launch { vm.themeMode.collect {} }
+            backgroundScope.launch { vm.crashReportsEnabled.collect {} }
             runCurrent()
         }
 
@@ -255,6 +256,21 @@ class EntryListViewModelTest {
         runCurrent()
         assertEquals(ThemeMode.DARK, vm.themeMode.value)
         assertEquals(ThemeMode.DARK, preferences.themeMode.first())
+    }
+
+    @Test
+    fun `crashReportsEnabled defaults to true`() = runTest {
+        assertEquals(true, vm(FakeEntryRepository()).crashReportsEnabled.value)
+    }
+
+    @Test
+    fun `setCrashReportsEnabled writes through to preferences and updates the flow`() = runTest {
+        val preferences = preferences()
+        val vm = vm(FakeEntryRepository(), preferences)
+        vm.setCrashReportsEnabled(false)
+        runCurrent()
+        assertEquals(false, vm.crashReportsEnabled.value)
+        assertEquals(false, preferences.crashReportsEnabled.first())
     }
 
     // Spec revision 18 §3: the free tier's entry limit.

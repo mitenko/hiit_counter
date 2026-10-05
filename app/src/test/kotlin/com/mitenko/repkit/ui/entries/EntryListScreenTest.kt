@@ -13,6 +13,8 @@ import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -56,6 +58,8 @@ class EntryListScreenTest {
         onCreate: (String, EntryType) -> Unit = { _, _ -> },
         themeMode: ThemeMode = ThemeMode.SYSTEM,
         onSetThemeMode: (ThemeMode) -> Unit = {},
+        crashReports: Boolean = true,
+        onSetCrashReports: (Boolean) -> Unit = {},
         onRequestAdd: () -> Boolean = { true },
         limitDialog: Boolean = false,
         onGoPro: () -> Unit = {},
@@ -66,6 +70,7 @@ class EntryListScreenTest {
                 EntryListScreen(
                     state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate,
                     themeMode = themeMode, onSetThemeMode = onSetThemeMode,
+                    crashReportsEnabled = crashReports, onSetCrashReportsEnabled = onSetCrashReports,
                     onRequestAdd = onRequestAdd, limitDialog = limitDialog, maxEntries = 3,
                     onGoPro = onGoPro, onDismissLimit = onDismissLimit,
                 )
@@ -398,9 +403,9 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `the top bar has an Appearance gear button at least 48 dp, and the title stays centred`() {
+    fun `the top bar has a Settings gear button at least 48 dp, and the title stays centred`() {
         show(EntryListUiState.Items(rows))
-        compose.onNodeWithContentDescription("Appearance")
+        compose.onNodeWithContentDescription("Settings")
             .assertWidthIsEqualTo(48.dp)
             .assertHeightIsEqualTo(48.dp)
         val title = compose.onNodeWithTag("title").fetchSemanticsNode().boundsInRoot
@@ -409,10 +414,11 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `tapping Appearance shows the three options with the current one selected`() {
+    fun `tapping Settings shows the Appearance options with the current one selected`() {
         show(EntryListUiState.Items(rows), themeMode = ThemeMode.DARK)
-        compose.onNodeWithContentDescription("Appearance").performClick()
-        compose.onNodeWithText("Appearance").assertExists()
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("settings_title").assertTextEquals("Settings")
+        compose.onNodeWithTag("appearance_heading").assertTextEquals("Appearance")
         compose.onNodeWithText("System default").assertExists()
         compose.onNodeWithText("Light").assertExists()
         compose.onNodeWithText("Dark").assertExists()
@@ -422,13 +428,63 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `choosing an option in the Appearance dialog calls the setter and closes the dialog`() {
+    fun `choosing an Appearance option in the Settings dialog calls the setter and closes the dialog`() {
         var chosen: ThemeMode? = null
         show(EntryListUiState.Items(rows), themeMode = ThemeMode.SYSTEM, onSetThemeMode = { chosen = it })
-        compose.onNodeWithContentDescription("Appearance").performClick()
+        compose.onNodeWithContentDescription("Settings").performClick()
         compose.onNodeWithTag("theme_LIGHT").performClick()
         assertEquals(ThemeMode.LIGHT, chosen)
         compose.onNodeWithText("Light").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the Settings dialog shows Share crash reports and usage, on by default`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Share crash reports and usage").assertExists()
+        compose.onNodeWithTag("crash_reports").assertIsOn()
+    }
+
+    @Test
+    fun `the crash reports switch shows its stored value`() {
+        show(EntryListUiState.Items(rows), crashReports = false)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("crash_reports").assertIsOff()
+    }
+
+    @Test
+    fun `toggling crash reports calls the setter and keeps the dialog open`() {
+        var crashReports by mutableStateOf(true)
+        val set = mutableListOf<Boolean>()
+        compose.setContent {
+            HiitTheme {
+                EntryListScreen(
+                    EntryListUiState.Items(rows), onOpenEntry = {}, onMove = { _, _ -> }, onCreate = { _, _ -> },
+                    crashReportsEnabled = crashReports,
+                    onSetCrashReportsEnabled = { set += it; crashReports = it },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("crash_reports").performClick()
+        assertEquals(listOf(false), set)
+        compose.onNodeWithTag("crash_reports").assertIsOff()
+        compose.onNodeWithText("System default").assertExists()
+    }
+
+    @Test
+    fun `the crash reports info tag explains what is sent`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithContentDescription("About Share crash reports and usage").performClick()
+        compose.onNodeWithTag("info_title").assertTextEquals("Share crash reports and usage")
+        compose.onNodeWithTag("info_text").assertTextEquals(
+            "Sends anonymous crash reports and basic usage statistics to the developer, to help fix bugs and " +
+                "improve REPKIT. No workout data is included.",
+        )
+        compose.onNodeWithTag("info_ok").performClick()
+        compose.onNodeWithTag("info_text").assertDoesNotExist()
+        compose.onNodeWithTag("crash_reports").assertExists()
     }
 
     @Test

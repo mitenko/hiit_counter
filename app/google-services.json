@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "519086844710",
+    "project_id": "repkit-mitenko",
+    "storage_bucket": "repkit-mitenko.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:519086844710:android:9af27e5e25115fcd172fe7",
+        "android_client_info": {
+          "package_name": "com.mitenko.repkit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDf8PONvP9Ez3T3hw52d6pDHo91eRr16jg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

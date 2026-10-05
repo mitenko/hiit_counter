@@ -118,6 +118,8 @@
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
+    <string name="crash_reports">分享崩溃报告和使用情况</string>
+    <string name="info_crash_reports">向开发者发送匿名的崩溃报告和基本使用统计，帮助修复问题并改进 REPKIT。不包含任何训练数据。</string>
     <string name="week_count">本周 %1$d 次</string>
     <plurals name="tile_desc">
         <item quantity="other">最近 4 周打卡 %1$d 次</item>

@@ -3,6 +3,7 @@ package com.mitenko.repkit.di
 import android.content.Context
 import com.mitenko.repkit.data.SessionRecorder
 import com.mitenko.repkit.domain.Clock
+import com.mitenko.repkit.domain.CrashReporter
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.platform.AndroidClock
 import com.mitenko.repkit.platform.AndroidVoiceAvailability
@@ -42,5 +43,6 @@ object AppModule {
 
     /** The Cues page's device check (spec R4 §4.7). */
     @Provides @Singleton
-    fun voiceAvailability(@ApplicationContext context: Context): VoiceAvailability = AndroidVoiceAvailability(context)
+    fun voiceAvailability(@ApplicationContext context: Context, reporter: CrashReporter): VoiceAvailability =
+        AndroidVoiceAvailability(context, reporter)
 }

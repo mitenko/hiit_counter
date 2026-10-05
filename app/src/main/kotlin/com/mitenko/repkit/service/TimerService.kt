@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
+import com.mitenko.repkit.domain.CrashReporter
 import com.mitenko.repkit.domain.RunStatus
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.VoicePolicy
@@ -34,6 +35,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class TimerService : Service() {
     @Inject lateinit var controller: TimerController
+    @Inject lateinit var reporter: CrashReporter
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var cuePlayer: CuePlayer
@@ -180,7 +182,7 @@ class TimerService : Service() {
      */
     private fun syncSpeaker(wanted: Boolean) {
         if (wanted && speaker == null) {
-            speaker = AndroidCueSpeaker(this).also { cuePlayer.speaker = it }
+            speaker = AndroidCueSpeaker(this, reporter).also { cuePlayer.speaker = it }
         } else if (!wanted) {
             shutdownSpeaker()
         }

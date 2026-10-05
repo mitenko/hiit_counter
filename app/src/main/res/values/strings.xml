@@ -158,6 +158,8 @@
     <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="crash_reports">Share crash reports and usage</string>
+    <string name="info_crash_reports">Sends anonymous crash reports and basic usage statistics to the developer, to help fix bugs and improve REPKIT. No workout data is included.</string>
 
     <!-- History -->
     <string name="week_count">%1$d× this week</string>

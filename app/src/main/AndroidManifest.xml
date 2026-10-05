@@ -24,6 +24,14 @@
         tools:targetApi="33"
         android:theme="@style/Theme.HiitCounter">
 
+        <!-- Spec rev 30 §2: off until HiitApp's TelemetryInitializer turns them on (release builds, or -PcrashlyticsInDebug=true, and the switch). -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
