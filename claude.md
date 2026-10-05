@@ -29,6 +29,7 @@ As you develop, refine the instructions here.
 - **Timer control spacing (approved, rev 22, amends rev 7 / rev 10 §5):** `docs/superpowers/specs/2026-10-03-timer-controls-spacing-design.md` — cue toggles on their own row under ✕, spread across the width; Back / Pause / Skip forward 56 dp apart.
 - **Launcher icon (approved, rev 23):** `docs/superpowers/specs/2026-10-03-launcher-icon-design.md` — the "+1 ring" adaptive icon (dark slate background, teal 270° arc, "+1"), with a themed monochrome layer.
 - **Localisation prep (approved, rev 24, amends v1 §7.6/§8.3/§10, R4 §5, rev 9/15 dates):** `docs/superpowers/specs/2026-10-03-l10n-prep-design.md` — every user-facing string from `strings.xml`/plurals (domain returns typed `FieldMessage`/`NameCheck`, the UI resolves `UiText`), dates and calendar weekday letters in the device locale (English keeps its exact text), the voice in the app locale with an English fallback; `HardCodedTextGuardTest` guards `ui/` and `domain/`.
+- **Translations (approved, rev 25):** `docs/superpowers/specs/2026-10-03-translations-design.md` — Spanish, Simplified Chinese and Hindi, generated from a reviewer sheet; per-app language via `locales_config.xml`.
 - **References:** `references/` (local only, gitignored — not in the repo)
   - `sheet_script.js` — the Google Sheets Apps Script this app replaces (original progression logic).
   - `images.jfif` — timer screen look (dual ring; centre shows reps, not "WORK").

@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">REPKIT</string>
+    <string name="app_name" translatable="false">REPKIT</string>
     <string name="settings">Settings</string>
     <string name="start">Start</string>
     <string name="checked_in_today">Checked in today</string>

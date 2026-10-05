@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<resources>
+    <string name="settings">Ajustes</string>
+    <string name="start">Iniciar</string>
+    <string name="checked_in_today">Registrado hoy</string>
+    <string name="sets_label">Series</string>
+    <string name="elapsed_label">Transcurrido</string>
+    <string name="pause">Pausar</string>
+    <string name="resume">Reanudar</string>
+    <string name="skip_back">Atrás</string>
+    <string name="skip_forward">Saltar adelante</string>
+    <string name="stop">Detener</string>
+    <string name="cancel">Cancelar</string>
+    <string name="stop_workout_title">¿Detener el entrenamiento?</string>
+    <string name="stop_workout_body">Tu registro de hoy ya está guardado.</string>
+    <string name="notification_channel_name">Temporizador de entrenamiento</string>
+    <string name="back">Atrás</string>
+    <string name="settings_timing">Tiempos</string>
+    <string name="settings_progression">Progresión</string>
+    <string name="settings_current_state">Actual</string>
+    <string name="settings_cues">Avisos</string>
+    <string name="prepare">PREPARACIÓN</string>
+    <string name="sets">SERIES</string>
+    <string name="work">TRABAJO</string>
+    <string name="rest">DESCANSO</string>
+    <string name="cooldown">ENFRIAMIENTO</string>
+    <string name="total_duration">TOTAL %1$s</string>
+    <string name="decrease">Reducir %1$s</string>
+    <string name="increase">Aumentar %1$s</string>
+    <string name="starting_total">Repeticiones iniciales</string>
+    <string name="floor">Repeticiones mínimas</string>
+    <string name="cap">Repeticiones máximas</string>
+    <string name="hold_at">Mantener en</string>
+    <string name="hold_for">Mantener durante (registros)</string>
+    <string name="hold_n">Pausa %1$d</string>
+    <string name="remove_hold">Quitar pausa %1$d</string>
+    <string name="add_hold">Añadir pausa</string>
+    <string name="hold_n_at">Pausa %1$d en</string>
+    <string name="hold_n_for">Pausa %1$d durante</string>
+    <string name="window_hours">Margen a tiempo (horas)</string>
+    <string name="penalty_rate">Ajuste por días perdidos (horas por repetición)</string>
+    <string name="reset_defaults">Restablecer valores predeterminados</string>
+    <string name="current_total">Repeticiones actuales</string>
+    <string name="best_streak_field">Mejor racha</string>
+    <string name="current_streak_field">Racha actual</string>
+    <string name="last_check_in_field">Último registro</string>
+    <string name="clear">Borrar</string>
+    <string name="none">—</string>
+    <string name="reset_progress">Restablecer progreso</string>
+    <string name="reset_progress_title">¿Restablecer el progreso?</string>
+    <string name="reset_progress_body">Tus repeticiones volverán al total inicial, tus rachas se pondrán en 0 y se borrará tu último registro.</string>
+    <string name="reset">Restablecer</string>
+    <string name="next">Siguiente</string>
+    <string name="ok">Aceptar</string>
+    <string name="sound">Sonido</string>
+    <string name="vibration">Vibración</string>
+    <string name="no_workouts">Aún no hay entrenamientos</string>
+    <string name="add_first_workout">Añade tu primer entrenamiento</string>
+    <string name="add_workout">Añadir entrenamiento</string>
+    <string name="new_workout">Nuevo entrenamiento</string>
+    <string name="name_label">Nombre</string>
+    <string name="move_up">Subir</string>
+    <string name="move_down">Bajar</string>
+    <string name="reorder_entry">Reordenar %1$s</string>
+    <string name="rename">Cambiar nombre</string>
+    <string name="duplicate">Duplicar</string>
+    <string name="delete">Eliminar</string>
+    <string name="delete_title">¿Eliminar %1$s?</string>
+    <string name="delete_body">Se perderán sus repeticiones, rachas, historial y ajustes.</string>
+    <string name="stop_workout_first">Primero detén el entrenamiento</string>
+    <string name="edit_value">Editar %1$s</string>
+    <string name="entry_settings_title">Ajustes de %1$s</string>
+    <string name="tab_current">Actual</string>
+    <string name="total_label">Repeticiones totales</string>
+    <string name="hold">Pausa</string>
+    <string name="about">Acerca de %1$s</string>
+    <string name="saved">Guardado</string>
+    <string name="not_saved_invalid">No guardado: corrige el campo resaltado</string>
+    <string name="not_saved">No guardado</string>
+    <string name="reset_defaults_title">¿Restablecer la progresión a los valores predeterminados?</string>
+    <string name="info_prepare">Cuenta regresiva antes de la primera serie, para que tengas tiempo de colocarte. Pon 0 para omitirla.</string>
+    <string name="info_sets">El número de series de trabajo del entrenamiento. Después de cada serie hay un descanso, excepto en la última.</string>
+    <string name="info_work">Cuánto dura cada serie de trabajo. En los entrenamientos de Contador, la tabla de repeticiones muestra cuántas hacer en cada serie.</string>
+    <string name="info_rest">El descanso entre series. No hay descanso después de la última serie.</string>
+    <string name="info_cooldown">Cuenta regresiva después de la última serie. Pon 0 para omitirla.</string>
+    <string name="info_total">El tiempo total del entrenamiento, incluida la preparación, el trabajo, los descansos y el enfriamiento. Máximo 2 horas.</string>
+    <string name="info_starting_total">El número de repeticiones de tu primer entrenamiento y de después de restablecer tu progreso. Debe estar entre tu mínimo y tu máximo.</string>
+    <string name="info_floor">Lo más bajo que puede llegar tu total de repeticiones, sin importar cuánto tiempo estés fuera.</string>
+    <string name="info_cap">Lo más alto que puede llegar tu total de repeticiones. Al alcanzarlo, los registros a tiempo te mantienen en el mismo número.</string>
+    <string name="info_hold">¿Quieres quedarte en un número por un tiempo? Una pausa detiene tu progresión. Por ejemplo, puedes quedarte en 80 repeticiones durante varios registros antes de volver a subir. Puedes configurar varias pausas.</string>
+    <string name="info_hold_at">El total de repeticiones en el que se detiene la progresión. Debe ser igual o mayor que tu mínimo y menor que tu máximo.</string>
+    <string name="info_hold_for">Cuántos registros quedarte en este número antes de volver a subir. Cuenta el registro con el que lo alcanzas. Pon 0 para omitir la pausa.</string>
+    <string name="info_window">Registra dentro de estas horas desde tu último registro para ir a tiempo. Los registros a tiempo mantienen tu racha y, en los entrenamientos de Contador, suman una repetición.</string>
+    <string name="info_penalty_rate">Si te pasas del margen a tiempo, tu total de repeticiones baja poco a poco mientras estás fuera. Nunca baja de tu mínimo.</string>
+    <string name="info_total_reps">Tu total actual de repeticiones, repartido entre las series del entrenamiento. Los cambios se aplican de inmediato.</string>
+    <string name="info_best_streak">Tu mayor serie de registros a tiempo. Nunca puede ser menor que tu racha actual.</string>
+    <string name="info_current_streak">Tu racha actual de registros a tiempo, incluido el último. Si te pasas del margen, la racha vuelve a 1.</string>
+    <string name="info_last_check_in">La última vez que pulsaste Iniciar. REPKIT lo usa para calcular tu margen a tiempo y el ajuste por días perdidos. Bórralo para que tu próximo registro sea el primero.</string>
+    <string name="info_sound">Reproduce pitidos de cuenta regresiva y un pitido cada vez que cambia la fase del entrenamiento.</string>
+    <string name="info_vibration">Vibra cada vez que cambia la fase del entrenamiento, incluso con la pantalla apagada.</string>
+    <string name="check_in">Registrar</string>
+    <string name="checked_in">Registrado ✓</string>
+    <string name="type">Tipo</string>
+    <string name="type_workout">Contador</string>
+    <string name="type_check_in">Solo temporizador</string>
+    <string name="voice">Voz</string>
+    <string name="voice_unavailable">Los avisos de voz no están disponibles en este dispositivo</string>
+    <string name="info_type">Los entrenamientos de Contador registran repeticiones y aumentan tu objetivo al registrarte. Los de Solo temporizador usan el mismo temporizador sin contar repeticiones. Registrarte sigue manteniendo tu racha. Puedes cambiar entre los dos sin perder tus ajustes ni tu historial.</string>
+    <string name="info_voice">Al inicio de cada serie de trabajo, dice cuántas repeticiones hacer. En los entrenamientos de Solo temporizador, dice el número de serie.</string>
+    <string name="cue_sound_on">Sonido activado</string>
+    <string name="cue_sound_off">Sonido desactivado</string>
+    <string name="cue_vibration_on">Vibración activada</string>
+    <string name="cue_vibration_off">Vibración desactivada</string>
+    <string name="cue_voice_on">Voz activada</string>
+    <string name="cue_voice_off">Voz desactivada</string>
+    <string name="appearance">Apariencia</string>
+    <string name="theme_system">Predeterminado del sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="week_count">%1$d× esta semana</string>
+    <plurals name="tile_desc">
+        <item quantity="one">%1$d registro en las últimas 4 semanas</item>
+        <item quantity="other">%1$d registros en las últimas 4 semanas</item>
+        <item quantity="many">%1$d registros en las últimas 4 semanas</item>
+    </plurals>
+    <string name="range_4w">4 semanas</string>
+    <string name="range_3m">3 meses</string>
+    <string name="range_all">Todo</string>
+    <string name="history_empty_range">No hay registros en este periodo</string>
+    <string name="history_empty">Aún no hay registros</string>
+    <plurals name="chart_desc">
+        <item quantity="one">%1$d registro, de %2$d a %3$d repeticiones</item>
+        <item quantity="other">%1$d registros, de %2$d a %3$d repeticiones</item>
+        <item quantity="many">%1$d registros, de %2$d a %3$d repeticiones</item>
+    </plurals>
+    <string name="streak_line">Racha %1$d · mejor %2$d</string>
+    <string name="reps_per_set_desc">Repeticiones por serie: %1$s</string>
+    <plurals name="calendar_desc">
+        <item quantity="one">%1$d día con registro</item>
+        <item quantity="other">%1$d días con registro</item>
+        <item quantity="many">%1$d días con registro</item>
+    </plurals>
+    <plurals name="reps_changed_set">
+        <item quantity="one">Serie %1$d: ahora %2$d repetición</item>
+        <item quantity="other">Serie %1$d: ahora %2$d repeticiones</item>
+        <item quantity="many">Serie %1$d: ahora %2$d repeticiones</item>
+    </plurals>
+    <plurals name="reps_changed_sets">
+        <item quantity="one">%1$d serie actualizada</item>
+        <item quantity="other">%1$d series actualizadas</item>
+        <item quantity="many">%1$d series actualizadas</item>
+    </plurals>
+    <string name="reps_holding">Pausa en %1$d · %2$d de %3$d</string>
+    <string name="tab_timing">Tiempos</string>
+    <string name="tab_progression">Progresión</string>
+    <string name="tab_cues">Avisos</string>
+    <string name="clear_history_too">Borrar también el historial</string>
+    <string-array name="week_day_letters">
+        <item>L</item>
+        <item>M</item>
+        <item>X</item>
+        <item>J</item>
+        <item>V</item>
+        <item>S</item>
+        <item>D</item>
+    </string-array>
+    <string-array name="week_day_abbrev">
+        <item>lun</item>
+        <item>mar</item>
+        <item>mié</item>
+        <item>jue</item>
+        <item>vie</item>
+        <item>sáb</item>
+        <item>dom</item>
+    </string-array>
+    <string name="week_check_in_desc">Registrado %1$s esta semana</string>
+    <string name="week_no_check_in_desc">Sin registros esta semana</string>
+    <string name="day_checked_in">registrado</string>
+    <string name="day_not_checked_in">sin registro</string>
+    <string name="limit_title">¿Quieres más entrenamientos?</string>
+    <plurals name="limit_text">
+        <item quantity="one">La versión gratuita permite hasta %1$d entrenamiento. Hazte Pro para tener entrenamientos ilimitados.</item>
+        <item quantity="other">La versión gratuita permite hasta %1$d entrenamientos. Hazte Pro para tener entrenamientos ilimitados.</item>
+        <item quantity="many">La versión gratuita permite hasta %1$d entrenamientos. Hazte Pro para tener entrenamientos ilimitados.</item>
+    </plurals>
+    <string name="go_pro">Hazte Pro</string>
+    <string name="not_now">Ahora no</string>
+    <plurals name="error_sets_range">
+        <item quantity="one">1–%1$d serie</item>
+        <item quantity="other">1–%1$d series</item>
+        <item quantity="many">1–%1$d series</item>
+    </plurals>
+    <string name="error_work_range">1 s – 59:59</string>
+    <string name="error_phase_range">0 – 59:59</string>
+    <string name="error_workout_too_long">El entrenamiento dura más de 2:00:00</string>
+    <string name="error_at_least_one">Debe ser al menos 1</string>
+    <string name="error_zero_or_more">Debe ser 0 o más</string>
+    <string name="error_greater_than_zero">Debe ser mayor que 0</string>
+    <string name="error_at_least_floor">Debe ser ≥ el mínimo</string>
+    <string name="error_at_least_starting_total">Debe ser ≥ las repeticiones iniciales</string>
+    <string name="error_at_least_current_streak">Debe ser ≥ la racha actual</string>
+    <plurals name="error_too_many_holds">
+        <item quantity="one">Como máximo %1$d pausa</item>
+        <item quantity="other">Como máximo %1$d pausas</item>
+        <item quantity="many">Como máximo %1$d pausas</item>
+    </plurals>
+    <string name="error_duplicate_hold">Ya hay una pausa en %1$d</string>
+    <string name="hint_hold_disabled">Pausa desactivada</string>
+    <string name="hint_outside_floor_cap">Fuera del mínimo–máximo; se ajustará en el próximo registro</string>
+    <string name="error_in_the_future">No puede ser en el futuro</string>
+    <string name="error_enter_name">Escribe un nombre</string>
+    <plurals name="error_name_too_long">
+        <item quantity="one">Usa como máximo %1$d carácter</item>
+        <item quantity="other">Usa como máximo %1$d caracteres</item>
+        <item quantity="many">Usa como máximo %1$d caracteres</item>
+    </plurals>
+    <string name="error_enter_number">Escribe un número</string>
+    <string name="error_time_format">Usa m:ss o segundos</string>
+    <string name="copy_suffix">" copia"</string>
+    <string name="error_check_in">No se pudo registrar: %1$s</string>
+    <string name="error_start">No se pudo iniciar el entrenamiento: %1$s</string>
+    <string name="error_already_starting">Ya se está iniciando un entrenamiento</string>
+    <string name="error_service_no_response">el servicio del temporizador no respondió</string>
+    <string name="reps_state_increased">aumentó</string>
+    <string name="reps_state_decreased">disminuyó</string>
+    <string name="reps_state_holding">en pausa</string>
+    <string name="timer_label_get_ready">PREPÁRATE</string>
+    <string name="timer_label_rest">DESCANSO</string>
+    <string name="timer_label_cooldown">ENFRIAMIENTO</string>
+    <string name="timer_label_done">LISTO</string>
+    <plurals name="timer_desc_work_reps">
+        <item quantity="one">Trabajo, serie %2$d de %3$d, %1$d repetición</item>
+        <item quantity="other">Trabajo, serie %2$d de %3$d, %1$d repeticiones</item>
+        <item quantity="many">Trabajo, serie %2$d de %3$d, %1$d repeticiones</item>
+    </plurals>
+    <string name="timer_desc_work_last_set">Trabajo, última serie</string>
+    <plurals name="timer_desc_work_sets_to_go">
+        <item quantity="one">Trabajo, queda %1$d serie</item>
+        <item quantity="other">Trabajo, quedan %1$d series</item>
+        <item quantity="many">Trabajo, quedan %1$d series</item>
+    </plurals>
+    <plurals name="timer_desc_rest_reps">
+        <item quantity="one">Descanso, siguiente serie %2$d de %3$d, %1$d repetición</item>
+        <item quantity="other">Descanso, siguiente serie %2$d de %3$d, %1$d repeticiones</item>
+        <item quantity="many">Descanso, siguiente serie %2$d de %3$d, %1$d repeticiones</item>
+    </plurals>
+    <string name="timer_desc_rest_last_set">Descanso, sigue la última serie</string>
+    <plurals name="timer_desc_rest_sets_to_go">
+        <item quantity="one">Descanso, queda %1$d serie</item>
+        <item quantity="other">Descanso, quedan %1$d series</item>
+        <item quantity="many">Descanso, quedan %1$d series</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_reps">
+        <item quantity="one">Prepárate, primera serie %1$d repetición</item>
+        <item quantity="other">Prepárate, primera serie %1$d repeticiones</item>
+        <item quantity="many">Prepárate, primera serie %1$d repeticiones</item>
+    </plurals>
+    <plurals name="timer_desc_prepare_sets">
+        <item quantity="one">Prepárate, %1$d serie</item>
+        <item quantity="other">Prepárate, %1$d series</item>
+        <item quantity="many">Prepárate, %1$d series</item>
+    </plurals>
+    <string name="timer_desc_cooldown">Enfriamiento</string>
+    <plurals name="timer_desc_done_reps">
+        <item quantity="one">Listo, %1$d repetición</item>
+        <item quantity="other">Listo, %1$d repeticiones</item>
+        <item quantity="many">Listo, %1$d repeticiones</item>
+    </plurals>
+    <string name="timer_desc_done">Listo</string>
+    <string name="notification_phase_prepare">Prepárate</string>
+    <string name="notification_phase_work">Trabajo</string>
+    <string name="notification_phase_rest">Descanso</string>
+    <string name="notification_phase_cooldown">Enfriamiento</string>
+    <string name="notification_phase_done">Listo</string>
+    <string name="notification_phase_set">%1$s · Serie %2$d/%3$d</string>
+    <string name="notification_named">%1$s · %2$s</string>
+    <string name="notification_starting_named">%1$s · Iniciando…</string>
+    <string name="notification_starting">Iniciando entrenamiento…</string>
+    <string name="notification_complete">Entrenamiento completado</string>
+    <string name="notification_paused_left">En pausa · quedan %1$s</string>
+    <string name="notification_left">Quedan %1$s</string>
+    <plurals name="voice_count">
+        <item quantity="one">%1$d</item>
+        <item quantity="other">%1$d</item>
+        <item quantity="many">%1$d</item>
+    </plurals>
+</resources>
