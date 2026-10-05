@@ -10,10 +10,13 @@ import com.mitenko.repkit.domain.EntryNames
 import com.mitenko.repkit.domain.InvalidEntryName
 import com.mitenko.repkit.domain.NameCheck
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.RepProgression
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.counterHoldReset
 import com.mitenko.repkit.domain.holdResetNeeded
+import com.mitenko.repkit.domain.rangeChange
+import com.mitenko.repkit.domain.widenedFor
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
@@ -71,8 +74,13 @@ interface EntryRepository {
      */
     suspend fun checkIn(id: Long, clock: Clock): CheckInResult
 
-    /** One transaction: holdCount is reset only if the total changed; a stored NULL counts as the starting total (R3 §6.3). */
-    suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?)
+    /**
+     * One transaction: holdCount is reset only if the total changed; a stored NULL counts as the
+     * starting total (R3 §6.3). Spec revision 27: a Counter entry's total outside floor..cap first
+     * widens the stored progression to include it ([widenedFor]), with the hold count following
+     * [holdResetNeeded]. Returns the limit that moved, or null.
+     */
+    suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?): RangeChange?
 
     /**
      * total NULL, streaks 0, lastCheckIn NULL, holdCount 0. With [clearHistory], the entry's history
@@ -194,14 +202,21 @@ class RoomEntryRepository(
         db.withTransaction {
             // Compared with the row's effective (repaired) progression, the one checkIn uses.
             val old = dao.get(id)?.progression() ?: throw EntryNotFound(id)
-            with(progression) {
-                dao.setProgression(
-                    id, startingTotal, floor, cap, HoldsCodec.encode(holds), legacyHold.at, legacyHold.forCount, hold,
-                    windowHours, penaltyHoursPerRep,
-                    resetHoldCount = holdResetNeeded(old, progression),
-                )
-            }
+            writeProgression(id, old, progression)
         }
+    }
+
+    /** Writes [new] over [old] (the row's effective progression); returns whether the hold count was reset. */
+    private suspend fun writeProgression(id: Long, old: ProgressionConfig, new: ProgressionConfig): Boolean {
+        val reset = holdResetNeeded(old, new)
+        with(new) {
+            dao.setProgression(
+                id, startingTotal, floor, cap, HoldsCodec.encode(holds), legacyHold.at, legacyHold.forCount, hold,
+                windowHours, penaltyHoursPerRep,
+                resetHoldCount = reset,
+            )
+        }
+        return reset
     }
 
     override suspend fun setCues(id: Long, cues: CueConfig) {
@@ -238,18 +253,21 @@ class RoomEntryRepository(
         }
     }
 
-    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?) {
-        // Only currentState's hints depend on the progression, so the defaults are enough to decide validity.
-        val check = SettingsValidator.currentState(
-            total, bestStreak, currentStreak, lastCheckIn, validationClock.now(), ProgressionConfig(),
-        )
+    override suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?): RangeChange? {
+        val check = SettingsValidator.currentState(total, bestStreak, currentStreak, lastCheckIn, validationClock.now())
         require(check.isValid) { "Invalid counter: ${check.errors}" }
         gate.awaitReady()
-        db.withTransaction {
+        return db.withTransaction {
             // The resolved total (NULL reads as the starting total) is what the Current page showed.
-            val old = dao.get(id)?.toDomain()?.counter ?: throw EntryNotFound(id)
-            val holdCount = if (counterHoldReset(old.total, total)) 0 else old.holdCount
+            val entry = dao.get(id)?.toDomain() ?: throw EntryNotFound(id)
+            val old = entry.counter
+            // Spec revision 27: only a Counter entry shows (and so sets) its total.
+            val progression = entry.progression
+            val widened = if (entry.type == EntryType.WORKOUT) progression.widenedFor(total) else progression
+            val progressionReset = widened != progression && writeProgression(id, progression, widened)
+            val holdCount = if (progressionReset || counterHoldReset(old.total, total)) 0 else old.holdCount
             dao.setCounter(id, total, bestStreak, currentStreak, holdCount, lastCheckIn?.toEpochMilli())
+            rangeChange(progression, widened)
         }
     }
 

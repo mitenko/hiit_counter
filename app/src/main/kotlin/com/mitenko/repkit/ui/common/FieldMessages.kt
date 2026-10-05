@@ -21,7 +21,6 @@ fun FieldMessage.uiText(): UiText = when (this) {
     is FieldMessage.TooManyHolds -> UiText.Plural(R.plurals.error_too_many_holds, max)
     is FieldMessage.DuplicateHold -> UiText.Res(R.string.error_duplicate_hold, listOf(at))
     FieldMessage.HoldDisabled -> UiText.Res(R.string.hint_hold_disabled)
-    FieldMessage.OutsideFloorCap -> UiText.Res(R.string.hint_outside_floor_cap)
     FieldMessage.InTheFuture -> UiText.Res(R.string.error_in_the_future)
 }
 

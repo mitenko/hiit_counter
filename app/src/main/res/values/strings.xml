@@ -262,7 +262,8 @@
     </plurals>
     <string name="error_duplicate_hold">Already a hold at %1$d</string>
     <string name="hint_hold_disabled">Hold disabled</string>
-    <string name="hint_outside_floor_cap">Outside floor–cap; clamped at the next check-in</string>
+    <string name="range_raised_max">Maximum reps raised to %1$d</string>
+    <string name="range_lowered_min">Minimum reps lowered to %1$d</string>
     <string name="error_in_the_future">Can\'t be in the future</string>
     <string name="error_enter_name">Enter a name</string>
     <plurals name="error_name_too_long">

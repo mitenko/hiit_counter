@@ -32,7 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,11 +47,11 @@ import com.mitenko.repkit.di.ApplicationScope
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldRanges
+import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryNotFound
-import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.DateFormats
@@ -67,6 +71,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -77,8 +82,8 @@ import javax.inject.Inject
 /**
  * The Current page (spec R3 §6). It uses the same draft and save pipeline as Timing. overwriteCounter
  * keeps the hold count unless the total changes (§6.3). While the pager is open, a draft without
- * unsaved edits follows the stored counter, and the floor–cap hint follows the stored progression
- * (plan Spec note 2).
+ * unsaved edits follows the stored counter (plan Spec note 2). A saved total outside floor..cap
+ * widens the range, and [rangeNote] says which limit moved (spec revision 27).
  */
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
@@ -90,12 +95,24 @@ class CurrentStateViewModel @Inject constructor(
     /** Typed draft (spec R2 §8.1). */
     data class Draft(val total: Int, val best: Int, val current: Int, val lastCheckIn: Instant?)
 
-    /** The entry's own progression, used only for the "outside floor–cap" hint. */
-    private val config = MutableStateFlow(ProgressionConfig())
     private val _draft = MutableStateFlow(savedStateHandle.get<LongArray>(DRAFT_KEY)?.toDraft())
     val draft: StateFlow<Draft?> = _draft.asStateFlow()
-    val validation: StateFlow<ValidationResult> = combine(_draft, config) { d, c -> d?.let { validate(it, c) } ?: ValidationResult() }
+    val validation: StateFlow<ValidationResult> = _draft.map { d -> d?.let(::validate) ?: ValidationResult() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ValidationResult())
+
+    private val _rangeNote = MutableStateFlow<RangeChange?>(null)
+
+    /**
+     * Spec revision 27: the limit the last save moved, shown under Current reps until the total is
+     * edited again or the page is left ([clearRangeNote]).
+     */
+    val rangeNote: StateFlow<RangeChange?> = _rangeNote.asStateFlow()
+
+    /**
+     * Advanced by [clearRangeNote] (a total edit or a page change). A write only sets the note if
+     * this hasn't moved since it started, so a save finishing late never brings back a dismissed note.
+     */
+    private var noteGeneration = 0L
 
     private val failed = MutableStateFlow(false)
     val status: StateFlow<SaveStatus> = combine(validation, failed) { v, f -> SaveStatus.of(v, f) }
@@ -106,7 +123,9 @@ class CurrentStateViewModel @Inject constructor(
 
     private val saver = AutoSaver<Draft>(viewModelScope) { d ->
         try {
-            repo.overwriteCounter(entryId, d.total, d.best, d.current, d.lastCheckIn)
+            val generation = noteGeneration
+            val moved = repo.overwriteCounter(entryId, d.total, d.best, d.current, d.lastCheckIn)
+            if (moved != null && noteGeneration == generation) _rangeNote.value = moved
             failed.value = false
         } catch (e: EntryNotFound) {
             markMissing()
@@ -122,11 +141,10 @@ class CurrentStateViewModel @Inject constructor(
 
     init {
         // A valid draft restored after process death may never have been written; the write is idempotent if it was.
-        val restored = _draft.value?.takeIf { validate(it, config.value).isValid }
+        val restored = _draft.value?.takeIf { validate(it).isValid }
         restored?.let(saver::schedule)
         viewModelScope.launch {
             repo.entry(entryId).filterNotNull().collect { e ->
-                config.value = e.progression
                 val latest = e.counter.toDraft()
                 val current = _draft.value
                 // The first store emission after a restore: a restored draft already matching the
@@ -147,6 +165,12 @@ class CurrentStateViewModel @Inject constructor(
     fun updateNow(transform: (Draft) -> Draft) = edit(transform, now = true)
 
     fun flush() = saver.flush()
+
+    /** Leaving the page hides the note (spec revision 27). */
+    fun clearRangeNote() {
+        noteGeneration++
+        _rangeNote.value = null
+    }
 
     override fun onCleared() {
         saver.flushIn(appScope)
@@ -178,10 +202,12 @@ class CurrentStateViewModel @Inject constructor(
     }
 
     private fun edit(transform: (Draft) -> Draft, now: Boolean) {
-        val d = _draft.value?.let(transform) ?: return
+        val before = _draft.value ?: return
+        val d = transform(before)
+        if (d.total != before.total) clearRangeNote()
         setDraft(d)
         when {
-            !validate(d, config.value).isValid -> saver.cancel()
+            !validate(d).isValid -> saver.cancel()
             now -> saver.saveNow(d)
             else -> saver.schedule(d)
         }
@@ -195,8 +221,8 @@ class CurrentStateViewModel @Inject constructor(
         )
     }
 
-    private fun validate(d: Draft, c: ProgressionConfig): ValidationResult =
-        SettingsValidator.currentState(d.total, d.best, d.current, d.lastCheckIn, clock.now(), c)
+    private fun validate(d: Draft): ValidationResult =
+        SettingsValidator.currentState(d.total, d.best, d.current, d.lastCheckIn, clock.now())
 
     private companion object {
         const val TAG = "CurrentState"
@@ -219,11 +245,12 @@ fun CurrentStatePage(vm: CurrentStateViewModel, showTotal: Boolean = true) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val rangeNote by vm.rangeNote.collectAsStateWithLifecycle()
     draft?.let {
         CurrentStatePageContent(
             it, validation, status, vm.zone, vm::now,
             onChange = vm::update, onChangeNow = vm::updateNow, onResetProgress = vm::resetProgress,
-            showTotal = showTotal,
+            showTotal = showTotal, rangeNote = rangeNote,
         )
     }
 }
@@ -239,6 +266,7 @@ fun CurrentStatePageContent(
     onChangeNow: ((CurrentStateViewModel.Draft) -> CurrentStateViewModel.Draft) -> Unit,
     onResetProgress: (clearHistory: Boolean) -> Unit,
     showTotal: Boolean = true,
+    rangeNote: RangeChange? = null,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -250,9 +278,22 @@ fun CurrentStatePageContent(
                 stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
                 onUpdate = { f -> onChange { it.copy(total = f(it.total)) } },
                 onDialogUpdate = { f -> onChangeNow { it.copy(total = f(it.total)) } },
-                error = validation.errors[Field.TOTAL].resolve(), hint = validation.hints[Field.TOTAL].resolve(),
-                info = stringResource(R.string.info_total_reps),
+                error = validation.errors[Field.TOTAL].resolve(), info = stringResource(R.string.info_total_reps),
             )
+            // Spec revision 27: which limit the save moved, announced politely to TalkBack.
+            rangeNote?.let { note ->
+                Text(
+                    note.text(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite }
+                        .testTag("range_note"),
+                )
+            }
         }
         IntStepperField(
             stringResource(R.string.best_streak_field), draft.best, FieldRanges.STREAK, ValueInput.WHOLE,
@@ -347,6 +388,12 @@ fun CurrentStatePageContent(
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+@Composable
+private fun RangeChange.text(): String = when (this) {
+    is RangeChange.RaisedMax -> stringResource(R.string.range_raised_max, to)
+    is RangeChange.LoweredMin -> stringResource(R.string.range_lowered_min, to)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

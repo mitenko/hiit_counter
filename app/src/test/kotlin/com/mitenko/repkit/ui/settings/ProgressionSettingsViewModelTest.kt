@@ -134,6 +134,21 @@ class ProgressionSettingsViewModelTest {
     }
 
     @Test
+    fun `a clean draft follows a progression stored elsewhere, a dirty one keeps its edits`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1)))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        runCurrent()
+        repo.overwriteCounter(1, total = 80, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // the Current page widens the cap
+        runCurrent()
+        assertEquals(80, vm.draft.value!!.cap)
+        vm.update { it.copy(cap = 40) } // invalid, so never saved, and not overwritten by the store either
+        repo.overwriteCounter(1, total = 90, bestStreak = 0, currentStreak = 0, lastCheckIn = null)
+        runCurrent()
+        assertEquals(40, vm.draft.value!!.cap)
+        assertEquals(0, repo.progressionWrites)
+    }
+
+    @Test
     fun `a save racing a delete reports missing instead of crashing`() = runTest {
         val repo = FakeEntryRepository(listOf(testEntry(1)))
         val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)

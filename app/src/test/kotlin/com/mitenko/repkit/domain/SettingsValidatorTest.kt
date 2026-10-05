@@ -107,15 +107,15 @@ class SettingsValidatorTest {
     @Test
     fun `current state rules`() {
         val now = Instant.parse("2026-09-24T12:00:00Z")
-        val cfg = ProgressionConfig()
-        assertTrue(SettingsValidator.currentState(65, 24, 4, now.minusSeconds(60), now, cfg).isValid)
-        assertEquals(setOf(Field.TOTAL), SettingsValidator.currentState(0, 0, 0, null, now, cfg).errorFields())
-        assertEquals(setOf(Field.BEST_STREAK), SettingsValidator.currentState(65, 3, 4, null, now, cfg).errorFields())
-        assertEquals(setOf(Field.BEST_STREAK, Field.CURRENT_STREAK), SettingsValidator.currentState(65, -1, -2, null, now, cfg).errorFields())
-        assertEquals(setOf(Field.LAST_CHECK_IN), SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now, cfg).errorFields())
-        val outside = SettingsValidator.currentState(80, 24, 4, null, now, cfg)
+        assertTrue(SettingsValidator.currentState(65, 24, 4, now.minusSeconds(60), now).isValid)
+        assertEquals(setOf(Field.TOTAL), SettingsValidator.currentState(0, 0, 0, null, now).errorFields())
+        assertEquals(setOf(Field.BEST_STREAK), SettingsValidator.currentState(65, 3, 4, null, now).errorFields())
+        assertEquals(setOf(Field.BEST_STREAK, Field.CURRENT_STREAK), SettingsValidator.currentState(65, -1, -2, null, now).errorFields())
+        assertEquals(setOf(Field.LAST_CHECK_IN), SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now).errorFields())
+        // Spec revision 27: a total outside floor..cap is valid with no hint; saving it widens the range.
+        val outside = SettingsValidator.currentState(80, 24, 4, null, now)
         assertTrue(outside.isValid)
-        assertTrue(Field.TOTAL in outside.hints)
+        assertTrue(outside.hints.isEmpty())
     }
 
     @Test
@@ -150,11 +150,9 @@ class SettingsValidatorTest {
         assertEquals(FieldMessage.TooManyHolds(ProgressionConfig.MAX_HOLDS), SettingsValidator.progression(nine).errors[Field.HOLDS])
 
         val now = Instant.parse("2026-09-24T12:00:00Z")
-        val cfg = ProgressionConfig()
-        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.currentState(0, 0, 0, null, now, cfg).errors[Field.TOTAL])
-        assertEquals(FieldMessage.OutsideFloorCap, SettingsValidator.currentState(80, 24, 4, null, now, cfg).hints[Field.TOTAL])
-        assertEquals(FieldMessage.AtLeastCurrentStreak, SettingsValidator.currentState(65, 3, 4, null, now, cfg).errors[Field.BEST_STREAK])
-        assertEquals(FieldMessage.ZeroOrMore, SettingsValidator.currentState(65, 0, -1, null, now, cfg).errors[Field.CURRENT_STREAK])
-        assertEquals(FieldMessage.InTheFuture, SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now, cfg).errors[Field.LAST_CHECK_IN])
+        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.currentState(0, 0, 0, null, now).errors[Field.TOTAL])
+        assertEquals(FieldMessage.AtLeastCurrentStreak, SettingsValidator.currentState(65, 3, 4, null, now).errors[Field.BEST_STREAK])
+        assertEquals(FieldMessage.ZeroOrMore, SettingsValidator.currentState(65, 0, -1, null, now).errors[Field.CURRENT_STREAK])
+        assertEquals(FieldMessage.InTheFuture, SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now).errors[Field.LAST_CHECK_IN])
     }
 }
