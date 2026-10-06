@@ -386,18 +386,7 @@ fun CurrentStatePageContent(
             text = {
                 Column {
                     Text(stringResource(R.string.reset_progress_body))
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .padding(top = 8.dp)
-                            .toggleable(value = clearHistory, role = Role.Checkbox, onValueChange = { clearHistory = it })
-                            .testTag("clear_history"),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = clearHistory, onCheckedChange = null)
-                        Text(stringResource(R.string.clear_history_too), modifier = Modifier.padding(start = 8.dp))
-                    }
+                    ClearHistoryRow(clearHistory, onChange = { clearHistory = it })
                 }
             },
             confirmButton = {
@@ -411,6 +400,23 @@ fun CurrentStatePageContent(
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+/** The Reset progress dialogs' "Clear history too" checkbox row (spec R6 §4.3), one 48 dp toggle target. */
+@Composable
+internal fun ClearHistoryRow(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(top = 8.dp)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange)
+            .testTag("clear_history"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(stringResource(R.string.clear_history_too), modifier = Modifier.padding(start = 8.dp))
     }
 }
 

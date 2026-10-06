@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
@@ -247,13 +248,85 @@ class SettingsPagerTest {
         compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.waitForIdle()
-        assertEquals(1, backs)
         assertEquals(9, repo.find(1).timing.sets)
+        // Spec revision 32: a Sets change asks first; Keep progress lets the exit continue.
+        compose.onNodeWithTag("keep_progress").performClick()
+        compose.waitForIdle()
+        assertEquals(1, backs)
         compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
-        assertEquals(2, backs)
         assertEquals(10, repo.find(1).timing.sets)
+        compose.onNodeWithTag("keep_progress").performClick()
+        compose.waitForIdle()
+        assertEquals(2, backs)
+    }
+
+    @Test
+    fun `back without a Sets change leaves at once`() {
+        show()
+        compose.onNodeWithContentDescription("Increase WORK").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitForIdle()
+        assertEquals(1, backs)
+        compose.onNodeWithText(text(R.string.sets_changed_title)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `changing Sets then switching tabs asks whether to reset progress`() {
+        show()
+        compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
+        tab(SettingsPage.CUES).performClick()
+        compose.onNodeWithText("Sets changed").assertIsDisplayed()
+        compose.onNodeWithText("You changed sets from 8 to 9. Reset progress so your reps start again from the starting total?")
+            .assertIsDisplayed()
+        compose.onNodeWithTag("clear_history").assertIsOff()
+        tab(SettingsPage.CUES).assertIsSelected()
+    }
+
+    @Test
+    fun `Reset progress in the Sets dialog resets the total`() {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 60))))
+        show(repo = repo)
+        compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
+        tab(SettingsPage.CURRENT).performClick()
+        compose.onNodeWithTag("clear_history").performClick()
+        compose.onNodeWithTag("confirm_sets_reset").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.sets_changed_title)).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(listOf(1L to true), repo.resets)
+            assertEquals(48, repo.find(1).counter.total)
+            assertEquals(9, repo.find(1).timing.sets)
+        }
+        compose.onNodeWithTag("value_Current reps").performScrollTo().assertTextEquals("48")
+    }
+
+    @Test
+    fun `back with a changed Sets shows the dialog first and leaves after Keep progress`() {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 60))))
+        show(repo = repo)
+        compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
+        compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.onNodeWithText("Sets changed").assertIsDisplayed()
+        assertEquals(0, backs)
+        compose.onNodeWithText("Keep progress").performClick()
+        compose.waitForIdle()
+        assertEquals(1, backs)
+        compose.runOnIdle {
+            assertEquals(60, repo.find(1).counter.total)
+            assertEquals(emptyList<Pair<Long, Boolean>>(), repo.resets)
+        }
+    }
+
+    @Test
+    fun `a Timer only entry is never asked about Sets`() {
+        show(repo = checkInRepo())
+        compose.onNodeWithContentDescription("Increase SETS").performScrollTo().performClick()
+        tab(SettingsPage.CUES).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.sets_changed_title)).assertDoesNotExist()
     }
 
     @Test

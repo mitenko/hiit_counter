@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.repkit.domain.Field
+import com.mitenko.repkit.domain.model.CounterState
+import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.TimingConfig
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
@@ -14,9 +16,11 @@ import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.common.SaveStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -154,5 +158,126 @@ class TimingSettingsViewModelTest {
         runCurrent()
         assertEquals(SaveStatus.SAVED, vm.status.value)
         assertEquals(10, repo.find(1).timing.sets)
+    }
+
+    // Spec revision 32: the reset prompt on a Sets change.
+
+    /** Opens on Timing with total 60, so a reset visibly moves it back to the starting total. */
+    private fun TestScope.openOnTiming(type: EntryType = EntryType.WORKOUT): Pair<FakeEntryRepository, TimingSettingsViewModel> {
+        val repo = FakeEntryRepository(listOf(testEntry(1, type = type, counter = CounterState(total = 60))))
+        val vm = TimingSettingsViewModel(handle, repo, backgroundScope)
+        vm.pageShown(timing = true)
+        runCurrent()
+        return repo to vm
+    }
+
+    private fun TestScope.leaveTiming(vm: TimingSettingsViewModel) {
+        vm.flush()
+        vm.pageShown(timing = false)
+        runCurrent()
+    }
+
+    @Test
+    fun `a sets change then leaving Timing prompts with from and to`() = runTest {
+        val (_, vm) = openOnTiming()
+        vm.update { it.copy(sets = 9) }
+        vm.update { it.copy(sets = 10) }
+        assertNull(vm.setsPrompt.value)
+        leaveTiming(vm)
+        assertEquals(TimingSettingsViewModel.SetsChange(from = 8, to = 10), vm.setsPrompt.value)
+    }
+
+    @Test
+    fun `a Timer only entry is never prompted`() = runTest {
+        val (_, vm) = openOnTiming(EntryType.CHECK_IN)
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        assertNull(vm.setsPrompt.value)
+    }
+
+    @Test
+    fun `sets back at the baseline give no prompt`() = runTest {
+        val (_, vm) = openOnTiming()
+        vm.updateNow { it.copy(sets = 10) }
+        runCurrent()
+        vm.updateNow { it.copy(sets = 8) }
+        leaveTiming(vm)
+        assertNull(vm.setsPrompt.value)
+    }
+
+    @Test
+    fun `an answered change is never prompted again`() = runTest {
+        val (_, vm) = openOnTiming()
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        vm.keepProgress()
+        assertNull(vm.setsPrompt.value)
+        var left = false
+        vm.exit { left = true }
+        runCurrent()
+        assertTrue(left)
+        assertNull(vm.setsPrompt.value)
+        vm.pageShown(timing = true)
+        runCurrent()
+        leaveTiming(vm)
+        assertNull(vm.setsPrompt.value)
+    }
+
+    @Test
+    fun `Reset progress resets with the checkbox value`() = runTest {
+        val (repo, vm) = openOnTiming()
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        vm.resetProgress(clearHistory = true)
+        runCurrent()
+        assertNull(vm.setsPrompt.value)
+        assertEquals(listOf(1L to true), repo.resets)
+        assertEquals(48, repo.find(1).counter.total)
+    }
+
+    @Test
+    fun `Keep progress changes nothing`() = runTest {
+        val (repo, vm) = openOnTiming()
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        vm.keepProgress()
+        runCurrent()
+        assertNull(vm.setsPrompt.value)
+        assertTrue(repo.resets.isEmpty())
+        assertEquals(60, repo.find(1).counter.total)
+        assertEquals(9, repo.find(1).timing.sets)
+    }
+
+    @Test
+    fun `exiting with a sets change waits for the answer, and without one leaves at once`() = runTest {
+        val (_, vm) = openOnTiming()
+        var left = 0
+        vm.exit { left++ }
+        runCurrent()
+        assertEquals(1, left)
+        assertNull(vm.setsPrompt.value)
+
+        vm.update { it.copy(sets = 9) }
+        vm.flush()
+        vm.exit { left++ }
+        runCurrent()
+        assertEquals(TimingSettingsViewModel.SetsChange(from = 8, to = 9), vm.setsPrompt.value)
+        assertEquals(1, left)
+        vm.keepProgress()
+        assertEquals(2, left)
+    }
+
+    @Test
+    fun `exiting from another page after leaving Timing unanswered never prompts twice`() = runTest {
+        val (_, vm) = openOnTiming()
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        assertFalse(vm.setsPrompt.value == null)
+        vm.resetProgress(clearHistory = false)
+        var left = false
+        vm.exit { left = true }
+        runCurrent()
+        assertTrue(left)
+        assertNull(vm.setsPrompt.value)
     }
 }

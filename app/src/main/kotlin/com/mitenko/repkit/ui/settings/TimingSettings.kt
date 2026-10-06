@@ -5,11 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -28,6 +33,7 @@ import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.TimerText
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.EntryNotFound
+import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.TimingConfig
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
@@ -56,6 +62,10 @@ import javax.inject.Inject
  * survives swipes, rotation and process recreation. Valid drafts auto-save through an
  * [AutoSaver]: a stepper change 400 ms after the last one, a dialog OK at once. Invalid drafts are
  * never saved.
+ *
+ * Spec revision 32: leaving the page (a page change, or [exit]) after a Counter entry's saved sets
+ * moved away from [baseline] raises [setsPrompt], which offers Reset progress. The pager reports
+ * the visible page through [pageShown].
  */
 @HiltViewModel
 class TimingSettingsViewModel @Inject constructor(
@@ -92,6 +102,81 @@ class TimingSettingsViewModel @Inject constructor(
             restored == null -> viewModelScope.launch { repo.entry(entryId).first()?.let { setDraft(it.timing) } }
             // A valid draft restored after process death may never have been written; the write is idempotent if it was.
             SettingsValidator.timing(restored).isValid -> saver.schedule(restored)
+        }
+    }
+
+    /** Spec revision 32: a Sets change to confirm, as the saved sets before ([from]) and now ([to]). */
+    data class SetsChange(val from: Int, val to: Int)
+
+    private val _setsPrompt = MutableStateFlow<SetsChange?>(null)
+
+    /** The pending "Sets changed" question, or null. Answered by [resetProgress] or [keepProgress]. */
+    val setsPrompt: StateFlow<SetsChange?> = _setsPrompt.asStateFlow()
+
+    /** The saved sets when the Timing page was last entered, or after the last answer. */
+    private var baseline: Int? = null
+    private var onTiming = false
+
+    /** The exit that waits for the [setsPrompt] answer. */
+    private var pendingExit: (() -> Unit)? = null
+
+    /**
+     * The pager shows a page: entering Timing takes the saved sets as the baseline, and leaving it
+     * checks them, after the pending save has landed (the pager flushes first).
+     */
+    fun pageShown(timing: Boolean) {
+        if (onTiming && !timing) checkSets(onDone = null)
+        if (timing && !onTiming) {
+            viewModelScope.launch { saver.exclusive { repo.entry(entryId).first() }?.let { baseline = it.timing.sets } }
+        }
+        onTiming = timing
+    }
+
+    /** Leaving settings: [onDone] runs at once, or after the [setsPrompt] answer when Timing's sets changed. */
+    fun exit(onDone: () -> Unit) {
+        if (onTiming) checkSets(onDone) else onDone()
+    }
+
+    /** Reset progress (spec R3 §6.4), after any Timing write; the Current page follows the store. */
+    fun resetProgress(clearHistory: Boolean) {
+        answer {
+            appScope.launch {
+                try {
+                    saver.exclusive { repo.resetProgress(entryId, clearHistory) }
+                } catch (e: EntryNotFound) {
+                    markMissing()
+                }
+            }
+        }
+    }
+
+    /** Keep progress, also a dismissed dialog: nothing changes. */
+    fun keepProgress() = answer {}
+
+    private fun answer(action: () -> Unit) {
+        val prompt = _setsPrompt.value ?: return
+        baseline = prompt.to
+        _setsPrompt.value = null
+        action()
+        pendingExit?.let {
+            pendingExit = null
+            it()
+        }
+    }
+
+    private fun checkSets(onDone: (() -> Unit)?) {
+        viewModelScope.launch {
+            val entry = saver.exclusive { repo.entry(entryId).first() }
+            val from = baseline
+            when {
+                // A prompt already up gets the exit; it continues after the answer.
+                _setsPrompt.value != null -> if (onDone != null) pendingExit = onDone
+                entry != null && entry.type != EntryType.CHECK_IN && from != null && entry.timing.sets != from -> {
+                    pendingExit = onDone
+                    _setsPrompt.value = SetsChange(from, entry.timing.sets)
+                }
+                else -> onDone?.invoke()
+            }
         }
     }
 
@@ -202,4 +287,31 @@ fun TimingPageContent(
         )
         totalError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
     }
+}
+
+/**
+ * Spec revision 32: "Sets changed", in the Reset progress dialog's style. Tapping outside or back
+ * counts as Keep progress. Clear history too starts unchecked each time and survives rotation.
+ */
+@Composable
+fun SetsChangedDialog(change: TimingSettingsViewModel.SetsChange, onReset: (clearHistory: Boolean) -> Unit, onKeep: () -> Unit) {
+    var clearHistory by rememberSaveable(change) { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onKeep,
+        title = { Text(stringResource(R.string.sets_changed_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.sets_changed_body, change.from, change.to))
+                ClearHistoryRow(clearHistory, onChange = { clearHistory = it })
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onReset(clearHistory) }, modifier = Modifier.testTag("confirm_sets_reset")) {
+                Text(stringResource(R.string.reset_progress))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeep, modifier = Modifier.testTag("keep_progress")) { Text(stringResource(R.string.keep_progress)) }
+        },
+    )
 }

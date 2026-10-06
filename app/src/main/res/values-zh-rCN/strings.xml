@@ -148,6 +148,9 @@
     <string name="tab_progression">进阶</string>
     <string name="tab_cues">提示</string>
     <string name="clear_history_too">同时清除历史</string>
+    <string name="sets_changed_title">组数已更改</string>
+    <string name="sets_changed_body">你将组数从 %1$d 改为了 %2$d。要重置进度，让次数从初始值重新开始吗？</string>
+    <string name="keep_progress">保留进度</string>
     <string-array name="week_day_letters">
         <item>一</item>
         <item>二</item>
