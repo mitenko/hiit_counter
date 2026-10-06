@@ -207,6 +207,9 @@
 
     <!-- Reset progress -->
     <string name="clear_history_too">Clear history too</string>
+    <string name="sets_changed_title">Sets changed</string>
+    <string name="sets_changed_body">You changed sets from %1$d to %2$d. Reset progress so your reps start again from the starting total?</string>
+    <string name="keep_progress">Keep progress</string>
 
     <!-- Week -->
     <string-array name="week_day_letters">

@@ -40,7 +40,7 @@ import com.mitenko.repkit.ui.common.SettingsTopBar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -71,7 +71,8 @@ internal fun SettingsPage.tabIndex(pages: List<SettingsPage>): Int = pages.index
  * HorizontalPager. Each page keeps its own ViewModel, keyed on this back-stack entry, so each has
  * its own saved-state draft and AutoSaver (see the R3 plan's layout decision). This route only hosts
  * them. It flushes the three auto-saving pages on every page change and on every exit: back, ←,
- * ON_STOP and an onEntryGone pop (§6.2). Every entry shows all four tabs (spec revision 8); a
+ * ON_STOP and an onEntryGone pop (§6.2). Leaving Timing after a Counter's Sets changed asks
+ * whether to reset progress (spec revision 32): over the new page, or before an exit continues. Every entry shows all four tabs (spec revision 8); a
  * Timer only entry's Progression stays window-only and Current stays total-less (R4 §4.6).
  */
 @Composable
@@ -102,7 +103,7 @@ fun SettingsPagerRoute(
     }
     val leave = {
         flushAll()
-        onBack()
+        timingVm.exit(onBack)
     }
     LaunchedEffect(missing) {
         if (missing) {
@@ -129,6 +130,8 @@ fun SettingsPagerRoute(
             type?.let { SettingsTabs(it, initialPage, onPageChange = onPageChange, timingVm, progressionVm, currentVm, cuesVm) }
         }
     }
+    val setsPrompt by timingVm.setsPrompt.collectAsStateWithLifecycle()
+    setsPrompt?.let { SetsChangedDialog(it, onReset = timingVm::resetProgress, onKeep = timingVm::keepProgress) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -148,8 +151,12 @@ private fun ColumnScope.SettingsTabs(
     val pagerState = rememberPagerState(initialPage = initialPage.tabIndex(pages)) { pages.size }
     val latestOnPageChange by rememberUpdatedState(onPageChange)
     LaunchedEffect(pagerState) {
-        // Tab taps and swipes alike: leaving a page writes what it had pending.
-        snapshotFlow { pagerState.currentPage }.drop(1).collect { latestOnPageChange() }
+        // Tab taps and swipes alike: leaving a page writes what it had pending, then Timing learns
+        // whether it's showing, for its Sets baseline and check (spec revision 32).
+        snapshotFlow { pagerState.currentPage }.collectIndexed { i, page ->
+            if (i > 0) latestOnPageChange()
+            timingVm.pageShown(timing = pages[page] == SettingsPage.TIMING)
+        }
     }
     val scope = rememberCoroutineScope()
     PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {

@@ -153,6 +153,9 @@
     <string name="tab_progression">प्रगति</string>
     <string name="tab_cues">संकेत</string>
     <string name="clear_history_too">इतिहास भी साफ़ करें</string>
+    <string name="sets_changed_title">सेट बदल गए</string>
+    <string name="sets_changed_body">आपने सेट %1$d से बदलकर %2$d कर दिए हैं। क्या आप प्रगति रीसेट करना चाहते हैं, ताकि आपके रेप्स फिर से शुरुआती संख्या से शुरू हों?</string>
+    <string name="keep_progress">प्रगति बनाए रखें</string>
     <string-array name="week_day_letters">
         <item>सो</item>
         <item>मं</item>

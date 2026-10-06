@@ -158,6 +158,9 @@
     <string name="tab_progression">Progresión</string>
     <string name="tab_cues">Avisos</string>
     <string name="clear_history_too">Borrar también el historial</string>
+    <string name="sets_changed_title">Series cambiadas</string>
+    <string name="sets_changed_body">Cambiaste las series de %1$d a %2$d. ¿Quieres restablecer el progreso para que tus repeticiones empiecen de nuevo desde el total inicial?</string>
+    <string name="keep_progress">Conservar el progreso</string>
     <string-array name="week_day_letters">
         <item>L</item>
         <item>M</item>
