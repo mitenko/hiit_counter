@@ -225,4 +225,33 @@ class TimerScreenTest {
         compose.onNodeWithTag("skip_back", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("skip_forward", useUnmergedTree = true).assertDoesNotExist()
     }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `sets and elapsed stats fit side by side at 320dp with the longest realistic values`() {
+        // Spec revision 33: larger stat text (headlineMedium/titleSmall) must still fit at 320dp.
+        // "99/99" and the formatHms-produced "01:59:59" are the longest realistic values.
+        val longUi = TimerUiMapper.map(
+            TimerState(Phase.WORK, set = 99, sets = 99, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = 7199,
+                totalDurationSec = 7200, repsThisSet = 8, totalReps = 65, paused = false),
+            entryName = "Kettlebell Lunges",
+        )
+        assertEquals("99/99", longUi.setsText)
+        assertEquals("01:59:59", longUi.elapsedText)
+        compose.setContent {
+            HiitTheme {
+                TimerScreen(
+                    longUi, CueConfig(),
+                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                )
+            }
+        }
+        val sets = compose.onNodeWithTag("stat_sets").getBoundsInRoot()
+        val elapsed = compose.onNodeWithTag("stat_elapsed").getBoundsInRoot()
+        // Side by side, not overlapping, and neither clipped by the 320dp root.
+        assertTrue(sets.right <= elapsed.left)
+        assertTrue(sets.left >= 0.dp)
+        assertTrue(elapsed.right <= 320.dp)
+    }
 }

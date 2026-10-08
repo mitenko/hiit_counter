@@ -100,8 +100,8 @@ fun TimerScreen(
                     modifier = Modifier.padding(bottom = 8.dp).testTag("entry_name"),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-                    Stat(R.string.sets_label, ui.setsText)
-                    Stat(R.string.elapsed_label, ui.elapsedText)
+                    Stat(R.string.sets_label, ui.setsText, testTag = "stat_sets")
+                    Stat(R.string.elapsed_label, ui.elapsedText, testTag = "stat_elapsed")
                 }
             }
             val description = ui.description.resolve()
@@ -156,10 +156,11 @@ fun TimerScreen(
 }
 
 @Composable
-private fun Stat(@StringRes label: Int, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(stringResource(label), color = Color.LightGray, style = MaterialTheme.typography.labelLarge)
-        Text(value, color = Color.White, style = MaterialTheme.typography.titleLarge)
+private fun Stat(@StringRes label: Int, value: String, testTag: String) {
+    // Spec revision 33: larger than before (titleSmall/headlineMedium, up from labelLarge/titleLarge).
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.testTag(testTag)) {
+        Text(stringResource(label), color = Color.LightGray, style = MaterialTheme.typography.titleSmall)
+        Text(value, color = Color.White, style = MaterialTheme.typography.headlineMedium)
     }
 }
 

@@ -7,7 +7,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
-import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 
 /** Pops everything above the entry list (the start destination). */
 fun NavController.popToEntries() {
@@ -19,21 +18,6 @@ fun NavController.openEntryOverList(id: Long) {
     navigate(Routes.entry(id)) {
         popUpTo(Routes.ENTRIES)
         launchSingleTop = true
-    }
-}
-
-/**
- * Leaving the timer (spec §7.2): pop to the `entry/{id}` whose id is the run's [entryId]
- * (TimerController.lastEntryId). If that entry isn't on the back stack (e.g. after the activity
- * was recreated), pop to the list. At most one `entry/{id}` is ever on the stack, so the topmost
- * one is the only candidate.
- */
-fun NavController.exitTimer(entryId: Long?) {
-    val topEntry = runCatching { getBackStackEntry(Routes.ENTRY) }.getOrNull()
-    if (entryId != null && topEntry != null && topEntry.arguments?.getLong(ENTRY_ID_ARG) == entryId) {
-        popBackStack(topEntry.destination.id, inclusive = false)
-    } else {
-        popToEntries()
     }
 }
 
