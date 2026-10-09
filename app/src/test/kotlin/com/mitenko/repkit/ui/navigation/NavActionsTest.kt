@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.settings.SettingsPage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,27 +45,31 @@ class NavActionsTest {
     }
 
     @Test
-    fun `exiting the timer pops to the run's entry`() {
+    fun `exiting the timer always pops to the list, with the entry screen popped`() {
+        // Spec revision 33: every way out of the timer goes to the list, never back to the entry
+        // screen (amends §7.2's old exitTimer, which used to pop to the run's entry).
         graph()
         compose.runOnIdle {
             nav.navigate(Routes.entry(1))
             nav.navigate(Routes.entrySettings(1))
             nav.navigate(Routes.TIMER)
-            nav.exitTimer(1L)
+            nav.popToEntries()
         }
         compose.runOnIdle {
-            assertEquals(Routes.ENTRY, nav.currentDestination?.route)
-            assertEquals(1L, nav.currentBackStackEntry?.arguments?.getLong(ENTRY_ID_ARG))
+            assertEquals(Routes.ENTRIES, nav.currentDestination?.route)
+            assertEquals(Routes.ENTRIES, nav.currentBackStackEntry?.destination?.route)
+            // The entry (and entry-settings) screen is popped, not just no longer current.
+            assertTrue(runCatching { nav.getBackStackEntry(Routes.ENTRY) }.isFailure)
+            assertTrue(runCatching { nav.getBackStackEntry(Routes.ENTRY_SETTINGS) }.isFailure)
         }
     }
 
     @Test
-    fun `exiting the timer pops to the list when the run's entry isn't on the back stack`() {
+    fun `exiting the timer pops to the list when no entry screen is on the back stack`() {
         graph()
         compose.runOnIdle {
-            nav.navigate(Routes.entry(2))
             nav.navigate(Routes.TIMER)
-            nav.exitTimer(1L)
+            nav.popToEntries()
         }
         compose.runOnIdle { assertEquals(Routes.ENTRIES, nav.currentDestination?.route) }
     }

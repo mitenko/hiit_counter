@@ -75,10 +75,6 @@ class TimerController(
     var snapshot: WorkoutSnapshot? = null
         private set
 
-    /** The entry of the most recent prepare(); kept after the run ends so leaving the timer returns to it (spec §7.2). */
-    var lastEntryId: Long? = null
-        private set
-
     private var engine: TabataEngine? = null
     private var runJob: Job? = null
     private var pauseTimeoutJob: Job? = null
@@ -94,7 +90,7 @@ class TimerController(
     /**
      * Spec §7.1 busy rule, read at the moment of each destructive action. After process
      * recreation the controller starts IDLE, so nothing is busy. A leftover DONE is inert:
-     * deleting its entry is safe because exitTimer falls back to the list.
+     * deleting its entry is safe because leaving the timer always lands on the list (spec revision 33).
      */
     fun isBusy(entryId: Long): Boolean =
         (_status.value == RunStatus.PREPARING || _status.value == RunStatus.RUNNING) && snapshot?.entryId == entryId
@@ -103,7 +99,6 @@ class TimerController(
         if (_status.value == RunStatus.PREPARING || _status.value == RunStatus.RUNNING) return false
         clearRun() // clears the previous snapshot; assign the new one after
         this.snapshot = snapshot
-        lastEntryId = snapshot.entryId
         _liveCues.value = snapshot.cues
         _serviceStatus.value = ServiceStatus.Pending
         _status.value = RunStatus.PREPARING
@@ -240,7 +235,6 @@ class TimerController(
         )
     }
 
-    /** Clears the run but deliberately not [lastEntryId]. */
     private fun clearRun() {
         runJob?.cancel()
         runJob = null

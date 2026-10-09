@@ -75,8 +75,10 @@ fun HiitNavHost(controller: TimerController) {
             )
         }
         // Active-run routing relies on TimerRoute's BackHandler blocking back navigation while RUNNING,
-        // so onExit only fires once the workout has stopped. lastEntryId outlives clearRun() (spec §7.2).
-        composable(Routes.TIMER) { TimerRoute(onExit = { nav.exitTimer(controller.lastEntryId) }) }
+        // so onExit only fires once the workout has stopped. Every way out of the timer goes to the
+        // list (spec revision 33, amends §7.2): the ✕ then Stop, the system Back then Stop, leaving
+        // the DONE screen and the IDLE auto-exit all route here, never back to the entry screen.
+        composable(Routes.TIMER) { TimerRoute(onExit = { nav.popToEntries() }) }
     }
 
     // v1 §4 active-run routing, unchanged.

@@ -258,23 +258,6 @@ class TimerControllerTest {
     }
 
     @Test
-    fun `lastEntryId is set by prepare and survives the end of the run`() = runTest {
-        val c = controller()
-        assertNull(c.lastEntryId)
-        c.prepare(snapshot)
-        assertEquals(1L, c.lastEntryId)
-        c.cancelPrepare()
-        assertEquals(1L, c.lastEntryId)
-        c.prepare(snapshot.copy(entryId = 2L))
-        c.onServiceStarted()
-        c.start(reps)
-        runCurrent()
-        c.stop()
-        assertNull(c.snapshot)
-        assertEquals(2L, c.lastEntryId)
-    }
-
-    @Test
     fun `isBusy follows the run's own entry through its lifecycle`() = runTest {
         val c = controller()
         assertFalse(c.isBusy(1L))
@@ -287,7 +270,7 @@ class TimerControllerTest {
         advanceTimeBy(240_000)
         runCurrent()
         assertEquals(RunStatus.DONE, c.status.value)
-        // A leftover DONE is inert; deleting its entry is safe (exitTimer falls back to the list).
+        // A leftover DONE is inert; deleting its entry is safe (leaving the timer always lands on the list).
         assertFalse(c.isBusy(1L))
         c.dismissDone()
         assertFalse(c.isBusy(1L))
