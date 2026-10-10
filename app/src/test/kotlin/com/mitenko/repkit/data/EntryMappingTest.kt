@@ -7,6 +7,7 @@ import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Entry
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
@@ -207,6 +208,20 @@ class EntryMappingTest {
         val empty = entryEntity("Burpees", 0, progression = ProgressionConfig(holds = emptyList()))
         assertEquals(Triple("-", 64, 4), Triple(empty.holds, empty.holdAt, empty.holdFor))
         assertEquals(emptyList<Hold>(), empty.toDomain().progression.holds)
+    }
+
+    @Test
+    fun `the repair keeps At and From on one value and drops later duplicates of the same kind`() {
+        val p = testEntity().copy(holds = "64:4,64+:2,64:1,64+:3,60+:1", cap = 80).toDomain().progression
+        assertEquals(listOf(Hold(64, 4), Hold(64, 2, HoldKind.FROM), Hold(60, 1, HoldKind.FROM)), p.holds)
+        assertEquals(80, p.cap)
+    }
+
+    @Test
+    fun `a From hold is written with a plus and mirrored into the legacy columns whatever its kind`() {
+        val row = entryEntity("Burpees", 0, progression = ProgressionConfig(holds = listOf(Hold(60, 2, HoldKind.FROM), Hold(64, 4))))
+        assertEquals(Triple("60+:2,64:4", 60, 2), Triple(row.holds, row.holdAt, row.holdFor))
+        assertEquals(listOf(Hold(60, 2, HoldKind.FROM), Hold(64, 4)), row.toDomain().progression.holds)
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.mitenko.repkit.domain.ProgressionField
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.WeightConfig
 import com.mitenko.repkit.domain.model.WeightUnit
@@ -366,5 +367,40 @@ class ProgressionSettingsViewModelTest {
         assertEquals(40 to 80, repo.find(1).progression.let { it.floor to it.cap })
         assertEquals(80, repo.find(1).counter.total)
         assertEquals(WeightUnit.KG, repo.find(1).progression.weight.unit)
+    }
+
+    @Test
+    fun `switching a hold to From saves at once and resets the hold count`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, counter = CounterState(total = 64, holdCount = 2))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.setHoldKind(0, HoldKind.FROM)
+        runCurrent()
+        assertEquals(listOf(Hold(64, 4, HoldKind.FROM)), repo.find(1).progression.holds)
+        assertEquals(0, repo.find(1).counter.holdCount)
+        assertEquals(1, repo.progressionWrites)
+        assertEquals(listOf(Hold(64, 4, HoldKind.FROM)), vm.draft.value!!.holds)
+    }
+
+    @Test
+    fun `a duplicate From hold is never saved`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(holds = listOf(Hold(60, 2, HoldKind.FROM), Hold(64, 4))))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.updateNow { it.updateHold(1) { h -> h.copy(at = 60) } }
+        runCurrent()
+        assertTrue(vm.validation.value.isValid) // at 60 and from 60 coexist
+        vm.setHoldKind(1, HoldKind.FROM)
+        runCurrent()
+        assertEquals(mapOf(1 to mapOf(HoldField.AT to FieldMessage.DuplicateHoldFrom(60))), vm.validation.value.holdErrors)
+        assertEquals(SaveStatus.INVALID, vm.status.value)
+        assertEquals(listOf(Hold(60, 2, HoldKind.FROM), Hold(60, 4)), repo.find(1).progression.holds)
+    }
+
+    @Test
+    fun `hold kinds are restored from the saved state handle`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = two)))
+        val first = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        first.update { it.copy(cap = 40, holds = listOf(Hold(56, 3), Hold(60, 2, HoldKind.FROM))) } // invalid: never saved
+        val restored = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        assertEquals(listOf(Hold(56, 3), Hold(60, 2, HoldKind.FROM)), restored.draft.value!!.holds)
     }
 }

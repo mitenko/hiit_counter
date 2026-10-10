@@ -298,4 +298,10 @@
         <item quantity="other">%1$d</item>
         <item quantity="many">%1$d</item>
     </plurals>
+    <string name="hold_kind_at">En</string>
+    <string name="hold_kind_from">Desde</string>
+    <string name="hold_from">Mantener desde</string>
+    <string name="hold_n_from">Mantener %1$d desde</string>
+    <string name="info_hold_from">Cada número a partir de este se mantiene durante el número de registros indicado antes de volver a subir, lo que frena la subida cerca de tu máximo.</string>
+    <string name="error_duplicate_hold_from">Ya hay un mantenimiento desde %1$d</string>
 </resources>

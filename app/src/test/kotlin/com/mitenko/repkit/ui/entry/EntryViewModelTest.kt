@@ -11,6 +11,9 @@ import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
+import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
@@ -387,6 +390,30 @@ class EntryViewModelTest {
         h.vm.onStart()
         runCurrent()
         assertEquals(HoldStatus(at = 64, day = 2, of = 4), h.vm.highlight.value?.hold)
+    }
+
+    @Test
+    fun `inside a From range the hold announcement names the total`() = runTest {
+        // Spec rev 34 §6: from 64 for 2; 66 reached yesterday (day 1), so today is day 2 at 66.
+        val repo = FakeEntryRepository(
+            listOf(
+                testEntry(
+                    1, "Pushups",
+                    progression = ProgressionConfig(holds = listOf(Hold(64, 2, HoldKind.FROM))),
+                    counter = CounterState(
+                        total = 66, bestStreak = 4, currentStreak = 4,
+                        lastCheckIn = Instant.parse("2026-09-23T12:55:00Z"), holdCount = 1,
+                    ),
+                ),
+            ),
+        )
+        val h = harness(repository = repo)
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals((0 until 8).associateWith { RepsColumnLayout.Change.HOLD }, highlight?.changes)
+        assertEquals(HoldStatus(at = 66, day = 2, of = 2), highlight?.hold)
     }
 
     @Test

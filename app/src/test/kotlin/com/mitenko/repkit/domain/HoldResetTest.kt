@@ -1,6 +1,7 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import org.junit.Assert.assertFalse
@@ -70,5 +71,13 @@ class HoldResetTest {
         assertTrue(progressionHoldReset(base, base.copy(holds = listOf(Hold(66, 3)))))
         assertTrue(progressionHoldReset(base, base.copy(cap = 60)))
         assertFalse(progressionHoldReset(base, base.copy(floor = 40)))
+    }
+
+    @Test
+    fun `switching a hold between At and From resets the hold count`() {
+        val from = base.copy(holds = listOf(Hold(64, 4, HoldKind.FROM)))
+        assertTrue(holdResetNeeded(base, from))
+        assertTrue(holdResetNeeded(from, base))
+        assertFalse(holdResetNeeded(from, from.copy(windowHours = 30)))
     }
 }

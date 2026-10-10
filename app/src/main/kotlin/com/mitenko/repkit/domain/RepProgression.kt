@@ -98,7 +98,8 @@ object RepProgression {
             holdCount = startingHoldCount(total, config)
         } else if (hold != null) {
             if (state.holdCount >= hold.forCount) {
-                // Done here (hold.at < cap, so +1 stays in range). A hold right above starts on this day.
+                // Done here (an active hold's total is below the cap, so +1 stays in range). A held value
+                // right above (the next one, inside a From range) starts on this day (spec rev 34 §2).
                 newTotal = total + 1
                 holdCount = startingHoldCount(newTotal, config)
             } else {

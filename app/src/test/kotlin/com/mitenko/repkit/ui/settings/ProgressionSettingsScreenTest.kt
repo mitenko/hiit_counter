@@ -11,6 +11,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -26,6 +28,7 @@ import com.mitenko.repkit.domain.ProgressionField
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.theme.HiitTheme
@@ -255,5 +258,59 @@ class ProgressionSettingsScreenTest {
         compose.onNodeWithTag("switch_Hold").performScrollTo().performClick()
         assertHold(1, 56, 3)
         assertHold(2, 64, 4)
+    }
+
+    @Test
+    fun `the At or From choice switches the label, spoken name and tags, and saves at once`() {
+        show(ProgressionConfig(holds = listOf(Hold(64, 4))))
+        compose.onNodeWithTag("hold_1_kind_at").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag("hold_1_kind_from").assertIsNotSelected()
+        compose.onNodeWithTag("value_Hold 1 at").performScrollTo().assertTextEquals("64")
+        // Plan note 7: the selected segment does nothing.
+        compose.onNodeWithTag("hold_1_kind_at").performClick()
+        assertEquals(0, nowEdits)
+
+        compose.onNodeWithTag("hold_1_kind_from").performScrollTo().performClick()
+        assertEquals(listOf(Hold(64, 4, HoldKind.FROM)), draft.holds)
+        assertEquals(1, nowEdits)
+        assertEquals(listOf<ProgressionField?>(null), fields)
+        compose.onNodeWithTag("hold_1_kind_from").assertIsSelected()
+        compose.onNodeWithTag("value_Hold 1 at").assertDoesNotExist()
+        compose.onNodeWithTag("value_Hold 1 from").performScrollTo().assertTextEquals("64")
+        compose.onNodeWithText("Hold from").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Increase Hold 1 from").assertExists()
+        compose.onNodeWithContentDescription("About Hold 1 from").assertExists()
+        compose.onNodeWithTag("value_Hold 1 for").performScrollTo().assertTextEquals("4")
+
+        compose.onNodeWithTag("hold_1_kind_at").performScrollTo().performClick()
+        assertEquals(listOf(Hold(64, 4)), draft.holds)
+        compose.onNodeWithTag("value_Hold 1 at").performScrollTo().assertTextEquals("64")
+    }
+
+    @Test
+    fun `a duplicate From hold shows its error on the later hold, and At and From on one value coexist`() {
+        show(ProgressionConfig(holds = listOf(Hold(60, 2, HoldKind.FROM), Hold(60, 4), Hold(59, 3, HoldKind.FROM))))
+        compose.onNodeWithTag("support_Hold 2 at").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Increase Hold 3 from").performScrollTo().performClick()
+        assertEquals(Hold(60, 3, HoldKind.FROM), draft.holds[2])
+        compose.onNodeWithTag("support_Hold 3 from").performScrollTo().assertTextEquals("Already a hold from 60")
+        compose.onNodeWithTag("support_Hold 1 from").assertDoesNotExist()
+        compose.onNodeWithTag("support_Hold 2 at").assertDoesNotExist()
+        compose.onNodeWithTag("save_status").assertTextEquals("Not saved: fix the highlighted field")
+    }
+
+    @Test
+    fun `an inactive From hold shows the plain disabled hint`() {
+        show(ProgressionConfig(holds = listOf(Hold(80, 2, HoldKind.FROM))))
+        compose.onNodeWithTag("support_Hold 1 from").performScrollTo().assertTextEquals("Hold disabled")
+    }
+
+    @Test
+    fun `the At and From segments are at least 48 dp tall`() {
+        show(two)
+        listOf("hold_2_kind_at", "hold_2_kind_from").forEach { tag ->
+            val height = compose.onNodeWithTag(tag).performScrollTo().fetchSemanticsNode().boundsInRoot.height
+            with(compose.density) { assertTrue("$tag ${height.toDp()}", height.toDp() >= 48.dp) }
+        }
     }
 }

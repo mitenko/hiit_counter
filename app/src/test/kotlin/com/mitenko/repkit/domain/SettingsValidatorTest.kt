@@ -1,6 +1,7 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
 import org.junit.Assert.assertEquals
@@ -155,5 +156,34 @@ class SettingsValidatorTest {
         assertEquals(FieldMessage.AtLeastCurrentStreak, SettingsValidator.currentState(65, 3, 4, null, now).errors[Field.BEST_STREAK])
         assertEquals(FieldMessage.ZeroOrMore, SettingsValidator.currentState(65, 0, -1, null, now).errors[Field.CURRENT_STREAK])
         assertEquals(FieldMessage.InTheFuture, SettingsValidator.currentState(65, 24, 4, now.plusSeconds(60), now).errors[Field.LAST_CHECK_IN])
+    }
+
+    @Test
+    fun `duplicates are keyed by kind and value`() {
+        // Spec rev 34 §3: "at 64" and "from 64" coexist.
+        assertTrue(SettingsValidator.progression(holds(Hold(64, 4), Hold(64, 2, HoldKind.FROM))).isValid)
+        val r = SettingsValidator.progression(
+            holds(Hold(60, 2, HoldKind.FROM), Hold(64, 4), Hold(60, 3, HoldKind.FROM), Hold(64, 1)),
+        )
+        assertFalse(r.isValid)
+        assertEquals(
+            mapOf(
+                2 to mapOf(HoldField.AT to FieldMessage.DuplicateHoldFrom(60)),
+                3 to mapOf(HoldField.AT to FieldMessage.DuplicateHold(64)),
+            ),
+            r.holdErrors,
+        )
+        assertTrue(SettingsValidator.progression(holds(Hold(60, 2, HoldKind.FROM), Hold(60, 3, HoldKind.FROM), hold = false)).isValid)
+    }
+
+    @Test
+    fun `an inactive From hold gets the plain disabled hint`() {
+        // Plan note 1: never the "Hold at N is above/below" hint, which names the wrong kind.
+        listOf(Hold(72, 2, HoldKind.FROM), Hold(80, 2, HoldKind.FROM), Hold(40, 2, HoldKind.FROM), Hold(60, 0, HoldKind.FROM)).forEach {
+            val r = SettingsValidator.progression(holds(it))
+            assertTrue("$it", r.isValid)
+            assertEquals("$it", mapOf(0 to FieldMessage.HoldDisabled), r.holdHints)
+        }
+        assertTrue(SettingsValidator.progression(holds(Hold(60, 2, HoldKind.FROM))).holdHints.isEmpty())
     }
 }

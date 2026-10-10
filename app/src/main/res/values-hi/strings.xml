@@ -281,4 +281,10 @@
         <item quantity="one">%1$d</item>
         <item quantity="other">%1$d</item>
     </plurals>
+    <string name="hold_kind_at">पर</string>
+    <string name="hold_kind_from">से</string>
+    <string name="hold_from">यहाँ से होल्ड करें</string>
+    <string name="hold_n_from">होल्ड %1$d की शुरुआत</string>
+    <string name="info_hold_from">इस संख्या से ऊपर की हर संख्या पर तय चेक-इन तक होल्ड होता है, फिर आप आगे बढ़ते हैं। इससे आपके अधिकतम के पास प्रगति धीमी हो जाती है।</string>
+    <string name="error_duplicate_hold_from">%1$d से पहले से होल्ड है</string>
 </resources>

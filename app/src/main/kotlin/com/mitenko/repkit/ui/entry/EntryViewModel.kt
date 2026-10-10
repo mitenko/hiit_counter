@@ -69,7 +69,10 @@ data class EntryUiState(
  */
 data class Highlight(val id: Int, val changes: Map<Int, RepsColumnLayout.Change>, val hold: HoldStatus? = null)
 
-/** Spec revision 20: the hold a check-in stayed on, for the announcement ("Holding at 64, 2 of 4"). */
+/**
+ * Spec revision 20, as amended by rev 34 §6: the hold a check-in stayed on, for the announcement
+ * ("Holding at 66, 1 of 2"). [at] is the held total, which inside a From range is not the hold's start.
+ */
 data class HoldStatus(val at: Int, val day: Int, val of: Int)
 
 @HiltViewModel
@@ -231,7 +234,7 @@ class EntryViewModel @Inject constructor(
         val hold = progression?.activeHold(result.state.total)
         if (hold != null && result.state.holdCount > 0) {
             val all = before.indices.associateWith { RepsColumnLayout.Change.HOLD }
-            _highlight.value = Highlight(++highlightSeq, all, HoldStatus(hold.at, result.state.holdCount, hold.forCount))
+            _highlight.value = Highlight(++highlightSeq, all, HoldStatus(result.state.total, result.state.holdCount, hold.forCount))
         }
     }
 
