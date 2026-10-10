@@ -2,6 +2,7 @@ package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.Hold
+import com.mitenko.repkit.domain.model.HoldKind
 import com.mitenko.repkit.domain.model.ProgressionConfig
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -298,5 +299,41 @@ class RepProgressionTest {
         val r = streaksOnly(s, hoursLater(10.0))
         assertEquals(Outcome.AlreadyToday, r.outcome)
         assertEquals(s, r.state)
+    }
+
+    private val from64 = cfg.copy(holds = listOf(Hold(64, 2, HoldKind.FROM)))
+
+    @Test
+    fun `a From hold holds every value from its start for its count`() {
+        val expected = listOf(63 to 0, 64 to 1, 64 to 2, 65 to 1, 65 to 2, 66 to 1, 66 to 2, 67 to 1)
+        assertEquals(expected, climb(state(62), expected.size, from64))
+    }
+
+    @Test
+    fun `a From range ends below the cap, which never holds`() {
+        assertEquals(listOf(71 to 1, 71 to 2, 72 to 0, 72 to 0), climb(state(70, hold = 2), 4, from64))
+    }
+
+    @Test
+    fun `a miss inside a From range restarts the value it lands on`() {
+        // 60 h away: round((60 - 24) / 19.5) - 1 = 1 rep lost.
+        assertEquals(65 to 1, check(state(66, hold = 1), hoursLater(60.0), from64).state.totalAndHold())
+        // 84 h away: 2 reps lost, landing on the range's first value.
+        assertEquals(64 to 1, check(state(66, hold = 2), hoursLater(84.0), from64).state.totalAndHold())
+        // Below the range: no hold.
+        assertEquals(63 to 0, check(state(65, hold = 2), hoursLater(84.0), from64).state.totalAndHold())
+    }
+
+    @Test
+    fun `an At hold on a From's first value runs its own count, then the From range takes over`() {
+        val c = cfg.copy(holds = listOf(Hold(64, 4), Hold(64, 2, HoldKind.FROM)))
+        val expected = listOf(64 to 1, 64 to 2, 64 to 3, 64 to 4, 65 to 1, 65 to 2, 66 to 1)
+        assertEquals(expected, climb(state(63), expected.size, c))
+    }
+
+    @Test
+    fun `a first check-in inside a From range starts the hold`() {
+        val c = from64.copy(startingTotal = 66)
+        assertEquals(66 to 1, check(CounterState(total = 66), t0, c).state.totalAndHold())
     }
 }

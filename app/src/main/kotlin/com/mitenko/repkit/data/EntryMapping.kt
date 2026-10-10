@@ -171,13 +171,14 @@ private fun EntryEntity.storedWeightHolds(ladder: Set<Int>, reps: IntRange, mode
 /**
  * Spec rev 16 §5: the holds column, or for "" (a row v5 code never wrote) the legacy hold_at /
  * hold_for as a one-item list. Bad items are dropped (text with no good item reads as the default
- * hold), then later duplicates and holds past the 8th, so the list alone never fails the group check
- * and resets the rest of the progression.
+ * hold), then later duplicates of the same kind and value and holds past the 8th, so the list alone
+ * never fails the group check and resets the rest of the progression.
  */
 private fun EntryEntity.storedHolds(): List<Hold> {
     if (holds.isEmpty()) return listOf(legacyHold())
     val decoded = checked(id, "holds", HoldsCodec.decode(holds), listOf(ProgressionConfig.DEFAULT_HOLD)) { it != null }!!
-    val repaired = decoded.distinctBy { it.at }.take(ProgressionConfig.MAX_HOLDS)
+    // Spec rev 34 §4: duplicates are keyed by (kind, at), so "at 64" and "from 64" both stay.
+    val repaired = decoded.distinctBy { it.kind to it.at }.take(ProgressionConfig.MAX_HOLDS)
     if (HoldsCodec.encode(repaired) != holds) logRepair(id, "holds", "Entry $id: repaired holds=$holds to $repaired")
     return repaired
 }
@@ -245,7 +246,7 @@ internal data class StoredCounter(
     val freshStart: Boolean = false,
 )
 
-/** Rev 16 §5: the legacy hold_at / hold_for columns mirror the first hold (64 / 4 for an empty list). */
+/** Rev 16 §5: the legacy hold_at / hold_for columns mirror the first hold (64 / 4 for an empty list), whatever its kind (spec rev 34 §4). */
 internal val ProgressionConfig.legacyHold: Hold
     get() = holds.firstOrNull() ?: ProgressionConfig.DEFAULT_HOLD
 

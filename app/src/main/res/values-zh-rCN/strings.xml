@@ -264,4 +264,10 @@
     <plurals name="voice_count">
         <item quantity="other">%1$d</item>
     </plurals>
+    <string name="hold_kind_at">在</string>
+    <string name="hold_kind_from">从</string>
+    <string name="hold_from">从此起保持</string>
+    <string name="hold_n_from">保持 %1$d 的起点</string>
+    <string name="info_hold_from">从这个数字起，每个数字都会保持设定的打卡次数后再继续增加，让接近最多次数时的进阶放慢。</string>
+    <string name="error_duplicate_hold_from">已有从 %1$d 起的保持</string>
 </resources>

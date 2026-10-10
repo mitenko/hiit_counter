@@ -22,10 +22,10 @@ class InfoTextsTest {
     }
 
     private companion object {
-        /** The 20 labelled rows of spec R3 §7.2 in page order, then R4 §6's Type (Entry Settings) and Voice (Cues), then rev 30's crash reports switch (the ⚙ dialog). */
+        /** The 20 labelled rows of spec R3 §7.2 in page order, then R4 §6's Type (Entry Settings) and Voice (Cues), then rev 30's crash reports switch (the ⚙ dialog), then rev 34's Hold from. */
         val ROWS = listOf(
             "info_prepare", "info_sets", "info_work", "info_rest", "info_cooldown", "info_total",
-            "info_starting_total", "info_floor", "info_cap", "info_hold", "info_hold_at", "info_hold_for",
+            "info_starting_total", "info_floor", "info_cap", "info_hold", "info_hold_at", "info_hold_from", "info_hold_for",
             "info_window", "info_penalty_rate",
             "info_total_reps", "info_best_streak", "info_current_streak", "info_last_check_in",
             "info_sound", "info_vibration",

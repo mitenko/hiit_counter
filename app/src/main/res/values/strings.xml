@@ -359,4 +359,13 @@
         <item quantity="one">%1$d</item>
         <item quantity="other">%1$d</item>
     </plurals>
+
+    <!-- Hold from (spec rev 34 §7) -->
+    <string name="hold_kind_at">At</string>
+    <string name="hold_kind_from">From</string>
+    <string name="hold_from">Hold from</string>
+    <!-- The spoken name of hold N's value row, like hold_n_at: %1$d is the hold's index, not a count -->
+    <string name="hold_n_from" tools:ignore="PluralsCandidate">Hold %1$d from</string>
+    <string name="info_hold_from">Every number from this one up holds for the check-in count before you climb again, which slows the climb near your maximum.</string>
+    <string name="error_duplicate_hold_from">Already a hold from %1$d</string>
 </resources>
