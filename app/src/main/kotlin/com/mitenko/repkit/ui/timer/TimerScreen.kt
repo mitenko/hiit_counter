@@ -36,8 +36,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
@@ -105,10 +109,16 @@ fun TimerScreen(
                 }
             }
             val description = ui.description.resolve()
-            BoxWithConstraints(Modifier.fillMaxWidth(0.85f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+            // Spec revision 35: 0.95 ring, 0.44 number, 0.21 countdown — the largest factors that
+            // still fit the three inside the ring's open centre without overlapping.
+            BoxWithConstraints(Modifier.fillMaxWidth(0.95f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                 // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
-                val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
-                DualRing(ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = HiitColors.SetRing, modifier = Modifier.fillMaxSize())
+                val numberSize = with(LocalDensity.current) { (maxWidth * 0.44f).toSp() }
+                val countdownSize = with(LocalDensity.current) { (maxWidth * 0.21f).toSp() }
+                DualRing(
+                    ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = HiitColors.SetRing,
+                    modifier = Modifier.fillMaxSize().testTag("ring"),
+                )
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
@@ -120,12 +130,16 @@ fun TimerScreen(
                         Text(
                             "$it",
                             color = if (ui.centerDimmed) color.copy(alpha = 0.45f) else color,
-                            fontSize = numberSize,
-                            fontWeight = FontWeight.Bold,
+                            style = tightCentreTextStyle(numberSize, FontWeight.Bold),
                             modifier = Modifier.testTag("center_number"),
                         )
                     }
-                    Text(ui.countdownText, color = Color.White, style = MaterialTheme.typography.displaySmall, modifier = Modifier.testTag("countdown"))
+                    Text(
+                        ui.countdownText,
+                        color = Color.White,
+                        style = tightCentreTextStyle(countdownSize),
+                        modifier = Modifier.testTag("countdown"),
+                    )
                 }
             }
             if (!ui.done) {
@@ -154,6 +168,18 @@ fun TimerScreen(
         }
     }
 }
+
+/**
+ * A tight line height (no extra font-padding leading) for the ring's centre text (spec revision
+ * 35), so the larger rep number and countdown don't claim more vertical space than their glyphs.
+ */
+private fun tightCentreTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = null) = TextStyle(
+    fontSize = fontSize,
+    lineHeight = fontSize,
+    fontWeight = fontWeight,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both),
+)
 
 @Composable
 private fun Stat(@StringRes label: Int, value: String, testTag: String) {
