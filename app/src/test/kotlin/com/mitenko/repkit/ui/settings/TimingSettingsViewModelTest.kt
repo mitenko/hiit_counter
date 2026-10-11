@@ -8,7 +8,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
@@ -185,6 +189,21 @@ class TimingSettingsViewModelTest {
         assertNull(vm.setsPrompt.value)
         leaveTiming(vm)
         assertEquals(TimingSettingsViewModel.SetsChange(from = 8, to = 10), vm.setsPrompt.value)
+    }
+
+    @Test
+    fun `a weight-mode entry is never prompted, since its reps are per set`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(
+            1,
+            progression = ProgressionConfig(mode = ProgressMode.WEIGHT, weight = WeightConfig(unit = WeightUnit.KG)),
+            counter = CounterState(total = 3),
+        )))
+        val vm = TimingSettingsViewModel(handle, repo, backgroundScope)
+        vm.pageShown(timing = true)
+        runCurrent()
+        vm.update { it.copy(sets = 9) }
+        leaveTiming(vm)
+        assertNull(vm.setsPrompt.value)
     }
 
     @Test

@@ -31,6 +31,9 @@ enum class ValueInput(val keyboardType: KeyboardType, @param:StringRes val inval
     TIME(KeyboardType.Ascii, R.string.error_time_format),
     WHOLE(KeyboardType.Number, R.string.error_enter_number),
     DECIMAL(KeyboardType.Decimal, R.string.error_enter_number),
+
+    /** A weight: a decimal with at most 2 places (plan Spec note 26). */
+    WEIGHT(KeyboardType.Decimal, R.string.error_enter_weight),
 }
 
 /**

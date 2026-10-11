@@ -186,4 +186,12 @@ class SettingsValidatorTest {
         }
         assertTrue(SettingsValidator.progression(holds(Hold(60, 2, HoldKind.FROM))).holdHints.isEmpty())
     }
+
+    @Test
+    fun `in a weight mode the total is a level - 0 is valid and past the top isn't`() {
+        val now = Instant.parse("2026-10-06T12:00:00Z")
+        assertTrue(SettingsValidator.currentState(0, 0, 0, null, now, levels = 0..16).isValid)
+        assertEquals(FieldMessage.NotOnLadder, SettingsValidator.currentState(17, 0, 0, null, now, levels = 0..16).errors[Field.TOTAL])
+        assertEquals(FieldMessage.AtLeastOne, SettingsValidator.currentState(0, 0, 0, null, now).errors[Field.TOTAL])
+    }
 }

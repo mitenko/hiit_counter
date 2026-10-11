@@ -16,7 +16,13 @@ import com.mitenko.repkit.domain.Outcome
 import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.WeightConversion
+import com.mitenko.repkit.domain.WeightField
+import com.mitenko.repkit.domain.WeightMove
 import com.mitenko.repkit.domain.loadAt
+import com.mitenko.repkit.domain.resolveWeightEdit
+import com.mitenko.repkit.domain.startLevel
+import com.mitenko.repkit.domain.withKind
+import com.mitenko.repkit.domain.withoutListWeight
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.CueConfig
@@ -1193,5 +1199,251 @@ class RoomEntryRepositoryTest {
         assertFalse(ShadowLog.getLogsForTag("EntryMapping").any { "Invalid total" in it.msg })
         r.setProgression(a, ProgressionConfig(holds = listOf(Hold(66, 3)), cap = 60, hold = false))
         assertEquals(0 to 0, db.entryDao().get(a)!!.let { it.total to it.holdCount })
+    }
+
+    @Test
+    fun `setWeightConfig returns where it moved the current weight, and null when it stayed`() = runTest {
+        val r = repo()
+        val id = r.create("Curls")
+        r.switchMode(id, ProgressMode.WEIGHT, WeightUnit.KG)
+        r.overwriteCounter(id, total = 2, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // 25 kg on 20 / 2.5 / 60
+        val list = WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(2000, 2250, 3000))
+        assertEquals(WeightMove.CurrentMoved(2250, null), r.setWeightConfig(id, list))
+        assertEquals(1, db.entryDao().get(id)!!.total)
+        assertNull(r.setWeightConfig(id, list.copy(repsPerSet = 12)))
+    }
+
+    @Test
+    fun `setWeightConfig notes moved reps in Reps then weight, and nothing for an untouched counter`() = runTest {
+        val r = repo()
+        val id = r.create("Curls")
+        r.switchMode(id, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG)
+        assertNull(r.setWeightConfig(id, WeightConfig(unit = WeightUnit.KG, repMin = 8, repMax = 10))) // NULL total: nothing to move
+        r.overwriteCounter(id, total = 2, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // 20 kg × 10
+        assertEquals(WeightMove.CurrentMoved(2000, 9), r.setWeightConfig(id, WeightConfig(unit = WeightUnit.KG, repMin = 8, repMax = 9)))
+    }
+
+    @Test
+    fun `setWeightConfig in Reps mode never notes a move`() = runTest {
+        val r = repo()
+        val id = r.create("Curls")
+        assertNull(r.setWeightConfig(id, WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(800, 1200))))
+    }
+
+    // Plan Spec notes 43, 45, 46 and the transition matrix (note 47). Most of these pin behaviour PR 1
+    // already has; they fail only if a later change breaks a contract.
+
+    /** Weight mode on 10 / 5 / 25 kg (10, 15, 20, 25), a hold on 20 for 3, at 15 kg (level 1), hold count 2, fresh start still set. */
+    private suspend fun matrixRow(r: RoomEntryRepository): Long {
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        r.setWeightConfig(a, WeightConfig(unit = WeightUnit.KG, steps = WeightSteps(1000, 500, 2500), holds = listOf(WeightHold(2000, 8, 3))))
+        val row = db.entryDao().get(a)!!
+        db.entryDao().setCounter(a, 1, row.bestStreak, row.currentStreak, holdCount = 2, lastCheckIn = row.lastCheckIn)
+        return a
+    }
+
+    private suspend fun weightsOf(r: RoomEntryRepository, a: Long) = r.entry(a).first()!!.progression.weight
+
+    /** total, hold_count, fresh_start as stored. */
+    private suspend fun counterOf(a: Long) = db.entryDao().get(a)!!.let { listOf<Any?>(it.total, it.holdCount, it.freshStart) }
+
+    @Test
+    fun `matrix - Steps to My weights with the same values keeps the level, the hold count and the fresh start`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        assertNull(r.setWeightConfig(a, weightsOf(r, a).withKind(WeightsKind.LIST)))
+        assertEquals("1000,1500,2000,2500", db.entryDao().get(a)!!.weightList)
+        assertEquals(listOf<Any?>(1, 2, true), counterOf(a))
+    }
+
+    @Test
+    fun `matrix - a unit change converts in one save and keeps the level, the hold count, the fresh start and the history`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        db.checkInDao().insert(CheckInEntity(entryId = a, at = 1L, total = 1, weight = 1500, reps = 10, unit = "KG"))
+        val history = db.checkInDao().getForEntry(a)
+        val lb = WeightConversion.convert(weightsOf(r, a), WeightUnit.LB)
+        assertNull(r.setWeightConfig(a, lb))
+        assertEquals(lb, weightsOf(r, a))
+        assertEquals(listOf<Any?>(1, 2, true), counterOf(a))
+        assertEquals(history, db.checkInDao().getForEntry(a))
+    }
+
+    @Test
+    fun `matrix - removing a weight renumbers the level but keeps its value and the hold count`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        assertNull(r.setWeightConfig(a, weightsOf(r, a).withKind(WeightsKind.LIST).withoutListWeight(0))) // 10 kg gone
+        assertEquals(listOf<Any?>(0, 2, true), counterOf(a)) // 15 kg is now level 0
+    }
+
+    @Test
+    fun `matrix - removing the current weight moves it down, notes it and resets the hold count`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        assertEquals(WeightMove.CurrentMoved(1000, null), r.setWeightConfig(a, weightsOf(r, a).withKind(WeightsKind.LIST).withoutListWeight(1)))
+        assertEquals(listOf<Any?>(0, 0, true), counterOf(a))
+    }
+
+    @Test
+    fun `matrix - a hold whose weight is removed is dropped and resets the hold count`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        assertNull(r.setWeightConfig(a, weightsOf(r, a).withKind(WeightsKind.LIST).withoutListWeight(2))) // 20 kg gone; its hold is still in the draft
+        assertEquals(emptyList<WeightHold>(), weightsOf(r, a).holds)
+        assertEquals(listOf<Any?>(1, 0, true), counterOf(a))
+    }
+
+    @Test
+    fun `matrix - reset to defaults in a weight mode moves to the lightest default and resets the hold count`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        assertEquals(WeightMove.CurrentMoved(2000, null), r.setWeightConfig(a, WeightConfig(unit = WeightUnit.KG))) // nothing ≤ 15 kg: the lightest, 20
+        assertEquals(WeightConfig(unit = WeightUnit.KG), weightsOf(r, a))
+        assertEquals(listOf<Any?>(0, 0, true), counterOf(a))
+    }
+
+    @Test
+    fun `the stored row doesn't depend on whether the draft was remapped or sorted first`() = runTest {
+        val r = repo()
+        val a = matrixRow(r)
+        val b = matrixRow(r)
+        val before = weightsOf(r, a).withKind(WeightsKind.LIST).copy(startWeight = 1500)
+        r.setWeightConfig(a, before)
+        r.setWeightConfig(b, before)
+        // One edit removing 15 kg, the start and current weight. a: stale and unsorted; b: remapped by the page first.
+        val stale = before.copy(list = listOf(2500, 1000, 2000))
+        val remapped = resolveWeightEdit(ProgressMode.WEIGHT, before, before.withoutListWeight(1), WeightField.LIST).config
+        assertEquals(1000, remapped.startWeight)
+        assertEquals(WeightMove.CurrentMoved(1000, null), r.setWeightConfig(a, stale))
+        assertEquals(WeightMove.CurrentMoved(1000, null), r.setWeightConfig(b, remapped))
+        assertEquals(db.entryDao().get(a)!!.copy(id = 0, position = 0), db.entryDao().get(b)!!.copy(id = 0, position = 0))
+    }
+
+    @Test
+    fun `switchMode keeps a unit the workout already has`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.LB)
+        r.switchMode(a, ProgressMode.REPS, WeightUnit.KG)
+        r.switchMode(a, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG) // the app default is now kg
+        assertEquals("LB", db.entryDao().get(a)!!.weightUnit)
+    }
+
+    // Bug fix (batch 1 review, 2026-10-10): the stored level indexes the stored, unconverted ladder,
+    // but a unit change's `old` is already converted. WeightConversion.convert's distinct() can merge
+    // weights, shifting indexes, so the current load must be found on the stored ladder first and only
+    // then converted and re-found on the converted ladder.
+
+    @Test
+    fun `a unit change finds the current load on the stored ladder before converting it (Weight mode)`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.LB)
+        r.setWeightConfig(a, WeightConfig(unit = WeightUnit.LB, kind = WeightsKind.LIST, list = listOf(1300, 1350, 1400)))
+        r.overwriteCounter(a, total = 1, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // level 1: 13.5 lb
+        val row = db.entryDao().get(a)!!
+        db.entryDao().setCounter(a, row.total, row.bestStreak, row.currentStreak, holdCount = 2, lastCheckIn = row.lastCheckIn)
+        val kg = WeightConversion.convert(r.entry(a).first()!!.progression.weight, WeightUnit.KG)
+        assertEquals(listOf(600, 625), kg.list) // the merge: 13 and 13.5 lb both round to 6.0 kg
+        assertNull(r.setWeightConfig(a, kg)) // kept by value: not a move, even though the level index shifts
+        assertEquals(0, db.entryDao().get(a)!!.total) // 6.0 kg (index 0), not the buggy 6.25 kg (index 1)
+        assertEquals(2, db.entryDao().get(a)!!.holdCount) // unchanged
+    }
+
+    @Test
+    fun `a unit change in Reps then weight keeps the reps and finds the load on the stored ladder`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.LB)
+        r.setWeightConfig(a, WeightConfig(unit = WeightUnit.LB, kind = WeightsKind.LIST, list = listOf(1300, 1350, 1400), repMin = 8, repMax = 10))
+        r.overwriteCounter(a, total = 4, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // 13.5 lb × 9 reps (level 1×3 + 1)
+        val row = db.entryDao().get(a)!!
+        db.entryDao().setCounter(a, row.total, row.bestStreak, row.currentStreak, holdCount = 2, lastCheckIn = row.lastCheckIn)
+        val kg = WeightConversion.convert(r.entry(a).first()!!.progression.weight, WeightUnit.KG)
+        assertEquals(listOf(600, 625), kg.list) // the same merge: 13 and 13.5 lb both round to 6.0 kg
+        assertNull(r.setWeightConfig(a, kg))
+        assertEquals(1, db.entryDao().get(a)!!.total) // 6.0 kg × 9 reps (level 0×3 + 1), not the buggy 6.25 kg
+        assertEquals(Prescription.Load(600, 9), r.entry(a).first()!!.progression.loadAt(1))
+        assertEquals(2, db.entryDao().get(a)!!.holdCount) // unchanged
+    }
+
+    @Test
+    fun `a Reps then weight Current save resets the hold count only when the level changes, and never widens`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG) // 20 / 2.5 / 60 kg × 8–12: 17 weights × span 5, levels 0..84
+        r.overwriteCounter(a, total = 7, bestStreak = 0, currentStreak = 0, lastCheckIn = null) // 22.5 kg × 10
+        val before = db.entryDao().get(a)!!
+        db.entryDao().setCounter(a, 7, 0, 0, holdCount = 2, lastCheckIn = null)
+        assertNull(r.overwriteCounter(a, total = 7, bestStreak = 3, currentStreak = 3, lastCheckIn = null)) // streaks only: same level
+        assertEquals(2, db.entryDao().get(a)!!.holdCount)
+        assertNull(r.overwriteCounter(a, total = 2, bestStreak = 3, currentStreak = 3, lastCheckIn = null)) // weight only: 20 kg × 10
+        assertEquals(0, db.entryDao().get(a)!!.holdCount)
+        assertNull(r.overwriteCounter(a, total = 84, bestStreak = 3, currentStreak = 3, lastCheckIn = null)) // the top: 60 kg × 12
+        val after = db.entryDao().get(a)!!
+        assertEquals(listOf(before.startingTotal, before.floor, before.cap), listOf(after.startingTotal, after.floor, after.cap))
+        assertTrue(runCatching { r.overwriteCounter(a, total = 85, bestStreak = 3, currentStreak = 3, lastCheckIn = null) }.exceptionOrNull() is IllegalArgumentException)
+        assertEquals(84, db.entryDao().get(a)!!.total)
+    }
+
+    @Test
+    fun `a Current edit that keeps the level keeps the fresh start, and moving the level clears it`() = runTest {
+        val r = repo()
+        val id = r.create("Curls")
+        r.switchMode(id, ProgressMode.WEIGHT, WeightUnit.KG)
+        r.overwriteCounter(id, total = 0, bestStreak = 5, currentStreak = 5, lastCheckIn = null) // the start level, streaks edited
+        assertEquals(true, db.entryDao().get(id)!!.freshStart)
+        r.overwriteCounter(id, total = 3, bestStreak = 5, currentStreak = 5, lastCheckIn = null)
+        assertEquals(false, db.entryDao().get(id)!!.freshStart)
+    }
+
+    // §10 note 49: a streak-only Current save on an untouched (NULL) counter must keep it NULL, not
+    // freeze it as the resolved start value — otherwise a later setWeightConfig/setProgression remaps
+    // that frozen value instead of following the new start.
+    @Test
+    fun `a streak-only Current save on an untouched weight level keeps it NULL, so a later start-weight change still lands there`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        assertNull(db.entryDao().get(a)!!.total)
+        assertEquals(0, r.entry(a).first()!!.counter.total) // the lightest weight (20 kg), the resolved start
+        r.overwriteCounter(a, total = 0, bestStreak = 5, currentStreak = 5, lastCheckIn = null) // streak-only: same level
+        assertNull(db.entryDao().get(a)!!.total) // stays untouched, not frozen at 0
+        assertTrue(db.entryDao().get(a)!!.freshStart)
+        val weight = r.entry(a).first()!!.progression.weight
+        assertNull(r.setWeightConfig(a, weight.copy(startWeight = 3000))) // move the start to 30 kg; no move reported
+        assertNull(db.entryDao().get(a)!!.total) // still untouched
+        val entry = r.entry(a).first()!!
+        assertEquals(entry.progression.startLevel(), entry.counter.total)
+        assertEquals(Prescription.Load(3000, 10), entry.progression.loadAt(entry.counter.total))
+        val result = r.checkIn(a, clock) // the next check-in lands on the new start, not the old one
+        assertEquals(Prescription.Load(3000, 10), entry.progression.loadAt(result.state.total))
+    }
+
+    @Test
+    fun `a streak-only Current save on an untouched Reps total keeps it NULL, so a later starting-total change still lands there`() = runTest {
+        val r = repo()
+        val a = r.create("Burpees")
+        assertNull(db.entryDao().get(a)!!.total)
+        assertEquals(48, r.entry(a).first()!!.counter.total) // the default starting total, the resolved start
+        r.overwriteCounter(a, total = 48, bestStreak = 5, currentStreak = 5, lastCheckIn = null) // streak-only: same level
+        assertNull(db.entryDao().get(a)!!.total) // stays untouched, not frozen at 48
+        assertNull(r.setProgression(a, ProgressionConfig(startingTotal = 60, floor = 55))) // no move: still untouched
+        assertNull(db.entryDao().get(a)!!.total) // still untouched
+        assertEquals(60, r.entry(a).first()!!.counter.total) // follows the new starting total
+    }
+
+    @Test
+    fun `overwriteCounter with a real level change still stores it and clears the fresh start`() = runTest {
+        val r = repo()
+        val a = r.create("Curls")
+        r.switchMode(a, ProgressMode.WEIGHT, WeightUnit.KG)
+        assertNull(db.entryDao().get(a)!!.total)
+        r.overwriteCounter(a, total = 3, bestStreak = 1, currentStreak = 1, lastCheckIn = null) // a real level, not the start
+        val row = db.entryDao().get(a)!!
+        assertEquals(3, row.total)
+        assertFalse(row.freshStart)
     }
 }

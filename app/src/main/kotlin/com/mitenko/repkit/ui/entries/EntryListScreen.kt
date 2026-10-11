@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,12 +69,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
 import com.mitenko.repkit.ui.common.EntryLimitDialog
 import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
+import com.mitenko.repkit.ui.common.longLabel
 import com.mitenko.repkit.ui.theme.ThemeMode
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -82,6 +86,7 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
     val state by vm.uiState.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val crashReports by vm.crashReportsEnabled.collectAsStateWithLifecycle()
+    val weightUnit by vm.weightUnitDefault.collectAsStateWithLifecycle()
     val limitDialog by vm.limitDialog.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
@@ -96,6 +101,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onSetThemeMode = vm::setThemeMode,
         crashReportsEnabled = crashReports,
         onSetCrashReportsEnabled = vm::setCrashReportsEnabled,
+        weightUnit = weightUnit,
+        onSetWeightUnit = vm::setWeightUnitDefault,
         onRequestAdd = vm::requestAdd,
         limitDialog = limitDialog,
         maxEntries = vm.maxEntries,
@@ -119,6 +126,8 @@ fun EntryListScreen(
     onSetThemeMode: (ThemeMode) -> Unit = {},
     crashReportsEnabled: Boolean = true,
     onSetCrashReportsEnabled: (Boolean) -> Unit = {},
+    weightUnit: WeightUnit = WeightUnit.KG,
+    onSetWeightUnit: (WeightUnit) -> Unit = {},
     onRequestAdd: () -> Boolean = { true },
     limitDialog: Boolean = false,
     maxEntries: Int = FreeLimits().maxEntries,
@@ -193,6 +202,11 @@ fun EntryListScreen(
             },
             crashReports = crashReportsEnabled,
             onCrashReportsChange = onSetCrashReportsEnabled,
+            unit = weightUnit,
+            onSelectUnit = { unit ->
+                showSettings = false
+                onSetWeightUnit(unit)
+            },
             onDismiss = { showSettings = false },
         )
     }
@@ -200,8 +214,9 @@ fun EntryListScreen(
 
 /**
  * The ⚙ Settings dialog (spec rev 30 §3). Under an Appearance heading, spec rev 14 §5's System /
- * Light / Dark options save at once and close the dialog. Under them, the "Share crash reports and
- * usage" switch applies at once and leaves the dialog open.
+ * Light / Dark options save at once and close the dialog. Under Appearance, Units (spec rev 26 §3):
+ * kg or lb for new weight workouts, saved at once, closing the dialog. Under them, the "Share crash
+ * reports and usage" switch applies at once and leaves the dialog open.
  */
 @Composable
 private fun SettingsDialog(
@@ -209,13 +224,15 @@ private fun SettingsDialog(
     onSelect: (ThemeMode) -> Unit,
     crashReports: Boolean,
     onCrashReportsChange: (Boolean) -> Unit,
+    unit: WeightUnit,
+    onSelectUnit: (WeightUnit) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings), modifier = Modifier.testTag("settings_title")) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     stringResource(R.string.appearance),
                     style = MaterialTheme.typography.titleSmall,
@@ -226,6 +243,19 @@ private fun SettingsDialog(
                     ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
                     ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
                     ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
+                }
+                // Spec rev 26 §3, plan Spec note 36: the unit new weight workouts start in; saved at once, closing like Appearance.
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.units),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { heading() }.testTag("units_heading"),
+                    )
+                    InfoTag(title = stringResource(R.string.units), text = stringResource(R.string.info_units))
+                }
+                Column(Modifier.selectableGroup()) {
+                    WeightUnit.entries.forEach { UnitOptionRow(it, unit, onSelectUnit) }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 CrashReportsRow(crashReports, onCrashReportsChange)
@@ -259,6 +289,22 @@ private fun ThemeOptionRow(mode: ThemeMode, label: Int, current: ThemeMode, onSe
     ) {
         RadioButton(selected = selected, onClick = null)
         Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun UnitOptionRow(option: WeightUnit, current: WeightUnit, onSelect: (WeightUnit) -> Unit) {
+    val selected = option == current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, onClick = { onSelect(option) }, role = Role.RadioButton)
+            .testTag("unit_default_${option.name}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Text(stringResource(option.longLabel), modifier = Modifier.padding(start = 8.dp))
     }
 }
 

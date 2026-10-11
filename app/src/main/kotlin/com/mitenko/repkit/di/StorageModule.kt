@@ -11,6 +11,7 @@ import com.mitenko.repkit.R
 import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.data.RoomEntryRepository
+import com.mitenko.repkit.data.WeightUnitDefaults
 import com.mitenko.repkit.data.db.HiitDatabase
 import com.mitenko.repkit.data.v1.V1Migrator
 import com.mitenko.repkit.domain.Clock
@@ -44,6 +45,10 @@ object StorageModule {
             produceFile = { context.preferencesDataStoreFile(AppPreferences.FILE_NAME) },
         ),
     )
+
+    /** Plan Spec note 36: the settings read the app default unit through this seam. */
+    @Provides
+    fun weightUnitDefaults(preferences: AppPreferences): WeightUnitDefaults = preferences
 
     /** The v1 files live where v1's preferencesDataStoreFile put them: filesDir/datastore. */
     @Provides @Singleton

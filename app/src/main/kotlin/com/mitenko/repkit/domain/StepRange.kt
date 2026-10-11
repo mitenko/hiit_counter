@@ -1,5 +1,7 @@
 package com.mitenko.repkit.domain
 
+import com.mitenko.repkit.domain.model.WeightConfig
+
 /** A stepper field's step and hard range (spec §8.1): ± and dialog values never leave [min]..[max]. */
 data class StepRange(val min: Int, val max: Int, val step: Int) {
     init {
@@ -28,4 +30,7 @@ object FieldRanges {
     val TOTAL = StepRange(1, 9999, 1)
     /** Best and current streak. */
     val STREAK = StepRange(0, 99999, 1)
+
+    /** Reps per set, the rep range and starting reps per set in a weight mode (spec rev 26 §3.1): 1–100. */
+    val REPS_PER_SET = StepRange(1, WeightConfig.MAX_REPS, 1)
 }

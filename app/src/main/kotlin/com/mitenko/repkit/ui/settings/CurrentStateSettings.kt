@@ -44,13 +44,18 @@ import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldRanges
 import com.mitenko.repkit.domain.Move
+import com.mitenko.repkit.domain.ProgressionScale
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.SettingsValidator
+import com.mitenko.repkit.domain.StepRange
 import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.ValidationResult
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryNotFound
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.resolveStreaks
+import com.mitenko.repkit.domain.scale
+import com.mitenko.repkit.domain.stepAlong
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.AutoSaver
 import com.mitenko.repkit.ui.common.DateFormats
@@ -63,6 +68,8 @@ import com.mitenko.repkit.ui.common.SaveStatusLine
 import com.mitenko.repkit.ui.common.SettingsPageLayout
 import com.mitenko.repkit.ui.common.ValueInput
 import com.mitenko.repkit.ui.common.ValueRow
+import com.mitenko.repkit.ui.common.WeightPickerField
+import com.mitenko.repkit.ui.common.unitLabel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,7 +94,8 @@ import javax.inject.Inject
  * widens the range, and [rangeNote] says which limit moved (spec revision 27). A current streak
  * edited above the best streak raises the best streak, and [streakNote] says so (spec revision 28).
  * Best streak itself is read-only (spec revision 29): the app keeps it current, and only a current
- * streak edit (via [update]/[updateNow] with [StreakField.CURRENT]) can raise it.
+ * streak edit (via [update]/[updateNow] with [StreakField.CURRENT]) can raise it. In a weight mode
+ * the total is a level on [ladder] (spec rev 26 §3, plan Spec note 35).
  */
 @HiltViewModel
 class CurrentStateViewModel @Inject constructor(
@@ -99,9 +107,18 @@ class CurrentStateViewModel @Inject constructor(
     /** Typed draft (spec R2 §8.1). */
     data class Draft(val total: Int, val best: Int, val current: Int, val lastCheckIn: Instant?)
 
+    /** The ladder in a weight mode (spec rev 26 §3 Current tab, plan Spec note 35): the draft's total is a level on [scale]. */
+    data class LadderView(val scale: ProgressionScale.Ladder, val unit: WeightUnit?)
+
     private val _draft = MutableStateFlow(savedStateHandle.get<LongArray>(DRAFT_KEY)?.toDraft())
     val draft: StateFlow<Draft?> = _draft.asStateFlow()
-    val validation: StateFlow<ValidationResult> = _draft.map { d -> d?.let(::validate) ?: ValidationResult() }
+
+    private val _ladder = MutableStateFlow<LadderView?>(null)
+
+    /** Null in Reps mode, and until the entry has loaded. */
+    val ladder: StateFlow<LadderView?> = _ladder.asStateFlow()
+
+    val validation: StateFlow<ValidationResult> = combine(_draft, _ladder) { d, l -> d?.let { validate(it, l) } ?: ValidationResult() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ValidationResult())
 
     private val _rangeNote = MutableStateFlow<RangeChange?>(null)
@@ -154,15 +171,28 @@ class CurrentStateViewModel @Inject constructor(
 
     init {
         // A valid draft restored after process death may never have been written; the write is idempotent if it was.
-        val restored = _draft.value?.takeIf { validate(it).isValid }
+        // Checked by the Reps rules here, so it saves even before the entry loads (as before).
+        // This schedule's debounce window is almost always cancelled by the store's first emission below
+        // (lines ~184-191); even on the rare race where it fires first, a draft invalid under the real
+        // ladder is rejected by Room's own validation, so no bad value can land either way.
+        val restoredRaw = _draft.value
+        val restored = restoredRaw?.takeIf { validate(it, ladder = null).isValid }
         restored?.let(saver::schedule)
         viewModelScope.launch {
             repo.entry(entryId).filterNotNull().collect { e ->
+                val ladder = (e.progression.scale() as? ProgressionScale.Ladder)?.let { LadderView(it, e.progression.weight.unit) }
+                _ladder.value = ladder
                 val latest = e.counter.toDraft()
                 val current = _draft.value
-                // The first store emission after a restore: a restored draft already matching the
-                // store needs no write (Minor 3); a restored draft that differs still saves.
-                if (stored == null && restored == latest) saver.cancel()
+                if (stored == null) {
+                    // A restored draft already matching the store needs no write (Minor 3); one that differs still saves.
+                    if (restoredRaw == latest) {
+                        saver.cancel()
+                    } else if (ladder != null && restoredRaw != null) {
+                        // Plan Spec note 35: in a weight mode its validity depends on the ladder (a level can be 0).
+                        if (validate(restoredRaw).isValid) saver.schedule(restoredRaw) else saver.cancel()
+                    }
+                }
                 // Follow the store only without unsaved edits. An edit back to the stored value
                 // whose save is still pending counts as unsaved, so an echo can't overwrite it.
                 if (current == null || (current == stored && !saver.hasPending)) setDraft(latest)
@@ -249,8 +279,11 @@ class CurrentStateViewModel @Inject constructor(
         )
     }
 
-    private fun validate(d: Draft): ValidationResult =
-        SettingsValidator.currentState(d.total, d.best, d.current, d.lastCheckIn, clock.now())
+    private fun validate(d: Draft, ladder: LadderView? = _ladder.value): ValidationResult =
+        SettingsValidator.currentState(
+            d.total, d.best, d.current, d.lastCheckIn, clock.now(),
+            levels = ladder?.scale?.let { it.minLevel..it.maxLevel },
+        )
 
     private companion object {
         const val TAG = "CurrentState"
@@ -275,13 +308,14 @@ fun CurrentStatePage(vm: CurrentStateViewModel, showTotal: Boolean = true) {
     val status by vm.status.collectAsStateWithLifecycle()
     val rangeNote by vm.rangeNote.collectAsStateWithLifecycle()
     val streakNote by vm.streakNote.collectAsStateWithLifecycle()
+    val ladder by vm.ladder.collectAsStateWithLifecycle()
     draft?.let {
         CurrentStatePageContent(
             it, validation, status, vm.zone, vm::now,
             onChange = { field, transform -> vm.update(field, transform) },
             onChangeNow = { field, transform -> vm.updateNow(field, transform) },
             onResetProgress = vm::resetProgress,
-            showTotal = showTotal, rangeNote = rangeNote, streakNote = streakNote,
+            showTotal = showTotal, rangeNote = rangeNote, streakNote = streakNote, ladder = ladder,
         )
     }
 }
@@ -302,6 +336,7 @@ fun CurrentStatePageContent(
     showTotal: Boolean = true,
     rangeNote: RangeChange? = null,
     streakNote: List<Move> = emptyList(),
+    ladder: CurrentStateViewModel.LadderView? = null,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -309,14 +344,18 @@ fun CurrentStatePageContent(
 
     SettingsPageLayout(footer = { SaveStatusLine(status) }) {
         if (showTotal) {
-            IntStepperField(
-                stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
-                onUpdate = { f -> onChange(null) { it.copy(total = f(it.total)) } },
-                onDialogUpdate = { f -> onChangeNow(null) { it.copy(total = f(it.total)) } },
-                error = validation.errors[Field.TOTAL].resolve(), info = stringResource(R.string.info_total_reps),
-            )
-            // Spec revision 27: which limit the save moved, announced politely to TalkBack.
-            rangeNote?.let { MoveNote(listOf(it), tag = "range_note") }
+            if (ladder == null) {
+                IntStepperField(
+                    stringResource(R.string.current_total), draft.total, FieldRanges.TOTAL, ValueInput.WHOLE,
+                    onUpdate = { f -> onChange(null) { it.copy(total = f(it.total)) } },
+                    onDialogUpdate = { f -> onChangeNow(null) { it.copy(total = f(it.total)) } },
+                    error = validation.errors[Field.TOTAL].resolve(), info = stringResource(R.string.info_total_reps),
+                )
+                // Spec revision 27: which limit the save moved, announced politely to TalkBack.
+                rangeNote?.let { MoveNote(listOf(it), tag = "range_note") }
+            } else {
+                CurrentLoadRows(draft, ladder, validation, onChange, onChangeNow)
+            }
         }
         // Best streak is read-only (spec revision 29): the app keeps it current on its own.
         ValueRow(
@@ -385,7 +424,9 @@ fun CurrentStatePageContent(
             title = { Text(stringResource(R.string.reset_progress_title)) },
             text = {
                 Column {
-                    Text(stringResource(R.string.reset_progress_body))
+                    // A Timer only entry (showTotal false) never shows a total or a load, even when it's
+                    // stuck in a weight mode from before it switched type, so it gets the normal wording.
+                    Text(stringResource(if (ladder != null && showTotal) R.string.reset_progress_body_weight else R.string.reset_progress_body))
                     ClearHistoryRow(clearHistory, onChange = { clearHistory = it })
                 }
             },
@@ -399,6 +440,43 @@ fun CurrentStatePageContent(
                 ) { Text(stringResource(R.string.reset)) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+/**
+ * The current load in a weight mode (spec rev 26 §3 Current tab, plan Spec note 35): Current weight
+ * moves along the ladder keeping the reps, and in Reps then weight Current reps per set moves within
+ * the rep range keeping the weight. Each edit writes the level; nothing widens (§10 note 20).
+ */
+@Composable
+private fun CurrentLoadRows(
+    draft: CurrentStateViewModel.Draft,
+    ladder: CurrentStateViewModel.LadderView,
+    validation: ValidationResult,
+    onChange: CurrentEdit,
+    onChangeNow: CurrentEdit,
+) {
+    val scale = ladder.scale
+    val load = scale.prescription(draft.total)
+    WeightPickerField(
+        unitLabel(R.string.current_weight, ladder.unit), scale.weights, load.weight, ladder.unit,
+        onStep = { up ->
+            onChange(null) { d ->
+                val p = scale.prescription(d.total)
+                d.copy(total = scale.levelOf(stepAlong(scale.weights, p.weight, up) ?: p.weight, p.reps))
+            }
+        },
+        onPick = { w -> onChangeNow(null) { d -> d.copy(total = scale.levelOf(w, scale.prescription(d.total).reps)) } },
+        error = validation.errors[Field.TOTAL].resolve(), info = stringResource(R.string.info_current_weight),
+        a11yLabel = stringResource(R.string.current_weight),
+    )
+    if (scale is ProgressionScale.RepsThenWeight) {
+        IntStepperField(
+            stringResource(R.string.current_reps_per_set), load.reps, StepRange(scale.repMin, scale.repMax, 1), ValueInput.WHOLE,
+            onUpdate = { f -> onChange(null) { d -> val p = scale.prescription(d.total); d.copy(total = scale.levelOf(p.weight, f(p.reps))) } },
+            onDialogUpdate = { f -> onChangeNow(null) { d -> val p = scale.prescription(d.total); d.copy(total = scale.levelOf(p.weight, f(p.reps))) } },
+            info = stringResource(R.string.info_current_reps_per_set),
         )
     }
 }

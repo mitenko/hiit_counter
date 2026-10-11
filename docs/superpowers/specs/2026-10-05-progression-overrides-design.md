@@ -44,7 +44,7 @@ When one value conflicts with another, **the field you're editing wins, and the 
 New in `values/` and `values-es`, `values-zh-rCN`, `values-hi`: `moved_starting_raised`, `moved_starting_lowered`, `moved_current_raised`, `moved_current_lowered`, `moved_best_streak_raised`, `hint_hold_above_max`, `hint_hold_below_min`. Rev 27's `range_raised_max` / `range_lowered_min` are reused for the max and min moves.
 
 ## 6. Weight modes
-Weight progression (rev 26, not built yet) must follow the same rule in its PR 2: the field you edit wins, the value it pushes against moves to fit, and a note says what moved.
+Weight progression must follow the same rule: the field you edit wins, the value it pushes against moves to fit, and a note says what moved. Built in weight progression PR 2: see the weight progression spec, §10 notes 30 and 31.
 
 ## 7. Known edges
 - If a write that moved the current total is superseded by a newer edit before it lands, the total's move isn't noted (the newer save finds the total already inside the range).

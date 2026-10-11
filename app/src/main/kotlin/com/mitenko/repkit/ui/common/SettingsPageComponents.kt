@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.Move
 import com.mitenko.repkit.domain.ValidationResult
+import com.mitenko.repkit.domain.WeightMove
+import com.mitenko.repkit.domain.model.WeightUnit
 
 /** What a page's status line says (spec R3 §6.2). */
 enum class SaveStatus {
@@ -39,9 +41,18 @@ enum class SaveStatus {
     FAILED;
 
     companion object {
-        fun of(validation: ValidationResult, failed: Boolean): SaveStatus = when {
-            !validation.isValid -> INVALID
+        fun of(validation: ValidationResult, failed: Boolean): SaveStatus = of(validation.isValid, failed)
+
+        fun of(valid: Boolean, failed: Boolean): SaveStatus = when {
+            !valid -> INVALID
             failed -> FAILED
+            else -> SAVED
+        }
+
+        /** One status line for two drafts (plan Spec note 25): invalid first, then a failed save, else Saved. */
+        fun worst(a: SaveStatus, b: SaveStatus): SaveStatus = when {
+            a == INVALID || b == INVALID -> INVALID
+            a == FAILED || b == FAILED -> FAILED
             else -> SAVED
         }
     }
@@ -88,9 +99,16 @@ fun SettingsPageLayout(footer: @Composable () -> Unit = {}, content: @Composable
  * on one line, announced politely to TalkBack.
  */
 @Composable
-fun MoveNote(moves: List<Move>, tag: String) {
+fun MoveNote(moves: List<Move>, tag: String) = NoteText(noteText(moves), tag)
+
+/** A weight-mode note (plan Spec notes 30–31), with the same look. */
+@Composable
+fun WeightMoveNote(moves: List<WeightMove>, unit: WeightUnit?, tag: String) = NoteText(weightNoteText(moves, unit), tag)
+
+@Composable
+private fun NoteText(text: String, tag: String) {
     Text(
-        noteText(moves),
+        text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,

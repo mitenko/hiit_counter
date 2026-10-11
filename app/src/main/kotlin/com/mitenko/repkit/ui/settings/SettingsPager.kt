@@ -73,7 +73,9 @@ internal fun SettingsPage.tabIndex(pages: List<SettingsPage>): Int = pages.index
  * them. It flushes the three auto-saving pages on every page change and on every exit: back, ←,
  * ON_STOP and an onEntryGone pop (§6.2). Leaving Timing after a Counter's Sets changed asks
  * whether to reset progress (spec revision 32): over the new page, or before an exit continues. Every entry shows all four tabs (spec revision 8); a
- * Timer only entry's Progression stays window-only and Current stays total-less (R4 §4.6).
+ * Timer only entry's Progression stays window-only and Current stays total-less (R4 §4.6). The
+ * Progression page has a second ViewModel for the weight group (spec rev 26 PR 2, plan Spec note 25),
+ * flushed and noted like the others.
  */
 @Composable
 fun SettingsPagerRoute(
@@ -85,6 +87,7 @@ fun SettingsPagerRoute(
     progressionVm: ProgressionSettingsViewModel = hiltViewModel(key = "progression"),
     currentVm: CurrentStateViewModel = hiltViewModel(key = "current"),
     cuesVm: CuesSettingsViewModel = hiltViewModel(key = "cues"),
+    weightVm: WeightSettingsViewModel = hiltViewModel(key = "weight"),
 ) {
     val name by pagerVm.name.collectAsStateWithLifecycle()
     val type by pagerVm.type.collectAsStateWithLifecycle()
@@ -94,12 +97,14 @@ fun SettingsPagerRoute(
     val progressionGone by progressionVm.missing.collectAsStateWithLifecycle()
     val currentGone by currentVm.missing.collectAsStateWithLifecycle()
     val cuesGone by cuesVm.missing.collectAsStateWithLifecycle()
-    val missing = pagerGone || timingGone || progressionGone || currentGone || cuesGone
+    val weightGone by weightVm.missing.collectAsStateWithLifecycle()
+    val missing = pagerGone || timingGone || progressionGone || currentGone || cuesGone || weightGone
 
     val flushAll = {
         timingVm.flush()
         progressionVm.flush()
         currentVm.flush()
+        weightVm.flush()
     }
     val leave = {
         flushAll()
@@ -126,8 +131,9 @@ fun SettingsPagerRoute(
                 currentVm.clearRangeNote()
                 currentVm.clearStreakNote()
                 progressionVm.clearNote()
+                weightVm.clearNote()
             }
-            type?.let { SettingsTabs(it, initialPage, onPageChange = onPageChange, timingVm, progressionVm, currentVm, cuesVm) }
+            type?.let { SettingsTabs(it, initialPage, onPageChange = onPageChange, timingVm, progressionVm, currentVm, cuesVm, weightVm) }
         }
     }
     val setsPrompt by timingVm.setsPrompt.collectAsStateWithLifecycle()
@@ -144,6 +150,7 @@ private fun ColumnScope.SettingsTabs(
     progressionVm: ProgressionSettingsViewModel,
     currentVm: CurrentStateViewModel,
     cuesVm: CuesSettingsViewModel,
+    weightVm: WeightSettingsViewModel,
 ) {
     val pages = SettingsPage.visibleFor(type)
     val checkInOnly = type == EntryType.CHECK_IN
@@ -176,7 +183,7 @@ private fun ColumnScope.SettingsTabs(
     HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).testTag("settings_pager")) { index ->
         when (pages[index]) {
             SettingsPage.TIMING -> TimingPage(timingVm)
-            SettingsPage.PROGRESSION -> ProgressionPage(progressionVm, windowOnly = checkInOnly)
+            SettingsPage.PROGRESSION -> ProgressionPage(progressionVm, weightVm, windowOnly = checkInOnly)
             SettingsPage.CURRENT -> CurrentStatePage(currentVm, showTotal = !checkInOnly)
             SettingsPage.CUES -> CuesPage(cuesVm)
         }

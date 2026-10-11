@@ -8,6 +8,7 @@ import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
 import com.mitenko.repkit.testutil.FakeProUpgrade
@@ -271,6 +272,17 @@ class EntryListViewModelTest {
         runCurrent()
         assertEquals(false, vm.crashReportsEnabled.value)
         assertEquals(false, preferences.crashReportsEnabled.first())
+    }
+
+    @Test
+    fun `setWeightUnitDefault writes through to preferences and updates the default`() = runTest {
+        val preferences = preferences()
+        val vm = vm(FakeEntryRepository(), preferences)
+        backgroundScope.launch { vm.weightUnitDefault.collect {} }
+        vm.setWeightUnitDefault(WeightUnit.LB)
+        runCurrent()
+        assertEquals(WeightUnit.LB, preferences.weightUnitDefault.first())
+        assertEquals(WeightUnit.LB, vm.weightUnitDefault.first { it == WeightUnit.LB })
     }
 
     // Spec revision 18 §3: the free tier's entry limit.

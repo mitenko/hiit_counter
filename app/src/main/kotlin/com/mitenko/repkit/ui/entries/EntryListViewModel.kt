@@ -13,6 +13,7 @@ import com.mitenko.repkit.domain.canAddEntry
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.tileWindowStart
 import com.mitenko.repkit.domain.weekCount
 import com.mitenko.repkit.ui.theme.ThemeMode
@@ -90,6 +91,14 @@ class EntryListViewModel @Inject constructor(
     /** Saved at once; TelemetryInitializer applies it to Crashlytics and Analytics. */
     fun setCrashReportsEnabled(enabled: Boolean) {
         viewModelScope.launch { preferences.setCrashReportsEnabled(enabled) }
+    }
+
+    /** ⚙ › Units (spec rev 26 §3, plan Spec note 36): the unit new weight workouts start in. KG stands in until it loads. */
+    val weightUnitDefault: StateFlow<WeightUnit> =
+        preferences.weightUnitDefault.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WeightUnit.KG)
+
+    fun setWeightUnitDefault(unit: WeightUnit) {
+        viewModelScope.launch { preferences.setWeightUnitDefault(unit) }
     }
 
     /**

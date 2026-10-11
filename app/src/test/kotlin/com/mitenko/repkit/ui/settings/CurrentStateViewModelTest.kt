@@ -8,11 +8,16 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mitenko.repkit.domain.Field
 import com.mitenko.repkit.domain.FieldMessage
 import com.mitenko.repkit.domain.Move
+import com.mitenko.repkit.domain.ProgressionScale
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightSteps
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
@@ -323,5 +328,39 @@ class CurrentStateViewModelTest {
         assertTrue(vm.streakNote.value.isEmpty())
         runCurrent()
         assertEquals(0, repo.counterWrites)
+    }
+
+    private fun weightEntry(level: Int) = testEntry(
+        1,
+        progression = ProgressionConfig(mode = ProgressMode.WEIGHT, weight = WeightConfig(unit = WeightUnit.KG)),
+        counter = CounterState(total = level),
+    )
+
+    @Test
+    fun `in a weight mode the ladder is exposed and level 0 saves`() = runTest {
+        val repo = FakeEntryRepository(listOf(weightEntry(3)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        assertEquals(ProgressionScale.Weight(WeightSteps.DEFAULT.expand(), 10), vm.ladder.value!!.scale)
+        assertEquals(WeightUnit.KG, vm.ladder.value!!.unit)
+        vm.updateNow { it.copy(total = 0) }
+        runCurrent()
+        assertTrue(vm.validation.value.isValid)
+        assertEquals(0, repo.find(1).counter.total)
+    }
+
+    @Test
+    fun `a level past the top is invalid and never saved`() = runTest {
+        val repo = FakeEntryRepository(listOf(weightEntry(3)))
+        val vm = CurrentStateViewModel(handle, repo, clock, backgroundScope)
+        vm.updateNow { it.copy(total = 17) } // 17 weights on 20 / 2.5 / 60: levels 0..16
+        assertEquals(FieldMessage.NotOnLadder, vm.validation.value.errors[Field.TOTAL])
+        runCurrent()
+        assertEquals(0, repo.counterWrites)
+    }
+
+    @Test
+    fun `Reps mode has no ladder`() = runTest {
+        val vm = CurrentStateViewModel(handle, FakeEntryRepository(listOf(testEntry(1))), clock, backgroundScope)
+        assertNull(vm.ladder.value)
     }
 }
