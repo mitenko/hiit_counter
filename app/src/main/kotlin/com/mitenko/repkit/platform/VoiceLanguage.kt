@@ -3,8 +3,12 @@ package com.mitenko.repkit.platform
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.speech.tts.TextToSpeech
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.VoiceLine
+import com.mitenko.repkit.domain.WeightFormat
+import com.mitenko.repkit.domain.model.WeightUnit
 import java.util.Locale
 
 /** The voice cue's language and words (spec revision 24). */
@@ -28,10 +32,39 @@ object VoiceLanguage {
      * `values/`, always present).
      */
     @SuppressLint("AppBundleLocaleChanges")
-    fun spokenCount(context: Context, locale: Locale, count: Int): String {
-        val config = Configuration(context.resources.configuration).apply { setLocale(locale) }
-        return context.createConfigurationContext(config).resources.getQuantityString(R.plurals.voice_count, count, count)
+    fun spokenCount(context: Context, locale: Locale, count: Int): String =
+        localized(context, locale).getQuantityString(R.plurals.voice_count, count, count)
+
+    /**
+     * What the voice says for [line] (spec rev 26 §4, plan Spec note 57), in the voice's own [locale]:
+     * the bare number for [VoiceLine.Count] (as [spokenCount]), "10 reps" for [VoiceLine.Reps], and
+     * "16 kilos, 10 reps" for [VoiceLine.Load], with the weight written as on screen ("22.5").
+     */
+    fun spokenLine(context: Context, locale: Locale, line: VoiceLine): String {
+        val res = localized(context, locale)
+        return when (line) {
+            is VoiceLine.Count -> res.getQuantityString(R.plurals.voice_count, line.number, line.number)
+            is VoiceLine.Reps -> res.getQuantityString(R.plurals.reps_count, line.number, line.number)
+            is VoiceLine.Load -> res.getString(
+                R.string.voice_load,
+                res.getQuantityString(line.unit.voicePlural, WeightFormat.pluralCount(line.weight), WeightFormat.format(line.weight)),
+                res.getQuantityString(R.plurals.reps_count, line.number, line.number),
+            )
+        }
     }
+
+    /** [context]'s resources in [locale]; see [spokenCount] on why the lint warning doesn't apply. */
+    @SuppressLint("AppBundleLocaleChanges")
+    private fun localized(context: Context, locale: Locale): Resources {
+        val config = Configuration(context.resources.configuration).apply { setLocale(locale) }
+        return context.createConfigurationContext(config).resources
+    }
+
+    private val WeightUnit.voicePlural: Int
+        get() = when (this) {
+            WeightUnit.KG -> R.plurals.voice_weight_kg
+            WeightUnit.LB -> R.plurals.voice_weight_lb
+        }
 
     private fun usable(result: Int): Boolean =
         result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED

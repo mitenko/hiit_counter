@@ -399,4 +399,52 @@
     <string name="error_outside_rep_range">Debe estar dentro del rango de repeticiones</string>
     <string name="error_duplicate_weight_hold">Ya hay otro mantenimiento aquí</string>
     <string name="error_enter_weight">Escribe un número con hasta 2 decimales</string>
+    <string name="history_empty_mode">Aún no hay registros en este modo</string>
+    <plurals name="chart_desc_weight">
+        <item quantity="one">%1$d registro, de %2$s a %3$s</item>
+        <item quantity="other">%1$d registros, de %2$s a %3$s</item>
+        <item quantity="many">%1$d registros, de %2$s a %3$s</item>
+    </plurals>
+    <string name="load_value">%1$s × %2$d</string>
+    <plurals name="prescription_sets_reps">
+        <item quantity="one">%1$d × %2$d repetición</item>
+        <item quantity="other">%1$d × %2$d repeticiones</item>
+        <item quantity="many">%1$d × %2$d repeticiones</item>
+    </plurals>
+    <plurals name="reps_count">
+        <item quantity="one">%1$d repetición</item>
+        <item quantity="other">%1$d repeticiones</item>
+        <item quantity="many">%1$d repeticiones</item>
+    </plurals>
+    <plurals name="sets_of_reps">
+        <item quantity="one">%1$d serie de %2$s</item>
+        <item quantity="other">%1$d series de %2$s</item>
+        <item quantity="many">%1$d series de %2$s</item>
+    </plurals>
+    <plurals name="weight_spoken_kg">
+        <item quantity="one">%1$s kilogramo</item>
+        <item quantity="other">%1$s kilogramos</item>
+        <item quantity="many">%1$s kilogramos</item>
+    </plurals>
+    <plurals name="weight_spoken_lb">
+        <item quantity="one">%1$s libra</item>
+        <item quantity="other">%1$s libras</item>
+        <item quantity="many">%1$s libras</item>
+    </plurals>
+    <string name="prescription_desc">%1$s, %2$s</string>
+    <string name="load_now">Ahora %1$s</string>
+    <string name="load_holding">Manteniendo en %1$s · %2$d de %3$d</string>
+    <string name="timer_desc_with_weight">%1$s, %2$s</string>
+    <string name="notification_with_weight">%1$s · %2$s</string>
+    <plurals name="voice_weight_kg">
+        <item quantity="one">%1$s kilo</item>
+        <item quantity="other">%1$s kilos</item>
+        <item quantity="many">%1$s kilos</item>
+    </plurals>
+    <plurals name="voice_weight_lb">
+        <item quantity="one">%1$s libra</item>
+        <item quantity="other">%1$s libras</item>
+        <item quantity="many">%1$s libras</item>
+    </plurals>
+    <string name="voice_load">%1$s, %2$s</string>
 </resources>

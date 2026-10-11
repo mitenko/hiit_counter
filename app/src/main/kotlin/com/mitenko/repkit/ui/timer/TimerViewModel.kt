@@ -88,7 +88,10 @@ class TimerViewModel @Inject constructor(
         }
     }
 
-    /** The name and countsReps come from the frozen snapshot, so a rename during the run never shows here (spec §7.1). */
+    /**
+     * The name and countsReps come from the frozen snapshot, so a rename during the run never shows here
+     * (spec §7.1); the weight is the one start() froze (spec rev 26 §4).
+     */
     private fun toUi(state: TimerState): TimerUiState =
-        TimerUiMapper.map(state, controller.snapshot?.entryName.orEmpty(), controller.snapshot?.countsReps ?: true)
+        TimerUiMapper.map(state, controller.snapshot?.entryName.orEmpty(), controller.snapshot?.countsReps ?: true, controller.weight)
 }

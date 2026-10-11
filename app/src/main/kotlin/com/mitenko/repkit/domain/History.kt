@@ -1,6 +1,8 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.CheckInPoint
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -70,15 +72,16 @@ private const val MIN_TICKS = 3
 private const val MAX_TICKS = 5
 
 /**
- * Rounded bounds with 3–5 ticks (spec R6 §3.4): the smallest step of 1, 2, 5, 10, 20, 50, … whose
- * rounded-out bounds need at most 5 ticks, extended upwards to at least 3. Equal values pad to
- * [min] − 2 .. [max] + 2, never below 0. Rep totals are never negative.
+ * Rounded bounds with 3–5 ticks (spec R6 §3.4): the smallest step of [minMagnitude] × 1, 2, 5, 10, 20,
+ * 50, … whose rounded-out bounds need at most 5 ticks, extended upwards to at least 3. Equal values pad
+ * to [min] − [pad] .. [max] + [pad], never below 0. Rep totals use the defaults; weights in hundredths
+ * pad by one unit, with steps from 0.1 (plan Spec note 54).
  */
-fun niceAxis(min: Int, max: Int): Axis {
+fun niceAxis(min: Int, max: Int, pad: Int = 2, minMagnitude: Int = 1): Axis {
     require(min <= max) { "min $min > max $max" }
-    val lo = if (min == max) maxOf(0, min - 2) else min
-    val hi = if (min == max) max + 2 else max
-    var magnitude = 1
+    val lo = if (min == max) maxOf(0, min - pad) else min
+    val hi = if (min == max) max + pad else max
+    var magnitude = minMagnitude
     while (true) {
         for (mantissa in NICE_MANTISSAS) {
             val step = mantissa * magnitude
@@ -151,3 +154,19 @@ fun calendarWeeks(points: List<CheckInPoint>, start: Instant, end: Instant, zone
         }
         .toList()
 }
+
+/**
+ * A Counter's points in its mode family (spec rev 26 §9.4, plan Spec note 53): a weight mode keeps the
+ * points with a weight; Reps mode keeps the points with a total and no weight. The other family stays
+ * stored and comes back on a switch back.
+ */
+fun pointsInMode(points: List<CheckInPoint>, mode: ProgressMode): List<CheckInPoint> =
+    if (mode.usesWeights) points.filter { it.weight != null } else points.filter { it.total != null && it.weight == null }
+
+/**
+ * This point's weight in [to] (spec rev 26 §9.3): converted from the unit it was recorded in, to the
+ * nearest 0.25. A weight with no recorded unit reads as [to] (§10 note 11). Null without a weight.
+ * Uses the uncapped display conversion (batch 1 review finding 2), so a point recorded past the
+ * current 999.75 cap still shows its real weight instead of being clamped down to it.
+ */
+fun CheckInPoint.weightIn(to: WeightUnit): Int? = weight?.let { WeightConversion.convertDisplay(it, unit ?: to, to) }

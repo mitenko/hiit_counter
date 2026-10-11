@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.ui.common.stepVertices
 
 private val TILE_HEIGHT = 32.dp
 private val LINE_WIDTH = 1.5.dp
@@ -45,7 +46,8 @@ private val DAY_OUTLINE_WIDTH = 1.dp
  * its totals over the 28-day window with a dot on each point (one point draws one dot, none draws
  * nothing). A Timer only entry draws a row of 7 lettered circles for the current calendar week
  * (Mon–Sun), filled for a checked-in day and outlined for the rest. Decorative: no touch target,
- * one content description. The positions come from [TileLayout].
+ * one content description. The positions come from [TileLayout]. A weight mode's sparkline is a step
+ * line of its weights (spec rev 26 §4).
  */
 @Composable
 fun TileGraphic(type: EntryType, entryId: Long, tile: TileData, modifier: Modifier = Modifier) {
@@ -60,7 +62,7 @@ fun TileGraphic(type: EntryType, entryId: Long, tile: TileData, modifier: Modifi
                     .testTag("tile_$entryId")
                     .semantics { contentDescription = description },
             ) {
-                drawSparkline(tile.spark, filled)
+                drawSparkline(tile.spark, filled, tile.steps)
             }
         }
         EntryType.CHECK_IN -> WeekRow(entryId, tile.week, modifier)
@@ -128,10 +130,12 @@ private fun WeekRow(entryId: Long, week: List<Boolean>, modifier: Modifier) {
     }
 }
 
-private fun DrawScope.drawSparkline(spark: List<SparkPoint>, color: Color) {
+private fun DrawScope.drawSparkline(spark: List<SparkPoint>, color: Color, steps: Boolean) {
     val radius = POINT_RADIUS.toPx()
     val points = TileLayout.sparkline(spark, size.width, size.height, inset = radius)
-    points.zipWithNext { a, b ->
+    // Spec rev 26 §4: a weight tile steps from one point to the next; a Reps tile keeps straight segments.
+    val path = if (steps) stepVertices(points) else points
+    path.zipWithNext { a, b ->
         drawLine(color, Offset(a.x, a.y), Offset(b.x, b.y), strokeWidth = LINE_WIDTH.toPx(), cap = StrokeCap.Round)
     }
     points.forEach { drawCircle(color, radius, Offset(it.x, it.y)) }

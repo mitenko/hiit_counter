@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.WeightMove
 import com.mitenko.repkit.domain.WeightProblem
 import com.mitenko.repkit.domain.model.WeightUnit
@@ -67,6 +68,40 @@ class WeightTextsTest {
             problems.forEach { assertTrue("$it", it.uiText().resolve(r).isNotBlank()) }
             moves.forEach {
                 val text = it.uiText(WeightUnit.KG).resolve(r)
+                assertTrue(text, text.isNotBlank())
+                assertFalse(text, text.contains('%'))
+            }
+        }
+    }
+
+    @Test
+    fun `loads, spoken weights and the prescription read in English`() {
+        assertEquals("16 kg × 10", loadText(Prescription.Load(1600, 10), WeightUnit.KG).resolve(en))
+        assertEquals("16 kilograms", spokenWeight(1600, WeightUnit.KG).resolve(en))
+        assertEquals("1 kilogram", spokenWeight(100, WeightUnit.KG).resolve(en))
+        assertEquals("22.5 pounds", spokenWeight(2250, WeightUnit.LB).resolve(en))
+        assertEquals("16 kilograms, 3 sets of 10 reps", prescriptionDescription(Prescription.Load(1600, 10), 3, WeightUnit.KG).resolve(en))
+        assertEquals("1 pound, 1 set of 1 rep", prescriptionDescription(Prescription.Load(100, 1), 1, WeightUnit.LB).resolve(en))
+    }
+
+    @Test
+    fun `the prescription is translated`() {
+        val load = Prescription.Load(1600, 10)
+        assertEquals("16 kilogramos, 3 series de 10 repeticiones", prescriptionDescription(load, 3, WeightUnit.KG).resolve(res("es")))
+        assertEquals("16 公斤，3 组，每组 10 次", prescriptionDescription(load, 3, WeightUnit.KG).resolve(res("zh-CN")))
+        assertEquals("16 किलोग्राम, 3 सेट, हर सेट में 10 रेप्स", prescriptionDescription(load, 3, WeightUnit.KG).resolve(res("hi")))
+    }
+
+    @Test
+    fun `the screen texts resolve in every language with no format left over`() {
+        listOf("en", "es", "zh-CN", "hi").map(::res).forEach { r ->
+            listOf(
+                loadText(Prescription.Load(2250, 8), WeightUnit.LB),
+                spokenWeight(50, WeightUnit.KG),
+                spokenWeight(1600, WeightUnit.LB),
+                prescriptionDescription(Prescription.Load(1600, 1), 1, WeightUnit.KG),
+            ).forEach {
+                val text = it.resolve(r)
                 assertTrue(text, text.isNotBlank())
                 assertFalse(text, text.contains('%'))
             }

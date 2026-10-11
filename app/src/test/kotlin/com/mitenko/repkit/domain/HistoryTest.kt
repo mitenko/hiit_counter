@@ -1,6 +1,8 @@
 package com.mitenko.repkit.domain
 
 import com.mitenko.repkit.domain.model.CheckInPoint
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -201,5 +203,48 @@ class HistoryTest {
         assertEquals(YearMonth.of(2026, 6), weeks.first().month)
         assertEquals(listOf(7, 8, 9).map { YearMonth.of(2026, it) }, weeks.drop(1).mapNotNull { it.month })
         assertTrue(calendarWeeks(emptyList(), thursday, at("2026-09-01T00:00:00Z"), la).isEmpty())
+    }
+
+    @Test
+    fun `pointsInMode keeps the weight points in a weight mode and the weightless totals in Reps mode`() {
+        val at = Instant.parse("2026-09-20T16:00:00Z")
+        val reps = CheckInPoint(at, 60)
+        val timerOnly = CheckInPoint(at, null)
+        val load = CheckInPoint(at, 3, weight = 1400, reps = 10, unit = WeightUnit.KG)
+        val all = listOf(reps, timerOnly, load)
+        assertEquals(listOf(reps), pointsInMode(all, ProgressMode.REPS))
+        assertEquals(listOf(load), pointsInMode(all, ProgressMode.WEIGHT))
+        assertEquals(listOf(load), pointsInMode(all, ProgressMode.REPS_THEN_WEIGHT))
+    }
+
+    @Test
+    fun `a point's weight converts from its own unit to the workout's, to the nearest quarter`() {
+        val at = Instant.parse("2026-09-20T16:00:00Z")
+        assertEquals(1600, CheckInPoint(at, 4, 1600, 10, WeightUnit.KG).weightIn(WeightUnit.KG))
+        assertEquals(1600, CheckInPoint(at, 4, 3500, 10, WeightUnit.LB).weightIn(WeightUnit.KG)) // 35 lb = 15.88 kg
+        assertEquals(3525, CheckInPoint(at, 4, 1600, 10, WeightUnit.KG).weightIn(WeightUnit.LB)) // 16 kg = 35.27 lb
+        assertEquals(1600, CheckInPoint(at, 4, 1600, 10, null).weightIn(WeightUnit.LB)) // no recorded unit: the workout's
+        assertNull(CheckInPoint(at, 60).weightIn(WeightUnit.KG))
+    }
+
+    @Test
+    fun `niceAxis takes a padding and a smallest step for weights in hundredths`() {
+        assertEquals(Axis(1900, 2100, 50), niceAxis(2000, 2000, pad = 100, minMagnitude = 10))
+        assertEquals(Axis(800, 1600, 200), niceAxis(800, 1600, pad = 100, minMagnitude = 10))
+        assertEquals(Axis(2000, 2300, 100), niceAxis(2000, 2250, pad = 100, minMagnitude = 10))
+        assertEquals(Axis(0, 150, 50), niceAxis(50, 50, pad = 100, minMagnitude = 10))
+    }
+
+    @Test
+    fun `niceAxis on a wide weight span rounds to a nice step too`() {
+        // Batch 1 review finding 4: a wide hundredths span (900 to 999.75 kg) still lands on 3-5 ticks.
+        assertEquals(Axis(90000, 100000, 5000), niceAxis(90000, 99975, pad = 100, minMagnitude = 10))
+    }
+
+    @Test
+    fun `a point's weight shows uncapped for display, past the stored 999,75 limit`() {
+        // Batch 1 review finding 2: 460 kg converts to about 1014.25 lb, not the 999.75 lb cap.
+        val at = Instant.parse("2026-09-20T16:00:00Z")
+        assertEquals(101425, CheckInPoint(at, 4, 46000, 10, WeightUnit.KG).weightIn(WeightUnit.LB))
     }
 }

@@ -3,6 +3,7 @@ package com.mitenko.repkit.domain
 import com.mitenko.repkit.domain.model.Cue
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.domain.model.TimingConfig
 import kotlinx.coroutines.CoroutineScope
@@ -75,6 +76,14 @@ class TimerController(
     var snapshot: WorkoutSnapshot? = null
         private set
 
+    /**
+     * The run's weight (spec rev 26 §4, plan Spec note 56), set by [start] from the load the Start
+     * check-in left; null in Reps mode, for Timer only and with no run. The timer, the voice and the
+     * notification read it.
+     */
+    var weight: SetWeight? = null
+        private set
+
     private var engine: TabataEngine? = null
     private var runJob: Job? = null
     private var pauseTimeoutJob: Job? = null
@@ -124,10 +133,12 @@ class TimerController(
         _status.value = RunStatus.IDLE
     }
 
-    fun start(repsPerSet: List<Int>): Boolean {
+    fun start(repsPerSet: List<Int>, weight: SetWeight? = null): Boolean {
         val snap = snapshot ?: return false
         // The timer only runs under a foreground service (v1 spec §4).
         if (_status.value != RunStatus.PREPARING || _serviceStatus.value != ServiceStatus.Started) return false
+        // Before the engine's first state, so every screen sees the weight with it. Timer only counts no reps.
+        this.weight = weight?.takeIf { snap.countsReps }
         val record = RunRecord(wallNow(), repsPerSet)
         val e = TabataEngine(
             timing = snap.timing,
@@ -205,13 +216,18 @@ class TimerController(
      * Spec R4 §5, amended by spec revision 8 and revision 10: a WORK start carries that set's
      * entry of [repsPerSet], or, when the run's snapshot has `countsReps = false` (Timer only),
      * the countdown of sets remaining including this one (`sets - set + 1`), so the voice matches
-     * the centre number. The engine publishes the set's first state just before its PhaseStart, so
-     * [state] already names the starting set.
+     * the centre number. A weight run's WORK start also carries [weight], new on set 1 (spec rev 26
+     * §4). The engine publishes the set's first state just before its PhaseStart, so [state] already
+     * names the starting set. §10 note 57: the load is spoken only on this set-1 WORK cue (or on
+     * skipping back into it) — a dropped cue (TTS not ready yet, or Voice switched on after set 1)
+     * leaves later sets saying only the reps.
      */
     private fun withReps(cue: Cue, repsPerSet: List<Int>): Cue {
         if (cue !is Cue.PhaseStart || cue.phase != Phase.WORK) return cue
         val s = _state.value ?: return cue
-        return cue.copy(reps = if (snapshot?.countsReps == false) s.sets - s.set + 1 else repsPerSet.getOrNull(s.set - 1))
+        if (snapshot?.countsReps == false) return cue.copy(reps = s.sets - s.set + 1)
+        val w = weight
+        return cue.copy(reps = repsPerSet.getOrNull(s.set - 1), weight = w, newWeight = w != null && s.set == 1)
     }
 
     /** Hands the ending run's summary to [runLog], once: it clears [run]. */
@@ -243,6 +259,7 @@ class TimerController(
         engine = null
         run = null
         snapshot = null
+        weight = null
         _liveCues.value = null
         _state.value = null
     }

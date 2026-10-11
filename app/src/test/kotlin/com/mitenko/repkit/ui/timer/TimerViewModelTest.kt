@@ -8,10 +8,13 @@ import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
 import com.mitenko.repkit.testutil.testEntry
+import com.mitenko.repkit.ui.common.weightText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -193,5 +196,18 @@ class TimerViewModelTest {
         runCurrent()
         assertNull(vm.cues.value)
         assertEquals(CueConfig(), repo.find(1L).cues)
+    }
+
+    @Test
+    fun `a weight run's ui state shows its weight`() = runTest {
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
+        val vm = TimerViewModel(controller, preferences(), FakeEntryRepository())
+        backgroundScope.launch { vm.uiState.collect {} }
+        controller.prepare(WorkoutSnapshot(1L, "Curls", TimingConfig(prepareSec = 0, sets = 3, workSec = 20, restSec = 10), CueConfig()))
+        controller.onServiceStarted()
+        controller.start(List(3) { 10 }, SetWeight(1600, WeightUnit.KG))
+        runCurrent()
+        assertEquals(weightText(1600, WeightUnit.KG), vm.uiState.value?.weight)
+        assertEquals(10, vm.uiState.value?.centerNumber)
     }
 }

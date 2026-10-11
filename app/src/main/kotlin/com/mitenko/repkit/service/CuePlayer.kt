@@ -12,6 +12,7 @@ import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.CuePattern
 import com.mitenko.repkit.domain.CuePatterns
 import com.mitenko.repkit.domain.Tone
+import com.mitenko.repkit.domain.VoiceLine
 import com.mitenko.repkit.domain.model.Cue
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
@@ -69,22 +70,22 @@ class CuePlayer(
         val pattern = CuePatterns.forCue(cue)
         if (config.vibration) pattern.vibration?.let(::vibrate)
         val tones = config.sound && pattern.tones.isNotEmpty()
-        val reps = spokenReps(cue, config)
-        if (!tones && reps == null) return
+        val line = spokenLine(cue, config)
+        if (!tones && line == null) return
         if (!focus.request()) {
             Log.w(TAG, "Audio focus denied; skipping sound")
             return
         }
         if (tones) playTones(pattern)
-        // The number follows the beep, so the two never overlap (plan Spec note 3).
-        if (reps != null) say(reps, afterMs = if (tones) pattern.durationMs else 0L)
+        // The line follows the beep, so the two never overlap (plan Spec note 3).
+        if (line != null) say(line, afterMs = if (tones) pattern.durationMs else 0L)
     }
 
-    /** The reps to say: only at a WORK start, with the voice on and a speaker that is ready (spec R4 §5). */
-    private fun spokenReps(cue: Cue, config: CueConfig): Int? {
+    /** What to say: only at a WORK start, with the voice on and a speaker that is ready (spec R4 §5, rev 26 §4). */
+    private fun spokenLine(cue: Cue, config: CueConfig): VoiceLine? {
         if (!config.voice || cue !is Cue.PhaseStart || cue.phase != Phase.WORK) return null
         if (speaker?.available?.value != true) return null
-        return cue.reps
+        return VoiceLine.of(cue)
     }
 
     private fun playTones(pattern: CuePattern) {
@@ -106,13 +107,13 @@ class CuePlayer(
         }
     }
 
-    private fun say(reps: Int, afterMs: Long) {
+    private fun say(line: VoiceLine, afterMs: Long) {
         val s = speaker ?: return
         speechHold = true
         speechJob?.cancel()
         speechJob = scope.launch {
             delay(afterMs)
-            withTimeoutOrNull(SPEECH_TIMEOUT_MS) { s.speak(reps) }
+            withTimeoutOrNull(SPEECH_TIMEOUT_MS) { s.speak(line) }
             speechHold = false
             abandonIfIdle()
         }

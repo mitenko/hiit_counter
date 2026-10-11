@@ -20,4 +20,15 @@ object WeightFormat {
         val hundredths = BigDecimal(t.replace(',', '.')).movePointRight(2)
         return if (hundredths > MAX) null else hundredths.toInt()
     }
+
+    /**
+     * The count a weight's plural takes (plan Spec note 62). Android plurals take an Int, so a whole
+     * weight is its own count, a fraction below 1 is 0 and any other fraction is 2. For en / es / zh / hi
+     * that picks exactly CLDR's category for the decimal: "1 kilo", "1.5 kilos", Hindi "0.5" one.
+     */
+    fun pluralCount(hundredths: Int): Int = when {
+        hundredths % 100 == 0 -> hundredths / 100
+        hundredths < 100 -> 0
+        else -> 2
+    }
 }

@@ -12,12 +12,15 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.HiitTheme
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
@@ -305,5 +308,75 @@ class TimerScreenTest {
                 assertTrue("corner ($x, $y) of $bounds outside radius $radius", distance <= radius)
             }
         }
+    }
+
+    private fun showUi(ui: TimerUiState) {
+        compose.setContent {
+            HiitTheme {
+                TimerScreen(
+                    ui, CueConfig(),
+                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                )
+            }
+        }
+    }
+
+    private fun bounds(tag: String): DpRect = compose.onNodeWithTag(tag, useUnmergedTree = true).getBoundsInRoot()
+
+    /** Every corner of each of [nodes] lies inside the inner ring's open centre (rev 35 §3: diameter d × 0.76). */
+    private fun assertInsideRing(ring: DpRect, vararg nodes: DpRect) {
+        val radius = (ring.width * (1f - 2f * (0.02f + 0.03f + 0.07f)) / 2f).value
+        val cx = ((ring.left + ring.right) / 2f).value
+        val cy = ((ring.top + ring.bottom) / 2f).value
+        nodes.forEach { b ->
+            listOf(b.left to b.top, b.right to b.top, b.left to b.bottom, b.right to b.bottom).forEach { (x, y) ->
+                val distance = sqrt((x.value - cx) * (x.value - cx) + (y.value - cy) * (y.value - cy))
+                assertTrue("corner (${x.value}, ${y.value}) of $b outside radius $radius", distance <= radius)
+            }
+        }
+    }
+
+    /** The longest realistic centre (rev 35 §3) plus a long weight: "88" reps, "00:59", "112.5 lb". */
+    private fun weightUi(phase: Phase) = TimerUiMapper.map(
+        TimerState(phase, set = 2, sets = 8, phaseSecondsLeft = 59, phaseDurationSec = 60, elapsedSec = 50,
+            totalDurationSec = 240, repsThisSet = 88, totalReps = 88, paused = false),
+        entryName = "Kettlebell Lunges",
+        weight = SetWeight(11_250, WeightUnit.LB),
+    )
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `a long weight fits over the reps inside the ring during work at 320dp`() {
+        showUi(weightUi(Phase.WORK))
+        compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertTextEquals("112.5 lb")
+        val weight = bounds("center_weight")
+        val number = bounds("center_number")
+        val countdown = bounds("countdown")
+        assertTrue(weight.bottom <= number.top)
+        assertTrue(number.bottom <= countdown.top)
+        assertInsideRing(bounds("ring"), weight, number, countdown)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `a long weight shares the rest label's line inside the ring at 320dp`() {
+        showUi(weightUi(Phase.REST))
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("REST")
+        compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertTextEquals("112.5 lb")
+        val label = bounds("phase_label")
+        val weight = bounds("center_weight")
+        val number = bounds("center_number")
+        val countdown = bounds("countdown")
+        assertTrue(label.right <= weight.left)
+        assertTrue(label.bottom <= number.top && weight.bottom <= number.top)
+        assertTrue(number.bottom <= countdown.top)
+        assertInsideRing(bounds("ring"), label, weight, number, countdown)
+    }
+
+    @Test
+    fun `a Reps run shows no weight`() {
+        setScreen(Phase.WORK)
+        compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertDoesNotExist()
     }
 }

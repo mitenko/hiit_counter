@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,10 +67,16 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.HistoryRange
+import com.mitenko.repkit.domain.Prescription
+import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
+import com.mitenko.repkit.ui.common.loadText
+import com.mitenko.repkit.ui.common.prescriptionDescription
 import com.mitenko.repkit.ui.common.resolve
+import com.mitenko.repkit.ui.common.weightText
 import kotlinx.coroutines.launch
 
 @Composable
@@ -231,20 +238,45 @@ private fun CentreRow(state: EntryUiState, range: HistoryRange, highlight: Highl
     val view = remember(state.points, range, state.now, state.zone) {
         HistoryLayout.rangeView(state.points, range, state.now, state.zone)
     }
-    val shown = remember(view, state.type) { HistoryLayout.shownPoints(view, state.type) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f).height(ChartInsets.height), contentAlignment = Alignment.Center) {
-            when (HistoryLayout.empty(state.points, shown)) {
-                HistoryEmpty.NO_CHECK_INS -> EmptyText(R.string.history_empty)
-                HistoryEmpty.NONE_IN_RANGE -> EmptyText(R.string.history_empty_range)
-                null -> when (state.type) {
-                    EntryType.WORKOUT -> WorkoutChart(shown, HistoryLayout.chartStart(view, shown), view.end, state.zone)
-                    // key(range): a new range gets a fresh scroll state, so the calendar reopens at today.
-                    EntryType.CHECK_IN -> key(range) { CheckInCalendar(shown, view.start, view.end, state.zone) }
+    val shown = remember(view, state.type, state.mode) { HistoryLayout.shownPoints(view, state.type, state.mode) }
+    val load = state.load
+    if (state.type == EntryType.WORKOUT && load != null) {
+        // Spec rev 26 §4, plan Spec note 50: in a weight mode the chart takes the full width and the
+        // prescription card replaces the reps column, under the chart.
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChartArea(state, range, view, shown, Modifier.fillMaxWidth())
+            PrescriptionCard(load, state.reps.size, state.unit, highlight, onHighlightShown)
+        }
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChartArea(state, range, view, shown, Modifier.weight(1f))
+            if (state.type == EntryType.WORKOUT) RepsColumn(state.reps, highlight, onHighlightShown)
+        }
+    }
+}
+
+/**
+ * The chart or calendar at [ChartInsets.height], or an empty state in its place (plan Spec note 17). A
+ * Counter's chart plots its mode family (spec rev 26 §9.4) and says so when that family has nothing yet.
+ */
+@Composable
+private fun ChartArea(state: EntryUiState, range: HistoryRange, view: RangeView, shown: List<CheckInPoint>, modifier: Modifier) {
+    val mode = if (state.type == EntryType.WORKOUT) state.mode else null
+    Box(modifier.height(ChartInsets.height), contentAlignment = Alignment.Center) {
+        when (HistoryLayout.empty(state.points, shown, mode)) {
+            HistoryEmpty.NO_CHECK_INS -> EmptyText(R.string.history_empty)
+            HistoryEmpty.NONE_IN_RANGE -> EmptyText(R.string.history_empty_range)
+            HistoryEmpty.NONE_IN_MODE -> EmptyText(R.string.history_empty_mode)
+            null -> when (state.type) {
+                EntryType.WORKOUT -> {
+                    // Built only for a Counter: a Timer only point has no total to plot.
+                    val series = remember(shown, state.mode, state.unit) { HistoryLayout.series(shown, state.mode, state.unit) }
+                    WorkoutChart(series, HistoryLayout.chartStart(view, shown), view.end, state.zone)
                 }
+                // key(range): a new range gets a fresh scroll state, so the calendar reopens at today.
+                EntryType.CHECK_IN -> key(range) { CheckInCalendar(shown, view.start, view.end, state.zone) }
             }
         }
-        if (state.type == EntryType.WORKOUT) RepsColumn(state.reps, highlight, onHighlightShown)
     }
 }
 
@@ -383,6 +415,119 @@ private fun ChangeAnnouncement(active: Highlight?, reps: List<Int>) {
     )
 }
 
+/**
+ * Spec rev 26 §4, plan Spec notes 50–51: a weight mode's next workout, "16 kg" over "8 × 10 reps", as one
+ * TalkBack node ("16 kilograms, 8 sets of 10 reps"). After a check-in it flashes like the reps column
+ * (rev 12, rev 20): primary when the load goes up, error when it goes down, neutral on a hold, with a
+ * small pop except on a hold or with reduced motion. As in [RepsColumn], [highlight] is consumed at once
+ * and a remembered copy drives the animation and the announcement.
+ */
+@Composable
+private fun PrescriptionCard(load: Prescription.Load, sets: Int, unit: WeightUnit?, highlight: Highlight?, onHighlightShown: () -> Unit) {
+    var active by remember { mutableStateOf<Highlight?>(null) }
+    LaunchedEffect(highlight?.id) {
+        if (highlight != null) {
+            active = highlight
+            onHighlightShown()
+        }
+    }
+    val change = active?.card
+    val reducedMotion = reducedMotionEnabled()
+    val scale = remember { Animatable(1f) }
+    val colorFraction = remember { Animatable(0f) }
+    var flashing by remember { mutableStateOf(false) }
+    LaunchedEffect(active?.id) {
+        if (change == null) return@LaunchedEffect
+        flashing = true
+        try {
+            if (!reducedMotion && change != RepsColumnLayout.Change.HOLD) {
+                launch {
+                    scale.animateTo(CARD_POP_SCALE, tween(POP_HALF_MS))
+                    scale.animateTo(1f, tween(POP_HALF_MS))
+                }
+            }
+            colorFraction.snapTo(1f)
+            colorFraction.animateTo(0f, tween(FADE_MS))
+        } finally {
+            // A cancelled flash (a new highlight, or leaving the screen) must still clear its state.
+            flashing = false
+        }
+    }
+    val tint: Color? = when (change) {
+        RepsColumnLayout.Change.UP -> MaterialTheme.colorScheme.primary
+        RepsColumnLayout.Change.DOWN -> MaterialTheme.colorScheme.error
+        RepsColumnLayout.Change.HOLD -> MaterialTheme.colorScheme.onSurfaceVariant
+        null -> null
+    }
+    val increased = stringResource(R.string.reps_state_increased)
+    val decreased = stringResource(R.string.reps_state_decreased)
+    val holding = stringResource(R.string.reps_state_holding)
+    val stateText: String? = if (!flashing) {
+        null
+    } else {
+        when (change) {
+            RepsColumnLayout.Change.UP -> increased
+            RepsColumnLayout.Change.DOWN -> decreased
+            else -> holding
+        }
+    }
+    val description = prescriptionDescription(load, sets, unit).resolve()
+    val shape = RoundedCornerShape(12.dp)
+    Box {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .scale(scale.value)
+                .background(MaterialTheme.colorScheme.surfaceVariant, shape)
+                .then(if (tint != null) Modifier.background(tint.copy(alpha = HIGHLIGHT_ALPHA * colorFraction.value), shape) else Modifier)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = description
+                    if (stateText != null) stateDescription = stateText
+                }
+                .testTag("prescription_card")
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                weightText(load.weight, unit).resolve(),
+                style = MaterialTheme.typography.headlineLarge,
+                maxLines = 1,
+                modifier = Modifier.testTag("prescription_weight"),
+            )
+            Text(
+                pluralStringResource(R.plurals.prescription_sets_reps, load.reps, sets, load.reps),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("prescription_sets"),
+            )
+        }
+        LoadAnnouncement(active, load, unit, description)
+    }
+}
+
+/**
+ * TalkBack after a weight-mode check-in (plan Spec note 51): "Now 16 kilograms, 8 sets of 10 reps", or
+ * "Holding at 16 kg × 10 · 2 of 4" on a hold day. Invisible, like [ChangeAnnouncement].
+ */
+@Composable
+private fun LoadAnnouncement(active: Highlight?, load: Prescription.Load, unit: WeightUnit?, description: String) {
+    val card = active?.card
+    val hold = active?.hold
+    val message = when {
+        card == null -> ""
+        card == RepsColumnLayout.Change.HOLD && hold != null ->
+            stringResource(R.string.load_holding, loadText(load, unit).resolve(), hold.day, hold.of)
+        else -> stringResource(R.string.load_now, description)
+    }
+    Text(
+        message,
+        modifier = Modifier
+            .size(1.dp)
+            .testTag("load_announcement")
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}
+
 /** Settings → Accessibility → Remove animations (spec revision 12 §3): read once per composition. */
 @Composable
 private fun reducedMotionEnabled(): Boolean {
@@ -394,6 +539,9 @@ private val REPS_COLUMN_WIDTH = 56.dp
 private const val POP_HALF_MS = 150
 private const val FADE_MS = 1200
 private const val HIGHLIGHT_ALPHA = 0.35f
+
+/** The card is full width, so its pop is smaller than a reps cell's 1.15 (plan Spec note 51). */
+private const val CARD_POP_SCALE = 1.05f
 
 @Composable
 private fun EmptyText(@StringRes text: Int) {

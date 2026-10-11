@@ -379,4 +379,44 @@
     <string name="error_outside_rep_range">रेप रेंज के अंदर होना चाहिए</string>
     <string name="error_duplicate_weight_hold">यहाँ पहले से एक होल्ड है</string>
     <string name="error_enter_weight">अधिकतम 2 दशमलव वाली संख्या दर्ज करें</string>
+    <string name="history_empty_mode">इस मोड में अभी कोई चेक-इन नहीं</string>
+    <plurals name="chart_desc_weight">
+        <item quantity="one">%1$d चेक-इन, %2$s से %3$s तक</item>
+        <item quantity="other">%1$d चेक-इन, %2$s से %3$s तक</item>
+    </plurals>
+    <string name="load_value">%1$s × %2$d</string>
+    <plurals name="prescription_sets_reps">
+        <item quantity="one">%1$d × %2$d रेप</item>
+        <item quantity="other">%1$d × %2$d रेप्स</item>
+    </plurals>
+    <plurals name="reps_count">
+        <item quantity="one">%1$d रेप</item>
+        <item quantity="other">%1$d रेप्स</item>
+    </plurals>
+    <plurals name="sets_of_reps">
+        <item quantity="one">%1$d सेट, हर सेट में %2$s</item>
+        <item quantity="other">%1$d सेट, हर सेट में %2$s</item>
+    </plurals>
+    <plurals name="weight_spoken_kg">
+        <item quantity="one">%1$s किलोग्राम</item>
+        <item quantity="other">%1$s किलोग्राम</item>
+    </plurals>
+    <plurals name="weight_spoken_lb">
+        <item quantity="one">%1$s पाउंड</item>
+        <item quantity="other">%1$s पाउंड</item>
+    </plurals>
+    <string name="prescription_desc">%1$s, %2$s</string>
+    <string name="load_now">अब %1$s</string>
+    <string name="load_holding">%1$s पर होल्ड · %2$d/%3$d</string>
+    <string name="timer_desc_with_weight">%1$s, %2$s</string>
+    <string name="notification_with_weight">%1$s · %2$s</string>
+    <plurals name="voice_weight_kg">
+        <item quantity="one">%1$s किलो</item>
+        <item quantity="other">%1$s किलो</item>
+    </plurals>
+    <plurals name="voice_weight_lb">
+        <item quantity="one">%1$s पाउंड</item>
+        <item quantity="other">%1$s पाउंड</item>
+    </plurals>
+    <string name="voice_load">%1$s, %2$s</string>
 </resources>

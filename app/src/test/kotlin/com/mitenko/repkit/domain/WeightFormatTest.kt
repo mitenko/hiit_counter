@@ -42,4 +42,13 @@ class WeightFormatTest {
     fun `format and parse round trip`() {
         listOf(25, 125, 2250, 99_975).forEach { assertEquals(it, WeightFormat.parse(WeightFormat.format(it))) }
     }
+
+    @Test
+    fun `a weight's plural count is the whole number, 0 below 1 and 2 for any other fraction`() {
+        assertEquals(1, WeightFormat.pluralCount(100))
+        assertEquals(16, WeightFormat.pluralCount(1600))
+        assertEquals(0, WeightFormat.pluralCount(50))
+        assertEquals(2, WeightFormat.pluralCount(150))
+        assertEquals(2, WeightFormat.pluralCount(2250))
+    }
 }

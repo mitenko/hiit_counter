@@ -17,6 +17,17 @@ object WeightConversion {
     }
 
     /**
+     * As [convert], but for display (batch 1 review finding 2): a chart point keeps its recorded
+     * weight even past the current 999.75 cap (recorded under a since-lowered limit, or imported),
+     * so this never clamps upward. Still never below 0.25. The same unit returns it as is.
+     */
+    fun convertDisplay(hundredths: Int, from: WeightUnit, to: WeightUnit): Int {
+        if (from == to) return hundredths
+        val raw = if (to == WeightUnit.LB) hundredths * LB_PER_KG else hundredths / LB_PER_KG
+        return (roundHalfUp(raw / QUARTER) * QUARTER).coerceAtLeast(QUARTER)
+    }
+
+    /**
      * [config] in [to] (spec rev 26 §2 Units, §9.2): the weights, the starting weight and every hold
      * convert with the same rounding, so the remap that follows compares exact values. Steps become
      * My weights, because a converted step isn't one of the step choices (plan Spec note 8). Weights that

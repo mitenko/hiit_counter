@@ -4,6 +4,9 @@ import com.mitenko.repkit.domain.Axis
 import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.pointsInMode
 import com.mitenko.repkit.domain.rangeStart
 import com.mitenko.repkit.ui.common.DateFormats
 import java.time.Instant
@@ -12,8 +15,11 @@ import java.time.ZoneId
 /** What one range shows (spec rev 9 §3): the axis runs from [start] to [end] (today); [points] are the range's points. */
 data class RangeView(val start: Instant, val end: Instant, val points: List<CheckInPoint>)
 
-/** Spec rev 9 §3: "No check-ins yet" or "No check-ins in this range". */
-enum class HistoryEmpty { NO_CHECK_INS, NONE_IN_RANGE }
+/**
+ * Spec rev 9 §3: "No check-ins yet" or "No check-ins in this period"; spec rev 26 §9.4: "No check-ins in
+ * this mode yet" when the Counter's current mode family has no points at all (plan Spec note 53).
+ */
+enum class HistoryEmpty { NO_CHECK_INS, NONE_IN_RANGE, NONE_IN_MODE }
 
 /** The entry screen's chart and calendar maths, kept pure so it's tested without a Canvas. */
 object HistoryLayout {
@@ -32,7 +38,6 @@ object HistoryLayout {
         return RangeView(start, now, all.filter { !it.at.isBefore(start) })
     }
 
-    /** A Workout plots only points with a total; a Timer only entry shows every point (plan Spec note 9). */
     /**
      * Where the Workout chart's x-axis starts (spec rev 21): at the first shown point when that is
      * later than the range start, so the line fills the width instead of sitting at the right edge
@@ -41,15 +46,29 @@ object HistoryLayout {
     fun chartStart(view: RangeView, shown: List<CheckInPoint>): Instant =
         shown.minOfOrNull { it.at }?.takeIf { it.isAfter(view.start) } ?: view.start
 
-    fun shownPoints(view: RangeView, type: EntryType): List<CheckInPoint> =
-        if (type == EntryType.WORKOUT) view.points.filter { it.total != null } else view.points
+    /**
+     * A Counter plots its mode family's points (plan Spec note 9, spec rev 26 §9.4): rep totals without
+     * a weight in Reps mode, weight points in a weight mode. A Timer only entry shows every point.
+     */
+    fun shownPoints(view: RangeView, type: EntryType, mode: ProgressMode = ProgressMode.REPS): List<CheckInPoint> =
+        if (type == EntryType.WORKOUT) pointsInMode(view.points, mode) else view.points
 
-    /** Null when there is something to draw. */
-    fun empty(all: List<CheckInPoint>, shown: List<CheckInPoint>): HistoryEmpty? = when {
+    /**
+     * Null when there is something to draw. [mode] is a Counter's mode, null for Timer only. NONE_IN_MODE
+     * needs no point of the family at all: always in a weight mode, and in Reps mode only when some weight
+     * point exists, so a Reps history without weights reads as before (plan Spec note 53).
+     */
+    fun empty(all: List<CheckInPoint>, shown: List<CheckInPoint>, mode: ProgressMode? = null): HistoryEmpty? = when {
         all.isEmpty() -> HistoryEmpty.NO_CHECK_INS
+        mode != null && pointsInMode(all, mode).isEmpty() && (mode.usesWeights || all.any { it.weight != null }) ->
+            HistoryEmpty.NONE_IN_MODE
         shown.isEmpty() -> HistoryEmpty.NONE_IN_RANGE
         else -> null
     }
+
+    /** What the Counter chart draws (spec rev 26 §4): rep totals in Reps mode, weights in [unit] (KG if missing) otherwise. */
+    fun series(points: List<CheckInPoint>, mode: ProgressMode, unit: WeightUnit?): ChartSeries =
+        if (mode.usesWeights) ChartSeries.Weights(points, unit ?: WeightUnit.KG) else ChartSeries.Reps(points)
 
     /**
      * The x of [at] on an axis from [start] (at [left]) to [end] (at [right]). Points outside the

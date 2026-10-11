@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mitenko.repkit.MainActivity
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 
 class WorkoutNotifications(private val context: Context) {
@@ -27,8 +28,8 @@ class WorkoutNotifications(private val context: Context) {
         )
     }
 
-    /** [entryName] is the run snapshot's frozen name (spec §7.6); null only if no run is prepared. */
-    fun build(state: TimerState?, entryName: String?): Notification {
+    /** [entryName] is the run snapshot's frozen name (spec §7.6); null only if no run is prepared. [weight] is a weight run's (spec rev 26 §4). */
+    fun build(state: TimerState?, entryName: String?, weight: SetWeight? = null): Notification {
         val open = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -42,7 +43,7 @@ class WorkoutNotifications(private val context: Context) {
         val text = NotificationText(context.resources)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_play)
-            .setContentTitle(state?.let { text.title(entryName, it) } ?: text.startingTitle(entryName))
+            .setContentTitle(state?.let { text.title(entryName, it, weight) } ?: text.startingTitle(entryName))
             .setContentText(state?.let(text::body))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -53,11 +54,11 @@ class WorkoutNotifications(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun update(state: TimerState, entryName: String?) {
+    fun update(state: TimerState, entryName: String?, weight: SetWeight? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
-        manager.notify(NOTIFICATION_ID, build(state, entryName))
+        manager.notify(NOTIFICATION_ID, build(state, entryName, weight))
     }
 
     companion object {

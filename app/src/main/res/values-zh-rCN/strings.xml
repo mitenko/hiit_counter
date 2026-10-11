@@ -359,4 +359,36 @@
     <string name="error_outside_rep_range">必须在次数范围内</string>
     <string name="error_duplicate_weight_hold">这里已有另一个保持</string>
     <string name="error_enter_weight">请输入最多两位小数的数字</string>
+    <string name="history_empty_mode">此模式下还没有打卡</string>
+    <plurals name="chart_desc_weight">
+        <item quantity="other">%1$d 次打卡，从 %2$s 到 %3$s</item>
+    </plurals>
+    <string name="load_value">%1$s × %2$d</string>
+    <plurals name="prescription_sets_reps">
+        <item quantity="other">%1$d × %2$d 次</item>
+    </plurals>
+    <plurals name="reps_count">
+        <item quantity="other">%1$d 次</item>
+    </plurals>
+    <plurals name="sets_of_reps">
+        <item quantity="other">%1$d 组，每组 %2$s</item>
+    </plurals>
+    <plurals name="weight_spoken_kg">
+        <item quantity="other">%1$s 公斤</item>
+    </plurals>
+    <plurals name="weight_spoken_lb">
+        <item quantity="other">%1$s 磅</item>
+    </plurals>
+    <string name="prescription_desc">%1$s，%2$s</string>
+    <string name="load_now">现在：%1$s</string>
+    <string name="load_holding">保持在 %1$s · 第 %2$d/%3$d 次打卡</string>
+    <string name="timer_desc_with_weight">%1$s，%2$s</string>
+    <string name="notification_with_weight">%1$s · %2$s</string>
+    <plurals name="voice_weight_kg">
+        <item quantity="other">%1$s 公斤</item>
+    </plurals>
+    <plurals name="voice_weight_lb">
+        <item quantity="other">%1$s 磅</item>
+    </plurals>
+    <string name="voice_load">%1$s，%2$s</string>
 </resources>

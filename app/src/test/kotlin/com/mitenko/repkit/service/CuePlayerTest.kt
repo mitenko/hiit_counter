@@ -3,9 +3,12 @@ package com.mitenko.repkit.service
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.CuePatterns
+import com.mitenko.repkit.domain.VoiceLine
 import com.mitenko.repkit.domain.model.Cue
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.platform.CueSpeaker
 import com.mitenko.repkit.testutil.FakeCueSpeaker
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,5 +112,18 @@ class CuePlayerTest {
         advanceTimeBy(1)
         runCurrent()
         assertEquals(1, focus.abandons)
+    }
+
+    @Test
+    fun `a weight run's first set says the load and later sets just the reps`() = runTest {
+        val speaker = FakeCueSpeaker()
+        val p = player(speaker)
+        val w = SetWeight(1600, WeightUnit.KG)
+        p.play(Cue.PhaseStart(Phase.WORK, reps = 10, weight = w, newWeight = true), voiceOnly)
+        runCurrent()
+        speaker.finishUtterance()
+        p.play(Cue.PhaseStart(Phase.WORK, reps = 10, weight = w), voiceOnly)
+        runCurrent()
+        assertEquals(listOf(VoiceLine.Load(1600, WeightUnit.KG, 10), VoiceLine.Reps(10)), speaker.lines)
     }
 }
