@@ -19,9 +19,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.Move
+import com.mitenko.repkit.domain.ProgressionScale
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.StreakField
 import com.mitenko.repkit.domain.ValidationResult
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.common.SaveStatus
 import com.mitenko.repkit.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
@@ -181,5 +183,61 @@ class CurrentStatePageTest {
     fun `no streak move, no streak note`() {
         show()
         compose.onNodeWithTag("streak_note").assertDoesNotExist()
+    }
+
+    private fun showLadder(ladder: CurrentStateViewModel.LadderView, showTotal: Boolean = true) {
+        compose.setContent {
+            HiitTheme {
+                CurrentStatePageContent(
+                    draft, ValidationResult(), SaveStatus.SAVED, ZoneOffset.UTC, now = { Instant.parse("2026-09-24T12:00:00Z") },
+                    onChange = { field, f -> fields += field; draft = f(draft) },
+                    onChangeNow = { field, f -> fields += field; immediate++; draft = f(draft) },
+                    onResetProgress = { resets += it },
+                    showTotal = showTotal, ladder = ladder,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a Weight-mode Current page shows Current weight and moves along the ladder`() {
+        draft = draft.copy(total = 1)
+        showLadder(CurrentStateViewModel.LadderView(ProgressionScale.Weight(listOf(2000, 2250, 2500), 10), WeightUnit.KG))
+        compose.onNodeWithText("Current weight (kg)").assertExists()
+        compose.onNodeWithTag("value_Current weight").assertTextEquals("22.5")
+        compose.onNodeWithTag("card_Current reps").assertDoesNotExist()
+        compose.onNodeWithTag("card_Current reps per set").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Increase Current weight").performClick()
+        assertEquals(2, draft.total)
+        compose.onNodeWithTag("value_Current weight").performClick()
+        compose.onNodeWithTag("option_Current weight_2000").performClick()
+        assertEquals(0, draft.total)
+        assertEquals(1, immediate)
+    }
+
+    @Test
+    fun `Reps then weight shows Current reps per set within the range`() {
+        draft = draft.copy(total = 7) // 22.5 × 10 on 20 / 22.5 × 8–12: weight 1 × span 5 + 2
+        showLadder(CurrentStateViewModel.LadderView(ProgressionScale.RepsThenWeight(listOf(2000, 2250), 8, 12), WeightUnit.KG))
+        compose.onNodeWithTag("value_Current reps per set").assertTextEquals("10")
+        compose.onNodeWithContentDescription("Increase Current reps per set").performScrollTo().performClick()
+        assertEquals(8, draft.total)
+        compose.onNodeWithTag("value_Current weight").performScrollTo().performClick()
+        compose.onNodeWithTag("option_Current weight_2000").performClick()
+        assertEquals(3, draft.total) // 20 × 11: the reps are kept
+    }
+
+    @Test
+    fun `the reset dialog talks about weight in a weight mode`() {
+        showLadder(CurrentStateViewModel.LadderView(ProgressionScale.Weight(listOf(2000, 2250), 10), WeightUnit.KG))
+        compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
+        compose.onNodeWithText("Your weight and reps will return to the starting point, your streaks will reset to 0, and your last check-in will be cleared.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a Timer only entry stuck in a weight mode gets the normal reset wording, never the weight one`() {
+        showLadder(CurrentStateViewModel.LadderView(ProgressionScale.Weight(listOf(2000, 2250), 10), WeightUnit.KG), showTotal = false)
+        compose.onNodeWithTag("reset_progress").performScrollTo().performClick()
+        compose.onNodeWithText("Your reps will return to the starting total, your streaks will reset to 0, and your last check-in will be cleared.").assertIsDisplayed()
     }
 }

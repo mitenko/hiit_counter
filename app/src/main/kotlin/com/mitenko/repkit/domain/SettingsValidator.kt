@@ -65,6 +65,9 @@ sealed interface FieldMessage {
     data class HoldOutsideRange(val at: Int, val bound: Int, val isAbove: Boolean) : FieldMessage
 
     data object InTheFuture : FieldMessage
+
+    /** A weight-mode level outside the ladder (spec rev 26 §3 Current tab, plan Spec note 35). */
+    data object NotOnLadder : FieldMessage
 }
 
 /**
@@ -139,16 +142,25 @@ object SettingsValidator {
         else -> FieldMessage.HoldDisabled
     }
 
+    /**
+     * [levels] is the ladder's 0..top in a weight mode (plan Spec note 35), where the total is a level
+     * and 0 is valid; null in Reps mode, where the total is ≥ 1.
+     */
     fun currentState(
         total: Int,
         bestStreak: Int,
         currentStreak: Int,
         lastCheckIn: Instant?,
         now: Instant,
+        levels: IntRange? = null,
     ): ValidationResult {
         // Spec revision 27: a total outside floor..cap is fine; saving it widens the range.
         val e = mutableMapOf<Field, FieldMessage>()
-        if (total < 1) e[Field.TOTAL] = FieldMessage.AtLeastOne
+        if (levels == null) {
+            if (total < 1) e[Field.TOTAL] = FieldMessage.AtLeastOne
+        } else if (total !in levels) {
+            e[Field.TOTAL] = FieldMessage.NotOnLadder
+        }
         if (currentStreak < 0) e[Field.CURRENT_STREAK] = FieldMessage.ZeroOrMore
         if (bestStreak < 0) e[Field.BEST_STREAK] = FieldMessage.ZeroOrMore
         else if (bestStreak < currentStreak) e[Field.BEST_STREAK] = FieldMessage.AtLeastCurrentStreak

@@ -25,11 +25,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.HiitTheme
 import com.mitenko.repkit.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
@@ -60,6 +62,8 @@ class EntryListScreenTest {
         onSetThemeMode: (ThemeMode) -> Unit = {},
         crashReports: Boolean = true,
         onSetCrashReports: (Boolean) -> Unit = {},
+        weightUnit: WeightUnit = WeightUnit.KG,
+        onSetWeightUnit: (WeightUnit) -> Unit = {},
         onRequestAdd: () -> Boolean = { true },
         limitDialog: Boolean = false,
         onGoPro: () -> Unit = {},
@@ -71,6 +75,7 @@ class EntryListScreenTest {
                     state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate,
                     themeMode = themeMode, onSetThemeMode = onSetThemeMode,
                     crashReportsEnabled = crashReports, onSetCrashReportsEnabled = onSetCrashReports,
+                    weightUnit = weightUnit, onSetWeightUnit = onSetWeightUnit,
                     onRequestAdd = onRequestAdd, limitDialog = limitDialog, maxEntries = 3,
                     onGoPro = onGoPro, onDismissLimit = onDismissLimit,
                 )
@@ -438,6 +443,26 @@ class EntryListScreenTest {
     }
 
     @Test
+    fun `the Settings dialog offers Units with the stored default selected`() {
+        show(EntryListUiState.Items(rows), weightUnit = WeightUnit.LB)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("units_heading").performScrollTo().assertTextEquals("Units")
+        compose.onNodeWithTag("unit_default_LB").performScrollTo().assertIsSelected().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("unit_default_KG").assertIsNotSelected()
+        compose.onNodeWithText("Kilograms (kg)").assertExists()
+    }
+
+    @Test
+    fun `choosing a unit calls the setter and closes the dialog`() {
+        var chosen: WeightUnit? = null
+        show(EntryListUiState.Items(rows), onSetWeightUnit = { chosen = it })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("unit_default_LB").performScrollTo().performClick()
+        assertEquals(WeightUnit.LB, chosen)
+        compose.onNodeWithText("Pounds (lb)").assertDoesNotExist()
+    }
+
+    @Test
     fun `the Settings dialog shows Share crash reports and usage, on by default`() {
         show(EntryListUiState.Items(rows))
         compose.onNodeWithContentDescription("Settings").performClick()
@@ -466,7 +491,7 @@ class EntryListScreenTest {
             }
         }
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithTag("crash_reports").performClick()
+        compose.onNodeWithTag("crash_reports").performScrollTo().performClick()
         assertEquals(listOf(false), set)
         compose.onNodeWithTag("crash_reports").assertIsOff()
         compose.onNodeWithText("System default").assertExists()
@@ -476,7 +501,7 @@ class EntryListScreenTest {
     fun `the crash reports info tag explains what is sent`() {
         show(EntryListUiState.Items(rows))
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithContentDescription("About Share crash reports and usage").performClick()
+        compose.onNodeWithContentDescription("About Share crash reports and usage").performScrollTo().performClick()
         compose.onNodeWithTag("info_title").assertTextEquals("Share crash reports and usage")
         compose.onNodeWithTag("info_text").assertTextEquals(
             "Sends anonymous crash reports and basic usage statistics to the developer, to help fix bugs and " +

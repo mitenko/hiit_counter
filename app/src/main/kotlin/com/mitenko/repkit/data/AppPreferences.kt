@@ -17,6 +17,14 @@ import java.io.IOException
 import java.util.Locale
 
 /**
+ * The unit new weight workouts start in (spec rev 26 §5), as the settings need it (plan Spec note 36).
+ * [AppPreferences] is the real one; ViewModel tests pass a fixed flow.
+ */
+interface WeightUnitDefaults {
+    val weightUnitDefault: Flow<WeightUnit>
+}
+
+/**
  * `app.preferences_pb` (spec §5.4): the app-wide values. The notification flag is sticky — set once
  * the Android 13+ prompt has been shown, whatever the answer, and never reset. [country] gives the
  * locale's region for the default unit (spec rev 26 §5); tests pass their own.
@@ -24,7 +32,7 @@ import java.util.Locale
 class AppPreferences(
     private val store: DataStore<Preferences>,
     private val country: () -> String = { Locale.getDefault().country },
-) {
+) : WeightUnitDefaults {
     val notificationPermissionAsked: Flow<Boolean> = store.data
         .catch { e ->
             if (e is IOException) {
@@ -81,7 +89,7 @@ class AppPreferences(
      * unrecognised, it follows the locale (defaultWeightUnit). A workout copies it on its first switch
      * into a weight mode (§9.3), so changing it never changes an existing workout.
      */
-    val weightUnitDefault: Flow<WeightUnit> = store.data
+    override val weightUnitDefault: Flow<WeightUnit> = store.data
         .catch { e ->
             if (e is IOException) {
                 Log.e(TAG, "App preferences read failed", e)

@@ -16,9 +16,12 @@ import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.RepProgression
 import com.mitenko.repkit.domain.SettingsValidator
 import com.mitenko.repkit.domain.WeightConversion
+import com.mitenko.repkit.domain.WeightMove
 import com.mitenko.repkit.domain.WeightValidator
 import com.mitenko.repkit.domain.counterHoldReset
+import com.mitenko.repkit.domain.currentLoadMove
 import com.mitenko.repkit.domain.holdResetNeeded
+import com.mitenko.repkit.domain.ladderOf
 import com.mitenko.repkit.domain.progressionHoldReset
 import com.mitenko.repkit.domain.loadAt
 import com.mitenko.repkit.domain.rangeChange
@@ -96,10 +99,13 @@ interface EntryRepository {
      *   An untouched (NULL) counter stays NULL.
      * - The result must pass WeightValidator, or IllegalArgumentException is thrown and nothing is written.
      * - In a weight mode, the hold count resets only as weightHoldResetNeeded says.
+     * - Returns where the stored current load moved, or null (plan Spec note 31, revision 28 rule 4):
+     *   only in a weight mode with a stored (non-NULL) level, by weight in Weight mode and by load in
+     *   Reps then weight.
      *
      * Neither the mode nor the Reps fields are written.
      */
-    suspend fun setWeightConfig(id: Long, weight: WeightConfig)
+    suspend fun setWeightConfig(id: Long, weight: WeightConfig): WeightMove.CurrentMoved?
 
     /**
      * Spec rev 26 §2 "Start fresh", §9.3, plan Spec note 5: sets [mode] and returns the counter to the
@@ -124,7 +130,9 @@ interface EntryRepository {
      * Spec revision 27: in Reps mode, a Counter entry's total outside floor..cap first widens the
      * stored progression to include it ([widenedFor]), with the hold count following [holdResetNeeded].
      * In a weight mode nothing widens: a level outside 0..top is rejected. Returns the limit that
-     * moved, or null. An explicit counter clears the fresh-start flag (plan Spec note 13).
+     * moved, or null. A counter whose total changes clears the fresh-start flag (§10 notes 13 and 40).
+     * A row still NULL whose level doesn't move is written back as NULL, not the resolved value, so it
+     * keeps following a starting total or weight that moves afterwards (§10 note 49).
      */
     suspend fun overwriteCounter(id: Long, total: Int, bestStreak: Int, currentStreak: Int, lastCheckIn: Instant?): RangeChange?
 
@@ -289,9 +297,9 @@ class RoomEntryRepository(
         found(id, dao.setType(id, type.name))
     }
 
-    override suspend fun setWeightConfig(id: Long, weight: WeightConfig) {
+    override suspend fun setWeightConfig(id: Long, weight: WeightConfig): WeightMove.CurrentMoved? {
         gate.awaitReady()
-        db.withTransaction {
+        return db.withTransaction {
             val row = dao.get(id) ?: throw EntryNotFound(id)
             val stored = row.progression()
             val mode = stored.mode
@@ -300,7 +308,23 @@ class RoomEntryRepository(
             val old = draft.unit?.let { WeightConversion.convert(stored.weight, it) } ?: stored.weight
             // Reps mode has no level to move, but the starting point and holds still remap, as Reps then weight.
             val remapMode = if (mode.usesWeights) mode else ProgressMode.REPS_THEN_WEIGHT
-            val oldLevel = if (mode.usesWeights) validTotal(row.total, min = 0) else null
+            val storedLevel = if (mode.usesWeights) validTotal(row.total, min = 0) else null
+            // Bug fix (batch 1 review, 2026-10-10): storedLevel indexes the stored, unconverted ladder,
+            // but `old` above is already converted to the draft's unit. WeightConversion.convert's
+            // distinct() can merge weights and shift indexes, so the actual current load is found on
+            // the stored ladder first, converted, and only then re-found on the converted ladder — never
+            // read a stored index straight against a converted one.
+            val oldLevel = storedLevel?.let { lvl ->
+                val current = ladderOf(mode, stored.weight).prescription(lvl)
+                val fromUnit = stored.weight.unit
+                val toUnit = draft.unit
+                val convertedWeight = if (fromUnit != null && toUnit != null) {
+                    WeightConversion.convert(current.weight, fromUnit, toUnit)
+                } else {
+                    current.weight
+                }
+                ladderOf(mode, old).levelOf(convertedWeight, current.reps)
+            }
             val remap = if (draft.weights.isNotEmpty() && draft.repMin in 1..draft.repMax) {
                 remapWeights(remapMode, old, draft, oldLevel)
             } else {
@@ -310,13 +334,15 @@ class RoomEntryRepository(
             val problems = WeightValidator.validate(config, mode)
             require(problems.isEmpty()) { "Invalid weights: $problems" }
             val resetHoldCount = mode.usesWeights && remap != null && weightHoldResetNeeded(mode, old, remap)
-            val total = if (mode.usesWeights) remap?.level else row.total
+            val newLevel = remap?.level
+            val total = if (mode.usesWeights) newLevel else row.total
             with(config) {
                 dao.setWeightConfig(
                     id, unit?.name, kind.name, WeightCodecs.encodeSteps(steps), WeightCodecs.encodeList(list),
                     WeightCodecs.encodeHolds(holds), repsPerSet, repMin, repMax, startWeight, startReps, total, resetHoldCount,
                 )
             }
+            if (mode.usesWeights && oldLevel != null && newLevel != null) currentLoadMove(mode, old, config, oldLevel, newLevel) else null
         }
     }
 
@@ -373,7 +399,8 @@ class RoomEntryRepository(
         gate.awaitReady()
         return db.withTransaction {
             // The resolved total (NULL reads as the start) is what the Current page showed.
-            val entry = dao.get(id)?.toDomain() ?: throw EntryNotFound(id)
+            val row = dao.get(id) ?: throw EntryNotFound(id)
+            val entry = row.toDomain()
             val old = entry.counter
             val progression = entry.progression
             val scale = progression.scale()
@@ -385,9 +412,15 @@ class RoomEntryRepository(
             val widened = if (entry.type == EntryType.WORKOUT && !ladder) progression.widenedFor(total) else progression
             val progressionReset = widened != progression && writeProgression(id, progression, widened)
             val holdCount = if (progressionReset || counterHoldReset(old.total, total)) 0 else old.holdCount
-            dao.setCounter(id, total, bestStreak, currentStreak, holdCount, lastCheckIn?.toEpochMilli())
-            // Plan Spec note 13: an explicit Current edit means the user chose the position.
-            dao.setFreshStart(id, false)
+            val levelUnchanged = total == old.total
+            // §10 note 49: when the row was still NULL (untouched) and the level didn't move either, keep
+            // it NULL rather than writing today's resolved value — otherwise a later setProgression or
+            // setWeightConfig remaps that frozen value instead of following a start that moves afterwards.
+            val storedTotal = if (row.total == null && levelUnchanged) null else total
+            dao.setCounter(id, storedTotal, bestStreak, currentStreak, holdCount, lastCheckIn?.toEpochMilli())
+            // §10 note 13, amended by note 40: choosing another level clears the fresh start; a streak or
+            // date edit that keeps the level doesn't, so the next check-in is still performed at the start.
+            if (!levelUnchanged) dao.setFreshStart(id, false)
             rangeChange(progression, widened)
         }
     }

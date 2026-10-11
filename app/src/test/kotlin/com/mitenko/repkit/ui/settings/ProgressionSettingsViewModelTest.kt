@@ -403,4 +403,13 @@ class ProgressionSettingsViewModelTest {
         val restored = ProgressionSettingsViewModel(handle, repo, backgroundScope)
         assertEquals(listOf(Hold(56, 3), Hold(60, 2, HoldKind.FROM)), restored.draft.value!!.holds)
     }
+
+    @Test
+    fun `a shared reset restores the window, the penalty and the Hold switch and keeps the Reps fields`() = runTest {
+        val repo = FakeEntryRepository(listOf(testEntry(1, progression = ProgressionConfig(cap = 90, windowHours = 40, penaltyHoursPerRep = 10.0, hold = false))))
+        val vm = ProgressionSettingsViewModel(handle, repo, backgroundScope)
+        vm.resetSharedToDefaults()
+        runCurrent()
+        assertEquals(ProgressionConfig(cap = 90), repo.find(1).progression)
+    }
 }

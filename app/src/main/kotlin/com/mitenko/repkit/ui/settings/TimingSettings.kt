@@ -65,7 +65,8 @@ import javax.inject.Inject
  *
  * Spec revision 32: leaving the page (a page change, or [exit]) after a Counter entry's saved sets
  * moved away from [baseline] raises [setsPrompt], which offers Reset progress. The pager reports
- * the visible page through [pageShown].
+ * the visible page through [pageShown]. A weight-mode entry is never asked: its reps are per set,
+ * so Sets doesn't change them (plan Spec note 39).
  */
 @HiltViewModel
 class TimingSettingsViewModel @Inject constructor(
@@ -171,7 +172,8 @@ class TimingSettingsViewModel @Inject constructor(
             when {
                 // A prompt already up gets the exit; it continues after the answer.
                 _setsPrompt.value != null -> if (onDone != null) pendingExit = onDone
-                entry != null && entry.type != EntryType.CHECK_IN && from != null && entry.timing.sets != from -> {
+                entry != null && entry.type != EntryType.CHECK_IN && !entry.progression.mode.usesWeights &&
+                    from != null && entry.timing.sets != from -> {
                     pendingExit = onDone
                     _setsPrompt.value = SetsChange(from, entry.timing.sets)
                 }

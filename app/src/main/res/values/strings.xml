@@ -368,4 +368,104 @@
     <string name="hold_n_from" tools:ignore="PluralsCandidate">Hold %1$d from</string>
     <string name="info_hold_from">Every number from this one up holds for the check-in count before you climb again, which slows the climb near your maximum.</string>
     <string name="error_duplicate_hold_from">Already a hold from %1$d</string>
+
+    <!-- Weight progression settings (spec rev 26 §3, PR 2) -->
+    <string name="progress_by">Progress by</string>
+    <string name="progress_reps">Reps</string>
+    <string name="progress_weight">Weight</string>
+    <string name="progress_reps_then_weight">Reps then weight</string>
+    <string name="info_progress_by">What goes up when you check in on time. Reps adds one rep to your total. Weight moves you to the next weight, with the same reps per set. Reps then weight adds a rep to every set until the top of your range, then moves to the next weight and starts the reps again.</string>
+    <string name="start_fresh_title">Start fresh?</string>
+    <string name="start_fresh_body_weight">This workout restarts at its starting weight. Your streaks and history are kept.</string>
+    <string name="start_fresh_body_reps">This workout restarts at its starting reps. Your streaks and history are kept.</string>
+    <string name="start_fresh">Start fresh</string>
+    <string name="weight_unit">Unit</string>
+    <string name="unit_kg">kg</string>
+    <string name="unit_lb">lb</string>
+    <string name="unit_kg_long">Kilograms (kg)</string>
+    <string name="unit_lb_long">Pounds (lb)</string>
+    <string name="info_weight_unit">The unit for this workout\'s weights. Changing it converts every weight, rounded to the nearest 0.25.</string>
+    <!-- %1$s is the new unit, e.g. lb -->
+    <string name="change_unit_title">Switch to %1$s?</string>
+    <string name="change_unit_body">Your weights, starting weight and holds will convert to %1$s, rounded to the nearest 0.25. Your history keeps the unit it was recorded in.</string>
+    <string name="convert">Convert</string>
+    <!-- %1$s is a weight such as 22.5, %2$s its unit -->
+    <string name="weight_value">%1$s %2$s</string>
+    <!-- A field label with the workout's unit: %1$s the label, %2$s the unit -->
+    <string name="label_with_unit">%1$s (%2$s)</string>
+    <string name="weights_source">Weights</string>
+    <string name="weights_steps">Steps</string>
+    <string name="weights_list">My weights</string>
+    <string name="info_weights_source">Steps makes evenly spaced weights from a start, a step and a top, like 20 to 60 by 2.5. My weights is your own list, for equipment with uneven gaps such as kettlebells.</string>
+    <string name="steps_start">Start</string>
+    <string name="steps_step">Step</string>
+    <string name="steps_top">Top</string>
+    <string name="info_steps_start">The lightest weight.</string>
+    <string name="info_steps_step">The gap between one weight and the next.</string>
+    <string name="info_steps_top">The heaviest weight. It must be the start plus a whole number of steps.</string>
+    <string name="weight_n">Weight %1$d</string>
+    <!-- %1$s is a weight with its unit, e.g. 20 kg -->
+    <string name="remove_weight">Remove %1$s</string>
+    <string name="add_weight">Add weight</string>
+    <string name="info_my_weights">The weights you own, lightest to heaviest. Tap a weight to change it; the list keeps itself in order.</string>
+    <string name="reps_per_set">Reps per set</string>
+    <string name="info_reps_per_set">How many reps you do in every set. They stay the same as the weight goes up.</string>
+    <string name="rep_range_min">Minimum reps per set</string>
+    <string name="rep_range_max">Maximum reps per set</string>
+    <string name="info_rep_range_min">Where your reps start at each new weight.</string>
+    <string name="info_rep_range_max">The reps per set to reach before you move to the next weight.</string>
+    <string name="start_weight">Starting weight</string>
+    <string name="info_start_weight">The weight you start at, and return to after you reset your progress.</string>
+    <string name="start_reps">Starting reps per set</string>
+    <string name="info_start_reps">The reps per set you start at. Setting them outside the range moves the range to fit.</string>
+    <string name="hold_at_weight">Hold at weight</string>
+    <string name="hold_at_reps">Hold at reps per set</string>
+    <string name="hold_n_weight">Hold %1$d weight</string>
+    <string name="hold_n_reps" tools:ignore="PluralsCandidate">Hold %1$d reps</string>
+    <string name="info_hold_at_weight">The weight where progression pauses. Pick one of your weights.</string>
+    <string name="info_hold_at_reps">The reps per set where progression pauses, within your rep range.</string>
+    <string name="info_hold_weight">Want to stay at a weight for a while? A hold pauses your progression there for a number of check-ins before you climb again. You can set multiple holds.</string>
+    <string name="penalty_rate_steps">Missed-day adjustment (hours per step)</string>
+    <string name="info_penalty_rate_steps">After you miss the on-time window, you drop one step for every this many hours you are away. A step is one weight (Weight) or one rep per set (Reps then weight), and a miss never drops you more than one weight.</string>
+    <!-- Notes: %1$s is a weight with its unit, %1$d a number of reps -->
+    <string name="moved_top_raised">Top raised to %1$s</string>
+    <string name="moved_top_lowered">Top lowered to %1$s</string>
+    <string name="moved_steps_start_lowered">Start lowered to %1$s</string>
+    <string name="moved_rep_max_raised">Maximum reps per set raised to %1$d</string>
+    <string name="moved_rep_min_lowered">Minimum reps per set lowered to %1$d</string>
+    <string name="moved_start_reps_raised">Starting reps per set raised to %1$d</string>
+    <string name="moved_start_reps_lowered">Starting reps per set lowered to %1$d</string>
+    <string name="moved_start_weight">Starting weight moved to %1$s</string>
+    <plurals name="moved_holds_removed">
+        <item quantity="one">%1$d hold removed (its weight is gone)</item>
+        <item quantity="other">%1$d holds removed (their weights are gone)</item>
+    </plurals>
+    <string name="moved_current_weight">Current weight moved to %1$s</string>
+    <!-- %1$s is a weight with its unit, %2$d the reps per set -->
+    <string name="moved_current_load">Current weight moved to %1$s × %2$d</string>
+    <string name="current_weight">Current weight</string>
+    <string name="info_current_weight">The weight for your next workout. Changes take effect immediately.</string>
+    <string name="current_reps_per_set">Current reps per set</string>
+    <string name="info_current_reps_per_set">The reps per set for your next workout, within your rep range.</string>
+    <string name="reset_progress_body_weight">Your weight and reps will return to the starting point, your streaks will reset to 0, and your last check-in will be cleared.</string>
+    <string name="units">Units</string>
+    <string name="info_units">The unit new weight workouts start in. Workouts that already use weights keep their own unit.</string>
+    <plurals name="error_too_few_weights">
+        <item quantity="one">Add at least %1$d weight</item>
+        <item quantity="other">Add at least %1$d weights</item>
+    </plurals>
+    <plurals name="error_too_many_weights">
+        <item quantity="one">At most %1$d weight</item>
+        <item quantity="other">At most %1$d weights</item>
+    </plurals>
+    <string name="error_weight_range">Must be more than 0 and at most 999.75</string>
+    <string name="error_duplicate_weight">Already in the list</string>
+    <string name="error_steps_step">Pick one of the step sizes</string>
+    <string name="error_steps_top">Must be above the start, in whole steps</string>
+    <string name="error_reps_range">Must be 1–100</string>
+    <string name="error_rep_max">Must be above the minimum, up to 100</string>
+    <string name="error_not_a_weight">Pick one of your weights</string>
+    <string name="error_outside_rep_range">Must be within the rep range</string>
+    <string name="error_duplicate_weight_hold">Another hold is already here</string>
+    <string name="error_enter_weight">Enter a number with up to 2 decimals</string>
 </resources>

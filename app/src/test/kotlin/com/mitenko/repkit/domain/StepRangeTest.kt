@@ -36,4 +36,9 @@ class StepRangeTest {
         assertEquals(StepRange(1, 9999, 1), FieldRanges.TOTAL)
         assertEquals(StepRange(0, 99999, 1), FieldRanges.STREAK)
     }
+
+    @Test
+    fun `reps per set step by one within 1 to 100`() {
+        assertEquals(StepRange(1, 100, 1), FieldRanges.REPS_PER_SET)
+    }
 }

@@ -27,6 +27,7 @@ fun FieldMessage.uiText(): UiText = when (this) {
     is FieldMessage.HoldOutsideRange ->
         UiText.Res(if (isAbove) R.string.hint_hold_above_max else R.string.hint_hold_below_min, listOf(at, bound))
     FieldMessage.InTheFuture -> UiText.Res(R.string.error_in_the_future)
+    FieldMessage.NotOnLadder -> UiText.Res(R.string.error_not_a_weight)
 }
 
 /** The name dialog's inline explanation (spec §8.3); null when the name is valid. */

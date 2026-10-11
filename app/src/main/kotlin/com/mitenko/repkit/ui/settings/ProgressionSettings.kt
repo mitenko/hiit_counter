@@ -245,6 +245,17 @@ class ProgressionSettingsViewModel @Inject constructor(
         updateNow { ProgressionDraft.from(ProgressionConfig()) }
     }
 
+    /**
+     * Reset to defaults in a weight mode (open question 1): only the rows every mode shares go back to
+     * their defaults (the window, the penalty, the Hold switch); the hidden Reps fields keep their
+     * values. Saved at once; the weight group is reset by WeightSettingsViewModel.
+     */
+    fun resetSharedToDefaults() {
+        noteAnchor = null
+        val d = ProgressionConfig()
+        updateNow { it.copy(windowHours = d.windowHours, penalty = PenaltyDraft.of(d.penaltyHoursPerRep), hold = d.hold) }
+    }
+
     fun flush() = saver.flush()
 
     /** The next edit or a page change hides the note (spec revision 28). */
@@ -302,23 +313,72 @@ class ProgressionSettingsViewModel @Inject constructor(
  * The Progression page inside the pager (spec R3 §4). [windowOnly] is a Timer only entry
  * (R4 §4.6): only the check-in window shows. The hidden fields keep their stored values and stay in
  * the draft that is validated and saved. Reset to defaults is hidden too, since it would reset them
- * (plan Spec note 7).
+ * (plan Spec note 7). With [weightVm], the page shows Progress by and, in a weight mode, the weight
+ * rows (spec rev 26 §3, plan Spec note 25); Reset to defaults then resets the shared rows and the weight
+ * group (open question 1), and Start fresh flushes this page's draft before the switch (note 33).
  */
 @Composable
-fun ProgressionPage(vm: ProgressionSettingsViewModel, windowOnly: Boolean = false) {
+fun ProgressionPage(vm: ProgressionSettingsViewModel, weightVm: WeightSettingsViewModel? = null, windowOnly: Boolean = false) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val validation by vm.validation.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val note by vm.note.collectAsStateWithLifecycle()
+    val weight = weightVm?.let { weightPageOf(it) }
+    val weightMode = weight?.mode?.usesWeights == true
     draft?.let {
         ProgressionPageContent(
             it, validation, status,
             onChange = { field, transform -> vm.update(field, transform) },
             onChangeNow = { field, transform -> vm.updateNow(field, transform) },
-            onReset = vm::resetToDefaults,
-            windowOnly = windowOnly, note = note,
+            onReset = if (weightMode && weightVm != null) {
+                {
+                    vm.resetSharedToDefaults()
+                    weightVm.resetToDefaults()
+                }
+            } else {
+                vm::resetToDefaults
+            },
+            windowOnly = windowOnly, note = note, weight = weight,
         )
     }
+    weightVm?.let { WeightDialogs(it, beforeSwitch = vm::flush) }
+}
+
+/** The weight ViewModel as the page's [WeightPage]; null until it has loaded. Every flow is collected first, so the composition's shape never changes. */
+@Composable
+private fun weightPageOf(vm: WeightSettingsViewModel): WeightPage? {
+    val mode by vm.mode.collectAsStateWithLifecycle()
+    val draft by vm.draft.collectAsStateWithLifecycle()
+    val validation by vm.validation.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
+    val note by vm.note.collectAsStateWithLifecycle()
+    val m = mode ?: return null
+    val d = draft ?: return null
+    return WeightPage(
+        m, d, validation, status, note,
+        onChange = { field, transform -> vm.update(field, transform) },
+        onChangeNow = { field, transform -> vm.updateNow(field, transform) },
+        onRequestMode = vm::requestMode,
+        onRequestUnit = vm::requestUnit,
+    )
+}
+
+/** The Start fresh and unit confirms (plan Spec notes 33–34). */
+@Composable
+private fun WeightDialogs(vm: WeightSettingsViewModel, beforeSwitch: () -> Unit) {
+    val modePrompt by vm.modePrompt.collectAsStateWithLifecycle()
+    val unitPrompt by vm.unitPrompt.collectAsStateWithLifecycle()
+    modePrompt?.let {
+        StartFreshDialog(
+            it,
+            onConfirm = {
+                beforeSwitch()
+                vm.confirmMode()
+            },
+            onDismiss = vm::dismissModePrompt,
+        )
+    }
+    unitPrompt?.let { ChangeUnitDialog(it, onConfirm = vm::confirmUnit, onDismiss = vm::dismissUnitPrompt) }
 }
 
 @Composable
@@ -331,65 +391,81 @@ fun ProgressionPageContent(
     onReset: () -> Unit,
     windowOnly: Boolean = false,
     note: ProgressionNote? = null,
+    weight: WeightPage? = null,
 ) {
     val errors = validation.errors
     var confirmReset by rememberSaveable { mutableStateOf(false) }
-    SettingsPageLayout(footer = { SaveStatusLine(status) }) {
+    // Spec rev 26 §3: a weight mode swaps the Reps rows for the weight rows; the window, the penalty and the Hold switch stay.
+    val weightRows = weight?.takeIf { it.mode.usesWeights }
+    val pageStatus = if (weightRows != null) SaveStatus.worst(status, weightRows.status) else status
+    SettingsPageLayout(footer = { SaveStatusLine(pageStatus) }) {
         if (!windowOnly) {
-            IntStepperField(
-                stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
-                onDialogUpdate = { f -> onChangeNow(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
-                error = errors[Field.STARTING_TOTAL].resolve(), info = stringResource(R.string.info_starting_total),
-            )
-            NoteUnder(note, ProgressionField.STARTING_TOTAL)
-            IntStepperField(
-                stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
-                onDialogUpdate = { f -> onChangeNow(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
-                error = errors[Field.FLOOR].resolve(), info = stringResource(R.string.info_floor),
-            )
-            NoteUnder(note, ProgressionField.FLOOR)
-            IntStepperField(
-                stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
-                onUpdate = { f -> onChange(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
-                onDialogUpdate = { f -> onChangeNow(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
-                error = errors[Field.CAP].resolve(), info = stringResource(R.string.info_cap),
-            )
-            NoteUnder(note, ProgressionField.CAP)
-            // Spec R3 §5.3, rev 16 §6: the switch sits directly above the holds; off hides the list but keeps its values.
-            SwitchRow(
-                stringResource(R.string.hold), draft.hold,
-                onChange = { on -> onChangeNow(null) { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
-            )
-            AnimatedVisibility(visible = draft.hold) {
-                Column {
-                    draft.holds.forEachIndexed { i, hold ->
-                        val holdErrors = validation.holdErrors[i].orEmpty()
-                        val from = hold.kind == HoldKind.FROM
-                        HoldHeader(number = i + 1, onRemove = { onChangeNow(null) { it.withoutHold(i) } })
-                        // Spec rev 34 §5: At | From under the heading, above the value; a switch saves at once.
-                        HoldKindChoice(number = i + 1, selected = hold.kind, onSelect = { kind -> onChangeNow(null) { it.withHoldKind(i, kind) } })
-                        IntStepperField(
-                            stringResource(if (from) R.string.hold_from else R.string.hold_at), hold.at, FieldRanges.REPS, ValueInput.WHOLE,
-                            onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
-                            onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
-                            error = holdErrors[HoldField.AT].resolve(), hint = validation.holdHints[i].resolve(),
-                            info = stringResource(if (from) R.string.info_hold_from else R.string.info_hold_at),
-                            a11yLabel = stringResource(if (from) R.string.hold_n_from else R.string.hold_n_at, i + 1),
-                        )
-                        IntStepperField(
-                            stringResource(R.string.hold_for), hold.forCount, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
-                            onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
-                            onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
-                            error = holdErrors[HoldField.FOR].resolve(), info = stringResource(R.string.info_hold_for),
-                            a11yLabel = stringResource(R.string.hold_n_for, i + 1),
+            weight?.let { ProgressByRow(it.mode, it.onRequestMode) }
+            if (weightRows != null) {
+                WeightSetupRows(weightRows)
+                SwitchRow(
+                    stringResource(R.string.hold), draft.hold,
+                    onChange = { on -> onChangeNow(null) { it.copy(hold = on) } }, info = stringResource(R.string.info_hold_weight),
+                )
+                AnimatedVisibility(visible = draft.hold) {
+                    Column { WeightHoldRows(weightRows) }
+                }
+            } else {
+                IntStepperField(
+                    stringResource(R.string.starting_total), draft.startingTotal, FieldRanges.REPS, ValueInput.WHOLE,
+                    onUpdate = { f -> onChange(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
+                    onDialogUpdate = { f -> onChangeNow(ProgressionField.STARTING_TOTAL) { it.copy(startingTotal = f(it.startingTotal)) } },
+                    error = errors[Field.STARTING_TOTAL].resolve(), info = stringResource(R.string.info_starting_total),
+                )
+                NoteUnder(note, ProgressionField.STARTING_TOTAL)
+                IntStepperField(
+                    stringResource(R.string.floor), draft.floor, FieldRanges.REPS, ValueInput.WHOLE,
+                    onUpdate = { f -> onChange(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
+                    onDialogUpdate = { f -> onChangeNow(ProgressionField.FLOOR) { it.copy(floor = f(it.floor)) } },
+                    error = errors[Field.FLOOR].resolve(), info = stringResource(R.string.info_floor),
+                )
+                NoteUnder(note, ProgressionField.FLOOR)
+                IntStepperField(
+                    stringResource(R.string.cap), draft.cap, FieldRanges.REPS, ValueInput.WHOLE,
+                    onUpdate = { f -> onChange(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
+                    onDialogUpdate = { f -> onChangeNow(ProgressionField.CAP) { it.copy(cap = f(it.cap)) } },
+                    error = errors[Field.CAP].resolve(), info = stringResource(R.string.info_cap),
+                )
+                NoteUnder(note, ProgressionField.CAP)
+                // Spec R3 §5.3, rev 16 §6: the switch sits directly above the holds; off hides the list but keeps its values.
+                SwitchRow(
+                    stringResource(R.string.hold), draft.hold,
+                    onChange = { on -> onChangeNow(null) { it.copy(hold = on) } }, info = stringResource(R.string.info_hold),
+                )
+                AnimatedVisibility(visible = draft.hold) {
+                    Column {
+                        draft.holds.forEachIndexed { i, hold ->
+                            val holdErrors = validation.holdErrors[i].orEmpty()
+                            val from = hold.kind == HoldKind.FROM
+                            HoldHeader(number = i + 1, onRemove = { onChangeNow(null) { it.withoutHold(i) } })
+                            // Spec rev 34 §5: At | From under the heading, above the value; a switch saves at once.
+                            HoldKindChoice(number = i + 1, selected = hold.kind, onSelect = { kind -> onChangeNow(null) { it.withHoldKind(i, kind) } })
+                            IntStepperField(
+                                stringResource(if (from) R.string.hold_from else R.string.hold_at), hold.at, FieldRanges.REPS, ValueInput.WHOLE,
+                                onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                                onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(at = f(h.at)) } } },
+                                error = holdErrors[HoldField.AT].resolve(), hint = validation.holdHints[i].resolve(),
+                                info = stringResource(if (from) R.string.info_hold_from else R.string.info_hold_at),
+                                a11yLabel = stringResource(if (from) R.string.hold_n_from else R.string.hold_n_at, i + 1),
+                            )
+                            IntStepperField(
+                                stringResource(R.string.hold_for), hold.forCount, FieldRanges.HOLD_FOR, ValueInput.WHOLE,
+                                onUpdate = { f -> onChange(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                                onDialogUpdate = { f -> onChangeNow(null) { it.updateHold(i) { h -> h.copy(forCount = f(h.forCount)) } } },
+                                error = holdErrors[HoldField.FOR].resolve(), info = stringResource(R.string.info_hold_for),
+                                a11yLabel = stringResource(R.string.hold_n_for, i + 1),
+                            )
+                        }
+                        AddHoldButton(
+                            enabled = draft.holds.size < ProgressionConfig.MAX_HOLDS,
+                            onClick = { onChangeNow(null) { it.withNewHold() } },
                         )
                     }
-                    AddHoldButton(
-                        enabled = draft.holds.size < ProgressionConfig.MAX_HOLDS,
-                        onClick = { onChangeNow(null) { it.withNewHold() } },
-                    )
                 }
             }
         }
@@ -400,16 +476,18 @@ fun ProgressionPageContent(
             error = errors[Field.WINDOW_HOURS].resolve(), info = stringResource(R.string.info_window),
         )
         if (!windowOnly) {
+            // Open question 4: in a weight mode the penalty counts steps on the ladder.
             PenaltyStepperField(
-                stringResource(R.string.penalty_rate), draft.penalty,
+                stringResource(if (weightRows != null) R.string.penalty_rate_steps else R.string.penalty_rate), draft.penalty,
                 onUpdate = { f -> onChange(null) { it.copy(penalty = f(it.penalty)) } },
                 onDialogUpdate = { f -> onChangeNow(null) { it.copy(penalty = f(it.penalty)) } },
-                error = errors[Field.PENALTY_RATE].resolve(), info = stringResource(R.string.info_penalty_rate),
+                error = errors[Field.PENALTY_RATE].resolve(),
+                info = stringResource(if (weightRows != null) R.string.info_penalty_rate_steps else R.string.info_penalty_rate),
             )
             OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(top = 16.dp).testTag("reset_defaults")) {
                 Text(stringResource(R.string.reset_defaults))
             }
-            NoteUnder(note, null)
+            if (weightRows != null) WeightNoteUnder(weightRows, null) else NoteUnder(note, null)
         }
     }
     // Spec R3 §6.4: confirmed, then applied at once.
@@ -433,7 +511,7 @@ fun ProgressionPageContent(
 
 /** "Hold N" with its 48 dp ✕ (spec rev 16 §6). */
 @Composable
-private fun HoldHeader(number: Int, onRemove: () -> Unit) {
+internal fun HoldHeader(number: Int, onRemove: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             stringResource(R.string.hold_n, number),
@@ -478,7 +556,7 @@ private val HoldKind.label: Int
 
 /** "+ Add hold", at least 48 dp tall (spec rev 16 §6). */
 @Composable
-private fun AddHoldButton(enabled: Boolean, onClick: () -> Unit) {
+internal fun AddHoldButton(enabled: Boolean, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
         enabled = enabled,

@@ -12,8 +12,11 @@ import com.mitenko.repkit.domain.ProgressionScale
 import com.mitenko.repkit.domain.RangeChange
 import com.mitenko.repkit.domain.RepProgression
 import com.mitenko.repkit.domain.WeightConversion
+import com.mitenko.repkit.domain.WeightMove
 import com.mitenko.repkit.domain.counterHoldReset
+import com.mitenko.repkit.domain.currentLoadMove
 import com.mitenko.repkit.domain.holdResetNeeded
+import com.mitenko.repkit.domain.ladderOf
 import com.mitenko.repkit.domain.loadAt
 import com.mitenko.repkit.domain.progressionHoldReset
 import com.mitenko.repkit.domain.rangeChange
@@ -71,6 +74,9 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
 
     /** When set, setProgression suspends on it after counting the call, so a test can hold a progression save in flight. */
     var progressionGate: CompletableDeferred<Unit>? = null
+
+    /** When set, setWeightConfig suspends on it after counting the call, so a test can hold a weight save in flight. */
+    var weightGate: CompletableDeferred<Unit>? = null
 
     /** When set, create suspends on it after validating the name, so a test can hold a create in flight. */
     var createGate: CompletableDeferred<Unit>? = null
@@ -187,22 +193,41 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
     }
 
     /** Room's remap without its validation (settings validation is left to the ViewModels under test). */
-    override suspend fun setWeightConfig(id: Long, weight: WeightConfig) {
+    override suspend fun setWeightConfig(id: Long, weight: WeightConfig): WeightMove.CurrentMoved? {
         weightWrites++
+        weightGate?.await()
         failIfAsked()
+        var moved: WeightMove.CurrentMoved? = null
         edit(id) {
             val stored = it.progression
             val mode = stored.mode
             val draft = weight.copy(list = weight.list.sorted(), unit = weight.unit ?: stored.weight.unit)
             val old = draft.unit?.let { u -> WeightConversion.convert(stored.weight, u) } ?: stored.weight
             val remapMode = if (mode.usesWeights) mode else ProgressMode.REPS_THEN_WEIGHT
-            val remap = remapWeights(remapMode, old, draft, if (mode.usesWeights) it.counter.total else null)
+            val storedLevel = if (mode.usesWeights) it.counter.total else null
+            // Bug fix (batch 1 review, 2026-10-10): storedLevel indexes the stored, unconverted ladder,
+            // but `old` above is already converted. See EntryRepository.setWeightConfig for the reason.
+            val oldLevel = storedLevel?.let { lvl ->
+                val current = ladderOf(mode, stored.weight).prescription(lvl)
+                val fromUnit = stored.weight.unit
+                val toUnit = draft.unit
+                val convertedWeight = if (fromUnit != null && toUnit != null) {
+                    WeightConversion.convert(current.weight, fromUnit, toUnit)
+                } else {
+                    current.weight
+                }
+                ladderOf(mode, old).levelOf(convertedWeight, current.reps)
+            }
+            val remap = remapWeights(remapMode, old, draft, oldLevel)
+            val newLevel = remap.level
+            if (mode.usesWeights && oldLevel != null && newLevel != null) moved = currentLoadMove(mode, old, remap.config, oldLevel, newLevel)
             val holdCount = if (mode.usesWeights && weightHoldResetNeeded(mode, old, remap)) 0 else it.counter.holdCount
             it.copy(
                 progression = stored.copy(weight = remap.config),
-                counter = it.counter.copy(total = remap.level ?: it.counter.total, holdCount = holdCount),
+                counter = it.counter.copy(total = newLevel ?: it.counter.total, holdCount = holdCount),
             )
         }
+        return moved
     }
 
     /** Like Room: Start fresh, including the fresh-start flag (plan Spec note 13). */
@@ -256,7 +281,14 @@ class FakeEntryRepository(initial: List<Entry> = emptyList(), ready: Boolean = t
             change = rangeChange(it.progression, widened)
             val reset = holdResetNeeded(it.progression, widened) || counterHoldReset(it.counter.total, total)
             val holdCount = if (reset) 0 else it.counter.holdCount
-            it.copy(progression = widened, counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount))
+            // §10 note 13, amended by notes 40 and 49: a level change clears fresh start; keeping the level
+            // keeps it. Room additionally keeps a NULL total NULL here (note 49) so a later
+            // setProgression/setWeightConfig follows a start that moves afterwards instead of remapping a
+            // frozen value; the fake has no separate NULL state for `total` (see the class doc above — it
+            // always stores the resolved level directly), so when the level doesn't move there is no
+            // distinct "untouched" value to preserve: `total` already equals `it.counter.total` here.
+            val fresh = it.counter.freshStart && total == it.counter.total
+            it.copy(progression = widened, counter = CounterState(total, bestStreak, currentStreak, lastCheckIn, holdCount, fresh))
         }
         return change
     }

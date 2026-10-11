@@ -23,8 +23,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.R
+import com.mitenko.repkit.data.WeightUnitDefaults
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.FakeVoiceAvailability
@@ -32,7 +37,10 @@ import com.mitenko.repkit.testutil.testEntry
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.theme.HiitTheme
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,11 +57,18 @@ class SettingsPagerTest {
 
     private fun handle() = SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L))
 
+    private val lbDefault = object : WeightUnitDefaults {
+        override val weightUnitDefault: Flow<WeightUnit> = flowOf(WeightUnit.LB)
+    }
+
     /** The last [show]'s Current page ViewModel, so a test can flush its pending save. */
     private lateinit var currentVm: CurrentStateViewModel
 
     /** The last [show]'s Progression page ViewModel, so a test can flush its pending save. */
     private lateinit var progressionVm: ProgressionSettingsViewModel
+
+    /** The last [show]'s weight settings ViewModel, so a test can read its draft after an action. */
+    private lateinit var weightVm: WeightSettingsViewModel
 
     private fun checkInRepo() = FakeEntryRepository(listOf(testEntry(1, name = "Stretch", type = EntryType.CHECK_IN)))
 
@@ -64,12 +79,13 @@ class SettingsPagerTest {
         val progressionVm = ProgressionSettingsViewModel(handle(), repo, appScope).also { this.progressionVm = it }
         val currentVm = CurrentStateViewModel(handle(), repo, FakeClock(), appScope).also { this.currentVm = it }
         val cuesVm = CuesSettingsViewModel(handle(), repo, FakeVoiceAvailability())
+        val weightVm = WeightSettingsViewModel(handle(), repo, lbDefault, appScope).also { this.weightVm = it }
         compose.setContent {
             HiitTheme {
                 SettingsPagerRoute(
                     initialPage = initial, onBack = { backs++ }, onEntryGone = { gone++ },
                     pagerVm = pagerVm, timingVm = timingVm, progressionVm = progressionVm,
-                    currentVm = currentVm, cuesVm = cuesVm,
+                    currentVm = currentVm, cuesVm = cuesVm, weightVm = weightVm,
                 )
             }
         }
@@ -412,5 +428,69 @@ class SettingsPagerTest {
         tab(SettingsPage.CUES).assertIsSelected()
         tab(SettingsPage.TIMING).performClick()
         tab(SettingsPage.TIMING).assertIsSelected()
+    }
+
+    @Test
+    fun `switching to Weight asks Start fresh, then shows the weight rows in the app default unit`() {
+        show(SettingsPage.PROGRESSION)
+        compose.onNodeWithTag("mode_WEIGHT").performClick()
+        compose.onNodeWithText("Start fresh?").assertExists()
+        // Nothing switches until the dialog is confirmed.
+        assertEquals(ProgressMode.REPS, repo.find(1).progression.mode)
+        assertTrue(repo.modeSwitches.isEmpty())
+        compose.onNodeWithTag("confirm_start_fresh").performClick()
+        // confirmMode runs in the pager's appScope (plain Dispatchers.Main, not .immediate), so the
+        // switch is only a posted message on Robolectric's main looper: waitForIdle pumps it, the
+        // same way the Reset progress dialog's appScope.launch is synchronised elsewhere in this file.
+        compose.waitForIdle()
+        assertEquals(ProgressMode.WEIGHT, repo.find(1).progression.mode)
+        compose.onNodeWithTag("card_Unit").assertExists()
+        compose.onNodeWithTag("unit_LB").assertIsSelected()
+        assertEquals(true, repo.find(1).counter.freshStart)
+    }
+
+    @Test
+    fun `a pending weight edit is saved when the page changes`() {
+        val weightRepo = FakeEntryRepository(listOf(testEntry(
+            1, name = "Curls",
+            progression = ProgressionConfig(mode = ProgressMode.WEIGHT, weight = WeightConfig(unit = WeightUnit.KG)),
+            counter = CounterState(total = 0),
+        )))
+        show(SettingsPage.PROGRESSION, weightRepo)
+        compose.onNodeWithContentDescription("Increase Reps per set").performScrollTo().performClick()
+        tab(SettingsPage.CURRENT).performClick()
+        compose.waitUntil(5_000) { weightRepo.find(1).progression.weight.repsPerSet == 11 }
+    }
+
+    @Test
+    fun `a Timer only entry has no Progress by row`() {
+        show(SettingsPage.PROGRESSION, checkInRepo())
+        compose.onNodeWithTag("card_Progress by").assertDoesNotExist()
+    }
+
+    @Test
+    fun `Reset to defaults in a weight mode keeps the hidden Reps cap and resets the weight group`() {
+        val weightRepo = FakeEntryRepository(listOf(testEntry(
+            1, name = "Curls",
+            progression = ProgressionConfig(
+                cap = 120,
+                mode = ProgressMode.WEIGHT,
+                weight = WeightConfig(unit = WeightUnit.KG, repsPerSet = 15),
+            ),
+            counter = CounterState(total = 0),
+        )))
+        show(SettingsPage.PROGRESSION, weightRepo)
+        compose.onNodeWithTag("reset_defaults").performScrollTo().performClick()
+        compose.onNodeWithTag("confirm_reset_defaults").performClick()
+        compose.waitForIdle()
+        // The shared rows reset, but the hidden Reps cap (not shown or editable in this mode) is untouched.
+        assertEquals(120, progressionVm.draft.value!!.cap)
+        // The weight group goes back to its defaults, keeping the unit.
+        assertEquals(WeightConfig(unit = WeightUnit.KG), weightVm.draft.value)
+        assertEquals(ProgressMode.WEIGHT, weightRepo.find(1).progression.mode)
+        // The same, confirmed against the repository: the hidden Reps cap survives the reset, and the
+        // weight group it saves is the reset default.
+        assertEquals(120, weightRepo.find(1).progression.cap)
+        assertEquals(WeightConfig(unit = WeightUnit.KG), weightRepo.find(1).progression.weight)
     }
 }
