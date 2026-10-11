@@ -7,15 +7,24 @@ import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.CheckInResult
 import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.Outcome
+import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.RepDistributor
 import com.mitenko.repkit.domain.RunStatus
 import com.mitenko.repkit.domain.ServiceStatus
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
+import com.mitenko.repkit.domain.engineConfig
+import com.mitenko.repkit.domain.historyMode
+import com.mitenko.repkit.domain.load
+import com.mitenko.repkit.domain.loadAt
+import com.mitenko.repkit.domain.setReps
+import com.mitenko.repkit.domain.setWeight
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.service.WorkoutServiceStarter
 import com.mitenko.repkit.ui.common.EntryScopedViewModel
 import com.mitenko.repkit.ui.common.UiText
@@ -61,13 +70,32 @@ data class EntryUiState(
     val points: List<CheckInPoint> = emptyList(),
     val now: Instant = Instant.EPOCH,
     val zone: ZoneId = ZoneOffset.UTC,
+    /** Spec rev 26 §9.4: the family the chart plots; a Counter's Progress by, REPS for Timer only. */
+    val mode: ProgressMode = ProgressMode.REPS,
+    /** The workout's unit (spec rev 26 §9.3); null until it has been in a weight mode. */
+    val unit: WeightUnit? = null,
+    /** Spec rev 26 §4: a weight mode's next load, for the prescription card; null in Reps mode and for Timer only. */
+    val load: Prescription.Load? = null,
+    /**
+     * The workout's ladder rungs (`progression.weight.weights`), captured purely to guard the check-in
+     * highlight against a racing ladder edit (final review fix, M2) — no screen renders this list
+     * directly. Empty for Reps mode and for Timer only.
+     */
+    val weightLadder: List<Int> = emptyList(),
 )
 
 /**
  * A one-shot check-in highlight (spec revision 12 §3): [id] increases on every event, so the UI's
- * `LaunchedEffect` keys replay even when the changed indices repeat.
+ * `LaunchedEffect` keys replay even when the changed indices repeat. In Reps mode [changes] marks the
+ * reps column's cells. In a weight mode [changes] is empty and [card] is the prescription card's flash
+ * (spec rev 26 §4, plan Spec note 51). [hold] is set on a hold day in either mode.
  */
-data class Highlight(val id: Int, val changes: Map<Int, RepsColumnLayout.Change>, val hold: HoldStatus? = null)
+data class Highlight(
+    val id: Int,
+    val changes: Map<Int, RepsColumnLayout.Change>,
+    val hold: HoldStatus? = null,
+    val card: RepsColumnLayout.Change? = null,
+)
 
 /**
  * Spec revision 20, as amended by rev 34 §6: the hold a check-in stayed on, for the announcement
@@ -102,7 +130,7 @@ class EntryViewModel @Inject constructor(
             EntryUiState(
                 name = entry.name,
                 type = entry.type,
-                reps = RepDistributor.distribute(counter.total, entry.timing.sets),
+                reps = entry.setReps(),
                 total = counter.total,
                 bestStreak = counter.bestStreak,
                 currentStreak = counter.currentStreak,
@@ -114,6 +142,10 @@ class EntryViewModel @Inject constructor(
                 points = points,
                 now = now,
                 zone = zone,
+                mode = entry.historyMode,
+                unit = entry.progression.weight.unit,
+                load = entry.load(),
+                weightLadder = entry.progression.weight.weights,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryUiState())
 
@@ -141,11 +173,15 @@ class EntryViewModel @Inject constructor(
         if (t.checkingIn || t.starting) return
         val type = uiState.value.type
         val before = uiState.value.reps
+        val beforeLoad = uiState.value.load
+        val beforeMode = uiState.value.mode
+        val beforeUnit = uiState.value.unit
+        val beforeLadder = uiState.value.weightLadder
         transient.update { it.copy(checkingIn = true, error = null) }
         viewModelScope.launch {
             try {
                 val result = withContext(NonCancellable) { repo.checkIn(entryId, clock) }
-                applyHighlight(type, before, result, repo.entry(entryId).first()?.progression)
+                applyHighlight(type, before, beforeLoad, beforeMode, beforeUnit, beforeLadder, result, repo.entry(entryId).first()?.progression)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: EntryNotFound) {
@@ -203,25 +239,55 @@ class EntryViewModel @Inject constructor(
             return
         }
         // Uses the row's own progression; throwing (incl. EntryNotFound) takes the fail() path above.
-        val before = RepDistributor.distribute(entry.counter.total, entry.timing.sets)
+        val before = entry.setReps()
+        val beforeLoad = entry.load()
+        val beforeMode = entry.historyMode
+        val beforeUnit = entry.progression.weight.unit
+        val beforeLadder = entry.progression.weight.weights
         val result = repo.checkIn(entryId, clock)
         // Starting navigates to the timer right away, so this may only ever play once the user
         // comes back here: collectAsStateWithLifecycle pauses collection while the screen isn't
         // started, so the event just waits on the StateFlow. If this screen (and this ViewModel)
         // is gone by the time this runs, there's nobody left to observe it, and it's discarded
-        // along with the ViewModel — no extra "has the user left" check is needed.
-        applyHighlight(entry.type, before, result, entry.progression)
-        controller.start(RepDistributor.distribute(result.state.total, entry.timing.sets))
+        // along with the ViewModel — no extra "has the user left" check is needed. The progression is
+        // re-read fresh (like onCheckIn) so a settings edit racing the check-in is caught below.
+        val freshProgression = repo.entry(entryId).first()?.progression
+        applyHighlight(entry.type, before, beforeLoad, beforeMode, beforeUnit, beforeLadder, result, freshProgression)
+        // Spec rev 26 §4, plan Spec notes 56 and 59: a weight run does the load's reps per set with its
+        // weight, so the timer, the voice and the session's repsDone follow the load, not the level.
+        // Final review fix (M1): built from [freshProgression] — the progression re-read after the
+        // check-in, same as the race guard above — never the pre-check-in [entry].progression, since a
+        // ladder/mode edit can land between Start's prepare and its check-in just as it can for Check
+        // in. The set count still comes from the frozen snapshot's own timing (Entry.setReps/setWeight's
+        // progression overload), because TabataEngine requires repsPerSet.size == timing.sets.
+        val runProgression = freshProgression ?: entry.progression
+        controller.start(entry.setReps(runProgression, result.state.total), entry.setWeight(runProgression, result.state.total))
     }
 
     /**
      * Spec revision 12 §3: nothing highlights for a Timer only entry or an AlreadyToday no-op. If
      * the set count changed while this check-in was in flight (e.g. a Settings edit raced it),
      * `before` no longer lines up with the live column, so this bails rather than diff against a
-     * stale size and highlight the wrong cells.
+     * stale size and highlight the wrong cells. A weight mode flashes the prescription card instead
+     * (spec rev 26 §4); [beforeLoad] is the card's load before the check-in, null in Reps mode.
+     * [beforeMode], [beforeUnit] and [beforeLadder] are the progression that produced it, so a race
+     * (including a ladder edit, final review fix M2) can be detected.
      */
-    private fun applyHighlight(type: EntryType, before: List<Int>, result: CheckInResult, progression: ProgressionConfig?) {
+    private fun applyHighlight(
+        type: EntryType,
+        before: List<Int>,
+        beforeLoad: Prescription.Load?,
+        beforeMode: ProgressMode,
+        beforeUnit: WeightUnit?,
+        beforeLadder: List<Int>,
+        result: CheckInResult,
+        progression: ProgressionConfig?,
+    ) {
         if (type != EntryType.WORKOUT || result.outcome == Outcome.AlreadyToday) return
+        if (beforeLoad != null || progression?.mode?.usesWeights == true) {
+            applyLoadHighlight(beforeLoad, beforeMode, beforeUnit, beforeLadder, result, progression)
+            return
+        }
         if (before.size != uiState.value.reps.size) return
         val after = RepDistributor.distribute(result.state.total, before.size)
         val changes = RepsColumnLayout.changedSets(before, after)
@@ -235,6 +301,42 @@ class EntryViewModel @Inject constructor(
         if (hold != null && result.state.holdCount > 0) {
             val all = before.indices.associateWith { RepsColumnLayout.Change.HOLD }
             _highlight.value = Highlight(++highlightSeq, all, HoldStatus(result.state.total, result.state.holdCount, hold.forCount))
+        }
+    }
+
+    /**
+     * Spec rev 26 §4, plan Spec notes 51–52: the card flashes UP or DOWN as the load moved, or HOLD when a
+     * check-in stayed on an active weight hold. The hold is looked up in the engine's level holds
+     * (`engineConfig`), never the Reps holds. [beforeMode], [beforeUnit] and [beforeLadder] are the mode,
+     * unit and ladder rungs that produced [before]: if the progression after the check-in no longer
+     * matches them — a Weight ↔ Reps-then-weight switch, a kg ↔ lb switch, or a ladder edit (final
+     * review fix, M2: the ladder itself is now compared too, not just mode and unit) racing the
+     * check-in — comparing the two loads means nothing, so nothing flashes and nothing is announced.
+     */
+    private fun applyLoadHighlight(
+        before: Prescription.Load?,
+        beforeMode: ProgressMode,
+        beforeUnit: WeightUnit?,
+        beforeLadder: List<Int>,
+        result: CheckInResult,
+        progression: ProgressionConfig?,
+    ) {
+        if (before == null || progression == null || !progression.mode.usesWeights) return
+        if (progression.mode != beforeMode || progression.weight.unit != beforeUnit) return
+        if (progression.weight.weights != beforeLadder) return
+        val after = progression.loadAt(result.state.total) ?: return
+        val change = PrescriptionLayout.change(before, after)
+        if (change != null) {
+            _highlight.value = Highlight(++highlightSeq, emptyMap(), card = change)
+            return
+        }
+        val hold = progression.engineConfig().activeHold(result.state.total)
+        if (hold != null && result.state.holdCount > 0) {
+            _highlight.value = Highlight(
+                ++highlightSeq, emptyMap(),
+                HoldStatus(result.state.total, result.state.holdCount, hold.forCount),
+                card = RepsColumnLayout.Change.HOLD,
+            )
         }
     }
 

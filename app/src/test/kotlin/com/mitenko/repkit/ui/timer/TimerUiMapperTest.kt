@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.common.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -129,5 +131,34 @@ class TimerUiMapperTest {
         assertEquals("Rest, next set 3 of 8, 9 reps", TimerUiMapper.map(state(Phase.REST, set = 3, left = 5, duration = 10, reps = 9), "Burpees").description.en())
         assertEquals("Cooldown", TimerUiMapper.map(state(Phase.COOLDOWN, set = 8, left = 5, duration = 30), "Burpees").description.en())
         assertEquals("Done, 65 reps", TimerUiMapper.map(state(Phase.DONE, set = 8, left = 0, duration = 0), "Burpees").description.en())
+    }
+
+    private val kg16 = SetWeight(1600, WeightUnit.KG)
+
+    @Test
+    fun `a weight run shows the weight over the reps in work and in the rest preview`() {
+        val work = TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20, reps = 10), "Curls", weight = kg16)
+        assertEquals("16 kg", work.weight.en())
+        assertEquals(10, work.centerNumber)
+        assertNull(work.label.en())
+        assertEquals("Work, set 2 of 8, 10 reps, 16 kilograms", work.description.en())
+        val rest = TimerUiMapper.map(state(Phase.REST, set = 3, left = 10, duration = 10, reps = 10), "Curls", weight = kg16)
+        assertEquals("16 kg", rest.weight.en())
+        assertEquals("Rest, next set 3 of 8, 10 reps, 16 kilograms", rest.description.en())
+    }
+
+    @Test
+    fun `get ready, cooldown and done show no weight`() {
+        listOf(Phase.PREPARE, Phase.COOLDOWN, Phase.DONE).forEach { phase ->
+            assertNull("$phase", TimerUiMapper.map(state(phase, set = 1, left = 10, duration = 10), "Curls", weight = kg16).weight)
+        }
+        val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10), "Curls", weight = kg16)
+        assertEquals("Get ready, first set 8 reps", prep.description.en())
+    }
+
+    @Test
+    fun `a Timer only run and a Reps run show no weight`() {
+        assertNull(TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Stretch", countsReps = false, weight = kg16).weight)
+        assertNull(TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Burpees").weight)
     }
 }

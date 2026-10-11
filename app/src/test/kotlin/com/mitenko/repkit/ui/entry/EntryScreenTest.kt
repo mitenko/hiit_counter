@@ -1,5 +1,7 @@
 package com.mitenko.repkit.ui.entry
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -13,23 +15,30 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.HistoryRange
+import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.rangeStart
 import com.mitenko.repkit.ui.theme.HiitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +62,15 @@ class EntryScreenTest {
         name = "Burpees", reps = listOf(9, 8, 8, 8, 8, 8, 8, 8), total = 65,
         bestStreak = 24, currentStreak = 4, checkedInToday = true, loaded = true,
         points = listOf(a, b, c, d), now = now, zone = la,
+    )
+
+    private val w14 = CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 3, weight = 1400, reps = 10, unit = WeightUnit.KG)
+    private val w16 = CheckInPoint(Instant.parse("2026-09-23T16:00:00Z"), 4, weight = 1600, reps = 10, unit = WeightUnit.KG)
+
+    /** A Weight-mode Counter on 16 kg × 10 for 8 sets, with one rep point (c) from before its switch. */
+    private val weightState = state.copy(
+        reps = List(8) { 10 }, total = 4, mode = ProgressMode.WEIGHT, unit = WeightUnit.KG,
+        load = Prescription.Load(1600, 10), points = listOf(c, w14, w16),
     )
 
     private fun show(
@@ -350,5 +368,135 @@ class EntryScreenTest {
         compose.onNodeWithTag("reps_column").assertDoesNotExist()
         compose.onNodeWithTag("rep_0", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("Set 1: now 9 reps").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a weight mode charts only its weight points, in the unit`() {
+        show(weightState)
+        compose.onNodeWithContentDescription("2 check-ins, from 14 kg to 16 kg").assertExists()
+    }
+
+    @Test
+    fun `a weight-mode entry with only weight points shows its chart, not no check-ins`() {
+        // Batch 1 review finding 1: the interim REPS default must not shadow a real weight-mode chart.
+        show(weightState.copy(points = listOf(w14, w16)))
+        compose.onNodeWithTag("chart").assertExists()
+        compose.onNodeWithText("No check-ins yet").assertDoesNotExist()
+        compose.onNodeWithText("No check-ins in this mode yet").assertDoesNotExist()
+    }
+
+    @Test
+    fun `tapping a weight point shows its recorded load`() {
+        show(weightState)
+        // Spec rev 21: the axis starts at the first shown point (w14), not at c, which isn't shown.
+        val start = w14.at
+        compose.onNodeWithTag("chart").performTouchInput {
+            val x = HistoryLayout.x(w16.at, start, now, ChartInsets.left.toPx(), width - ChartInsets.right.toPx())
+            click(Offset(x, height / 2f))
+        }
+        compose.onNodeWithText("23 Sep · 16 kg × 10").assertExists()
+    }
+
+    @Test
+    fun `a point recorded in lb shows in the workout's kg`() {
+        show(weightState.copy(points = listOf(w16.copy(weight = 3500, unit = WeightUnit.LB))))
+        compose.onNodeWithContentDescription("1 check-in, from 16 kg to 16 kg").assertExists()
+    }
+
+    @Test
+    fun `right after a switch the chart says there are no check-ins in this mode yet`() {
+        show(weightState.copy(points = listOf(c, d)))
+        compose.onNodeWithText("No check-ins in this mode yet").assertExists()
+        compose.onNodeWithTag("chart").assertDoesNotExist()
+    }
+
+    @Test
+    fun `back in Reps mode the rep line returns without the weight points`() {
+        show(state.copy(points = listOf(c, w14, w16, d)))
+        compose.onNodeWithContentDescription("2 check-ins, from 60 to 62 reps").assertExists()
+    }
+
+    @Test
+    fun `a weight mode shows the prescription card instead of the reps column`() {
+        show(weightState)
+        compose.onNodeWithTag("reps_column").assertDoesNotExist()
+        compose.onNodeWithTag("prescription_weight", useUnmergedTree = true).assertTextEquals("16 kg")
+        compose.onNodeWithTag("prescription_sets", useUnmergedTree = true).assertTextEquals("8 × 10 reps")
+        compose.onNodeWithContentDescription("16 kilograms, 8 sets of 10 reps").assertExists()
+    }
+
+    @Test
+    fun `the card shows with no history yet`() {
+        show(weightState.copy(points = emptyList()))
+        compose.onNodeWithText("No check-ins yet").assertExists()
+        compose.onNodeWithTag("prescription_card").assertExists()
+    }
+
+    @Test
+    fun `the card flashes up and announces the new load`() {
+        compose.mainClock.autoAdvance = false
+        show(weightState, highlight = Highlight(id = 1, changes = emptyMap(), card = RepsColumnLayout.Change.UP))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithTag("prescription_card")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "increased"))
+        compose.onNodeWithText("Now 16 kilograms, 8 sets of 10 reps").assertExists()
+    }
+
+    @Test
+    fun `a drop flashes the card as decreased`() {
+        compose.mainClock.autoAdvance = false
+        show(weightState, highlight = Highlight(id = 1, changes = emptyMap(), card = RepsColumnLayout.Change.DOWN))
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithTag("prescription_card")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "decreased"))
+    }
+
+    @Test
+    fun `a weight hold flashes the card as holding and names the load`() {
+        compose.mainClock.autoAdvance = false
+        val hold = Highlight(id = 1, changes = emptyMap(), hold = HoldStatus(at = 4, day = 2, of = 4), card = RepsColumnLayout.Change.HOLD)
+        show(weightState, highlight = hold)
+        compose.mainClock.advanceTimeBy(50)
+        compose.onNodeWithTag("prescription_card")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "holding"))
+        compose.onNodeWithText("Holding at 16 kg × 10 · 2 of 4").assertExists()
+    }
+
+    @Test
+    fun `the card's highlight is consumed once shown`() {
+        compose.mainClock.autoAdvance = false
+        var shown = 0
+        show(weightState, highlight = Highlight(id = 1, changes = emptyMap(), card = RepsColumnLayout.Change.UP), onHighlightShown = { shown++ })
+        compose.mainClock.advanceTimeBy(50)
+        assertEquals(1, shown)
+    }
+
+    @Test
+    fun `reduced motion skips the card's pop`() {
+        val resolver = ApplicationProvider.getApplicationContext<Context>().contentResolver
+        Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        try {
+            compose.mainClock.autoAdvance = false
+            show(weightState, highlight = Highlight(id = 1, changes = emptyMap(), card = RepsColumnLayout.Change.UP))
+            compose.mainClock.advanceTimeBy(50)
+            val before = compose.onNodeWithTag("prescription_card").getBoundsInRoot()
+            compose.mainClock.advanceTimeBy(150) // the pop's peak (POP_HALF_MS) with full motion
+            val peak = compose.onNodeWithTag("prescription_card").getBoundsInRoot()
+            assertEquals(before, peak)
+        } finally {
+            Settings.Global.putFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        }
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `the heaviest weight fits on the card at 320dp`() {
+        show(weightState.copy(unit = WeightUnit.LB, load = Prescription.Load(99_975, 100)))
+        compose.onNodeWithTag("prescription_weight", useUnmergedTree = true).assertTextEquals("999.75 lb")
+        val root = compose.onRoot().getBoundsInRoot()
+        val card = compose.onNodeWithTag("prescription_card").getBoundsInRoot()
+        val weight = compose.onNodeWithTag("prescription_weight", useUnmergedTree = true).getBoundsInRoot()
+        assertTrue(card.left >= root.left && card.right <= root.right)
+        assertTrue(weight.left >= card.left && weight.right <= card.right)
     }
 }

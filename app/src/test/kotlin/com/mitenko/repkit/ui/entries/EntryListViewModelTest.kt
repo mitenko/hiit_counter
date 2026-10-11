@@ -8,7 +8,11 @@ import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.CounterState
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.WeightConfig
 import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.model.WeightsKind
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
 import com.mitenko.repkit.testutil.FakeProUpgrade
@@ -242,6 +246,21 @@ class EntryListViewModelTest {
         val r = row(vm)
         assertEquals(1, r.weekCount)
         assertEquals(TileData(count = 1, week = List(7) { it == 3 }, spark = listOf(SparkPoint(27, 48))), r.tile)
+    }
+
+    @Test
+    fun `a weight row counts the next workout's reps and plots its weights as steps`() = runTest {
+        val curls = WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(800, 1000, 1200, 1400, 1600), repsPerSet = 10)
+        val repo = FakeEntryRepository(
+            listOf(testEntry(1, "Curls", progression = ProgressionConfig(mode = ProgressMode.WEIGHT, weight = curls), counter = CounterState(total = 3))),
+        )
+        val vm = vm(repo)
+        repo.checkIn(1, clock) // the first check-in stays at level 3, 14 kg
+        runCurrent()
+        val r = row(vm)
+        assertEquals(80, r.reps) // 8 sets × 10 reps, not the level
+        assertEquals(listOf(SparkPoint(27, 1400)), r.tile.spark)
+        assertTrue(r.tile.steps)
     }
 
     @Test

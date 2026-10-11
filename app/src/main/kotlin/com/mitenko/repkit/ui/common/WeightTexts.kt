@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.Prescription
 import com.mitenko.repkit.domain.WeightFormat
 import com.mitenko.repkit.domain.WeightMove
 import com.mitenko.repkit.domain.WeightProblem
@@ -89,3 +90,26 @@ fun WeightMove.uiText(unit: WeightUnit?): UiText = when (this) {
 /** Every move of one edit on one line (revision 28's separator). */
 @Composable
 fun weightNoteText(moves: List<WeightMove>, unit: WeightUnit?): String = moves.map { it.uiText(unit).resolve() }.joinToString(MOVE_SEPARATOR)
+
+/** "16 kg × 10" (spec rev 26 §4): a load as the chart's tap label and the hold announcement show it. */
+fun loadText(load: Prescription.Load, unit: WeightUnit?): UiText =
+    UiText.Res(R.string.load_value, listOf(weightText(load.weight, unit), load.reps))
+
+/** "16 kilograms" for TalkBack (spec rev 26 §4); the count follows plan Spec note 62. */
+fun spokenWeight(hundredths: Int, unit: WeightUnit): UiText = UiText.Plural(
+    when (unit) {
+        WeightUnit.KG -> R.plurals.weight_spoken_kg
+        WeightUnit.LB -> R.plurals.weight_spoken_lb
+    },
+    WeightFormat.pluralCount(hundredths),
+    listOf(WeightFormat.format(hundredths)),
+)
+
+/** What TalkBack reads for the prescription card (spec rev 26 §4): "16 kilograms, 3 sets of 10 reps". */
+fun prescriptionDescription(load: Prescription.Load, sets: Int, unit: WeightUnit?): UiText = UiText.Res(
+    R.string.prescription_desc,
+    listOf(
+        spokenWeight(load.weight, unit ?: WeightUnit.KG),
+        UiText.Plural(R.plurals.sets_of_reps, sets, listOf(sets, UiText.Plural(R.plurals.reps_count, load.reps))),
+    ),
+)

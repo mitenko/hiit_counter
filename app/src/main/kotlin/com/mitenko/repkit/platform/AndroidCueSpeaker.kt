@@ -6,6 +6,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.mitenko.repkit.domain.CrashReporter
+import com.mitenko.repkit.domain.VoiceLine
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +20,10 @@ import kotlin.coroutines.resume
 /**
  * [CueSpeaker] over the platform TextToSpeech (spec R4 §5): the app's locale, falling back to
  * English when the engine lacks it (spec revision 24), `USAGE_ASSISTANCE_SONIFICATION`,
- * `QUEUE_FLUSH`, and the number as the `voice_count` resource in the voice's language (the digits,
- * "12", in English), which the engine says as a word. An init failure or no usable voice leaves
- * [available] false, and the run continues silently; it also leaves a [reporter] breadcrumb. Create, speak and shut down on Main.
+ * `QUEUE_FLUSH`, and the line's words from resources in the voice's language (`VoiceLanguage.spokenLine`:
+ * the digits "12" for a rep count, "16 kilos, 10 reps" for a weight run). An init failure or no usable
+ * voice leaves [available] false, and the run continues silently; it also leaves a [reporter] breadcrumb.
+ * Create, speak and shut down on Main.
  */
 class AndroidCueSpeaker(context: Context, private val reporter: CrashReporter) : CueSpeaker {
     private val appContext = context.applicationContext
@@ -90,7 +92,7 @@ class AndroidCueSpeaker(context: Context, private val reporter: CrashReporter) :
         return true
     }
 
-    override suspend fun speak(number: Int) {
+    override suspend fun speak(line: VoiceLine) {
         val tts = engine
         if (tts == null || !_available.value) return
         val id = "rep-${nextId++}"
@@ -98,7 +100,7 @@ class AndroidCueSpeaker(context: Context, private val reporter: CrashReporter) :
             pending[id] = cont
             cont.invokeOnCancellation { pending.remove(id) }
             // QUEUE_FLUSH stops the previous utterance, whose onStop resumes its caller.
-            val text = VoiceLanguage.spokenCount(appContext, voiceLocale, number)
+            val text = VoiceLanguage.spokenLine(appContext, voiceLocale, line)
             if (tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) {
                 pending.remove(id)?.resume(Unit)
             }

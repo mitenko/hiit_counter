@@ -10,6 +10,8 @@ import com.mitenko.repkit.domain.Entitlements
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.ProUpgrade
 import com.mitenko.repkit.domain.canAddEntry
+import com.mitenko.repkit.domain.historyMode
+import com.mitenko.repkit.domain.nextWorkoutReps
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
@@ -35,9 +37,10 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * [reps] is the entry's current total, i.e. the next workout's total, and [streak] the current
- * check-in streak (spec R4 §4.3); since rev 9 the tile shows neither (plan Spec note 22). [weekCount]
- * is the check-ins since local Monday 00:00, and [tile] the tile graph's 28-day data (spec rev 9 §2).
+ * [reps] is the next workout's reps: the total in Reps mode and for Timer only, sets × reps per set in a
+ * weight mode (plan Spec note 60), and [streak] the current check-in streak (spec R4 §4.3); since rev 9
+ * the tile shows neither (plan Spec note 22). [weekCount] is the check-ins since local Monday 00:00, and
+ * [tile] the tile graph's 28-day data (spec rev 9 §2).
  */
 data class EntryRow(
     val id: Long,
@@ -122,12 +125,12 @@ class EntryListViewModel @Inject constructor(
                     EntryRow(
                         id = e.id,
                         name = e.name,
-                        reps = e.counter.total,
+                        reps = e.nextWorkoutReps(),
                         checkedInToday = e.counter.lastCheckIn?.atZone(zone)?.toLocalDate() == today,
                         type = e.type,
                         streak = e.counter.currentStreak,
                         weekCount = weekCount(points, now, zone),
-                        tile = TileLayout.tile(points, now, zone),
+                        tile = TileLayout.tile(points, now, zone, e.historyMode, e.progression.weight.unit),
                     )
                 },
             )

@@ -468,4 +468,59 @@
     <string name="error_outside_rep_range">Must be within the rep range</string>
     <string name="error_duplicate_weight_hold">Another hold is already here</string>
     <string name="error_enter_weight">Enter a number with up to 2 decimals</string>
+
+    <!-- Weight progression in use (spec rev 26 §4, PR 3) -->
+    <string name="history_empty_mode">No check-ins in this mode yet</string>
+    <!-- %1$d check-ins; %2$s and %3$s the first and last weights with their unit, e.g. 14 kg -->
+    <plurals name="chart_desc_weight">
+        <item quantity="one">%1$d check-in, from %2$s to %3$s</item>
+        <item quantity="other">%1$d check-ins, from %2$s to %3$s</item>
+    </plurals>
+    <!-- A load: %1$s is a weight with its unit, %2$d the reps per set, e.g. 16 kg × 10 -->
+    <string name="load_value">%1$s × %2$d</string>
+    <!-- The prescription card's second line: %1$d sets × %2$d reps per set; the quantity is the reps -->
+    <plurals name="prescription_sets_reps">
+        <item quantity="one">%1$d × %2$d rep</item>
+        <item quantity="other">%1$d × %2$d reps</item>
+    </plurals>
+    <!-- A number of reps, for TalkBack and the Voice cue -->
+    <plurals name="reps_count">
+        <item quantity="one">%1$d rep</item>
+        <item quantity="other">%1$d reps</item>
+    </plurals>
+    <!-- %1$d sets; %2$s is reps_count, e.g. 10 reps -->
+    <plurals name="sets_of_reps">
+        <item quantity="one">%1$d set of %2$s</item>
+        <item quantity="other">%1$d sets of %2$s</item>
+    </plurals>
+    <!-- A weight for TalkBack; %1$s is a number such as 22.5 -->
+    <plurals name="weight_spoken_kg">
+        <item quantity="one">%1$s kilogram</item>
+        <item quantity="other">%1$s kilograms</item>
+    </plurals>
+    <plurals name="weight_spoken_lb">
+        <item quantity="one">%1$s pound</item>
+        <item quantity="other">%1$s pounds</item>
+    </plurals>
+    <!-- What TalkBack reads for the prescription card: %1$s the spoken weight, %2$s sets_of_reps -->
+    <string name="prescription_desc">%1$s, %2$s</string>
+    <!-- After a check-in moves the load: %1$s is prescription_desc -->
+    <string name="load_now">Now %1$s</string>
+    <!-- After a check-in that stays on a weight hold: %1$s is load_value; %2$d of %3$d the hold's check-ins -->
+    <string name="load_holding">Holding at %1$s · %2$d of %3$d</string>
+    <!-- Timer TalkBack: %1$s is the centre's description, %2$s the spoken weight -->
+    <string name="timer_desc_with_weight">%1$s, %2$s</string>
+    <!-- Notification title with the run's weight: %1$s the title, %2$s the weight with its unit -->
+    <string name="notification_with_weight">%1$s · %2$s</string>
+    <!-- What the Voice cue says for a weight; %1$s is a number such as 22.5 -->
+    <plurals name="voice_weight_kg">
+        <item quantity="one">%1$s kilo</item>
+        <item quantity="other">%1$s kilos</item>
+    </plurals>
+    <plurals name="voice_weight_lb">
+        <item quantity="one">%1$s pound</item>
+        <item quantity="other">%1$s pounds</item>
+    </plurals>
+    <!-- The Voice cue at a weight run's first set: %1$s voice_weight_*, %2$s reps_count, e.g. 16 kilos, 10 reps -->
+    <string name="voice_load">%1$s, %2$s</string>
 </resources>

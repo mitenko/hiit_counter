@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
+import com.mitenko.repkit.domain.model.WeightUnit
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,5 +37,16 @@ class NotificationTextTest {
     fun `starting title uses the frozen entry name`() {
         assertEquals("Burpees · Starting…", text.startingTitle("Burpees"))
         assertEquals("Starting workout…", text.startingTitle(null))
+    }
+
+    @Test
+    fun `a weight run's title ends with the weight while there's a set to do`() {
+        val w = SetWeight(1600, WeightUnit.KG)
+        assertEquals("Curls · Work · Set 2/8 · 16 kg", text.title("Curls", work, w))
+        assertEquals("Curls · Rest · Set 2/8 · 16 kg", text.title("Curls", work.copy(phase = Phase.REST), w))
+        assertEquals("Curls · Get ready · Set 2/8 · 16 kg", text.title("Curls", work.copy(phase = Phase.PREPARE), w))
+        assertEquals("Curls · Cooldown · Set 2/8", text.title("Curls", work.copy(phase = Phase.COOLDOWN), w))
+        assertEquals("Curls · Done · Set 2/8", text.title("Curls", work.copy(phase = Phase.DONE), w))
+        assertEquals("Work · Set 2/8 · 22.5 lb", text.title(null, work, SetWeight(2250, WeightUnit.LB)))
     }
 }

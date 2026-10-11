@@ -3,7 +3,11 @@ package com.mitenko.repkit.ui.entry
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mitenko.repkit.R
+import com.mitenko.repkit.domain.HistoryRange
+import com.mitenko.repkit.domain.Prescription
+import com.mitenko.repkit.domain.RunLog
 import com.mitenko.repkit.domain.RunStatus
+import com.mitenko.repkit.domain.RunSummary
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.model.CheckInPoint
@@ -13,8 +17,14 @@ import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.Hold
 import com.mitenko.repkit.domain.model.HoldKind
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.ProgressionConfig
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightConfig
+import com.mitenko.repkit.domain.model.WeightHold
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.model.WeightsKind
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.FakeServiceStarter
@@ -64,8 +74,9 @@ class EntryViewModelTest {
     private fun TestScope.harness(
         behavior: Behavior = Behavior.SUCCEED,
         repository: FakeEntryRepository = repo,
+        runLog: RunLog = RunLog {},
     ): Harness {
-        val controller = TimerController(backgroundScope, wallNow = fixedWallNow) { testScheduler.currentTime }
+        val controller = TimerController(backgroundScope, wallNow = fixedWallNow, runLog = runLog) { testScheduler.currentTime }
         val starter = FakeServiceStarter(controller, behavior)
         val vm = EntryViewModel(SavedStateHandle(mapOf(ENTRY_ID_ARG to 1L)), repository, controller, starter, clock)
         backgroundScope.launch { vm.uiState.collect {} }
@@ -494,5 +505,240 @@ class EntryViewModelTest {
         gate.complete(Unit)
         runCurrent()
         assertNull(h.vm.highlight.value)
+    }
+
+    /** The curls ladder (8 / 10 / 12 / 14 / 16 kg) in Weight mode, 10 reps per set; level 3 is 14 kg. */
+    private val curls = WeightConfig(unit = WeightUnit.KG, kind = WeightsKind.LIST, list = listOf(800, 1000, 1200, 1400, 1600), repsPerSet = 10)
+    private val yesterday = Instant.parse("2026-09-23T12:55:00Z")
+
+    private fun weightRepo(
+        total: Int = 3,
+        holdCount: Int = 0,
+        holds: List<WeightHold> = emptyList(),
+        lastCheckIn: Instant? = yesterday,
+        mode: ProgressMode = ProgressMode.WEIGHT,
+    ) = FakeEntryRepository(
+        listOf(
+            testEntry(
+                1, "Curls",
+                progression = ProgressionConfig(mode = mode, weight = curls.copy(holds = holds)),
+                counter = CounterState(total = total, bestStreak = 4, currentStreak = 4, lastCheckIn = lastCheckIn, holdCount = holdCount),
+            ),
+        ),
+    )
+
+    @Test
+    fun `a Reps entry's state has no load and reads as Reps`() = runTest {
+        val h = harness()
+        runCurrent()
+        assertNull(h.vm.uiState.value.load)
+        assertEquals(ProgressMode.REPS, h.vm.uiState.value.mode)
+    }
+
+    @Test
+    fun `a weight mode's state carries the mode, the unit, the load and the reps per set`() = runTest {
+        val h = harness(repository = weightRepo())
+        runCurrent()
+        val s = h.vm.uiState.value
+        assertEquals(ProgressMode.WEIGHT, s.mode)
+        assertEquals(WeightUnit.KG, s.unit)
+        assertEquals(Prescription.Load(1400, 10), s.load)
+        assertEquals(List(8) { 10 }, s.reps)
+    }
+
+    @Test
+    fun `a weight-mode check-in flashes the card up, not the reps column`() = runTest {
+        val h = harness(repository = weightRepo())
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals(RepsColumnLayout.Change.UP, highlight?.card)
+        assertEquals(emptyMap<Int, RepsColumnLayout.Change>(), highlight?.changes)
+        assertNull(highlight?.hold)
+    }
+
+    @Test
+    fun `a weight-mode miss flashes the card down`() = runTest {
+        val h = harness(repository = weightRepo())
+        runCurrent()
+        // ~80 h after the last check-in: penalty 2, held to one weight lighter (level 2, 12 kg).
+        clock.instant = Instant.parse("2026-09-26T20:55:00Z")
+        h.vm.onCheckIn()
+        runCurrent()
+        assertEquals(RepsColumnLayout.Change.DOWN, h.vm.highlight.value?.card)
+    }
+
+    @Test
+    fun `a check-in that stays on a weight hold flashes the card neutral with the hold day`() = runTest {
+        // A weight hold on 14 kg for 4 (level 3); day 1 was yesterday. The Reps holds can't see it.
+        val h = harness(repository = weightRepo(total = 3, holdCount = 1, holds = listOf(WeightHold(1400, 10, 4))))
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals(RepsColumnLayout.Change.HOLD, highlight?.card)
+        assertEquals(HoldStatus(at = 3, day = 2, of = 4), highlight?.hold)
+        assertEquals(emptyMap<Int, RepsColumnLayout.Change>(), highlight?.changes)
+    }
+
+    @Test
+    fun `a Reps-then-weight hold is found by its level from weight and reps, not weight alone`() = runTest {
+        // Curls Reps-then-weight, span 5: level 16 is 14 kg x 9 reps (weightIndex 3 x 5 + (9 - 8)).
+        // Level 15 is also 14 kg (x 8 reps), so matching on weight alone would land on the wrong level.
+        val h = harness(
+            repository = weightRepo(
+                total = 16, holdCount = 1, mode = ProgressMode.REPS_THEN_WEIGHT,
+                holds = listOf(WeightHold(1400, 9, 4)),
+            ),
+        )
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        val highlight = h.vm.highlight.value
+        assertEquals(RepsColumnLayout.Change.HOLD, highlight?.card)
+        assertEquals(HoldStatus(at = 16, day = 2, of = 4), highlight?.hold)
+    }
+
+    @Test
+    fun `a weight-mode check-in at the top of the ladder with no change sets no highlight`() = runTest {
+        val h = harness(repository = weightRepo(total = 4)) // already at the heaviest weight
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `a weight-mode entry's first check-in shows no highlight`() = runTest {
+        val h = harness(repository = weightRepo(total = 3, lastCheckIn = null)) // never checked in before
+        runCurrent()
+        h.vm.onCheckIn()
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `a kg to lb race while a check-in is in flight sets no highlight`() = runTest {
+        val wr = weightRepo()
+        val h = harness(repository = wr)
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        wr.checkInGate = gate
+        h.vm.onCheckIn() // captures beforeLoad and beforeUnit (KG)
+        runCurrent()
+        // The unit switches to lb while the check-in is still in flight.
+        wr.setWeightConfig(1, curls.copy(unit = WeightUnit.LB))
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `a ladder edit while a check-in is in flight sets no highlight (M2)`() = runTest {
+        val wr = weightRepo()
+        val h = harness(repository = wr)
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        wr.checkInGate = gate
+        h.vm.onCheckIn() // captures beforeLoad and the curls ladder's rungs (800..1600)
+        runCurrent()
+        // The ladder's rungs change (same mode, same unit) while the check-in is still in flight.
+        wr.setWeightConfig(1, curls.copy(list = curls.list + 1800))
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+    }
+
+    @Test
+    fun `a ladder edit racing Start's check-in runs the new ladder's load, with the snapshot's own set count (M1)`() = runTest {
+        val wr = weightRepo()
+        val h = harness(repository = wr)
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        wr.checkInGate = gate
+        h.vm.onStart() // captures the pre-check-in entry: 8 sets, 10 reps per set, from the curls ladder
+        runCurrent()
+        // Both the ladder's reps-per-set and the entry's own sets change while Start's check-in is
+        // still in flight.
+        wr.setWeightConfig(1, curls.copy(repsPerSet = 12))
+        wr.state.update { list -> list.map { if (it.id == 1L) it.copy(timing = it.timing.copy(sets = 5)) else it } }
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        // The check-in moved level 3 (14 kg) to level 4 (16 kg); the run follows the new ladder's 12
+        // reps per set (not the stale 10 captured before Start), but still the snapshot's frozen 8 sets
+        // (not the changed 5) — TabataEngine's repsPerSet.size == timing.sets check would otherwise throw.
+        assertEquals(SetWeight(1600, WeightUnit.KG), h.controller.weight)
+        advanceTimeBy(31_000) // prepare 10 s + set 1's 20 s of work: set 1 is done
+        runCurrent()
+        assertEquals(8, h.controller.state.value?.sets)
+        assertEquals(12, h.controller.state.value?.repsThisSet)
+    }
+
+    @Test
+    fun `a kg to lb race during Start's check-in sets no highlight, but the run still follows the fresh progression (M5)`() = runTest {
+        val wr = weightRepo()
+        val h = harness(repository = wr)
+        runCurrent()
+        val gate = CompletableDeferred<Unit>()
+        wr.checkInGate = gate
+        h.vm.onStart() // captures beforeLoad, beforeMode (WEIGHT) and beforeUnit (KG)
+        runCurrent()
+        // The unit switches to lb while Start's check-in is still in flight.
+        wr.setWeightConfig(1, curls.copy(unit = WeightUnit.LB))
+        runCurrent()
+        gate.complete(Unit)
+        runCurrent()
+        assertNull(h.vm.highlight.value)
+        // The run itself still starts, following the fresh (lb) progression's load (spec rev 26 §4).
+        assertEquals(WeightUnit.LB, h.controller.weight?.unit)
+    }
+
+    @Test
+    fun `Start in a weight mode runs the load's reps with its weight, and the session counts sets times reps`() = runTest {
+        val summaries = mutableListOf<RunSummary>()
+        val h = harness(repository = weightRepo(), runLog = RunLog { summaries += it })
+        runCurrent()
+        h.vm.onStart()
+        runCurrent()
+        // The check-in moved 14 kg to 16 kg; the timer runs 16 kg × 10, not a split of level 4.
+        assertEquals(SetWeight(1600, WeightUnit.KG), h.controller.weight)
+        assertEquals(RepsColumnLayout.Change.UP, h.vm.highlight.value?.card)
+        advanceTimeBy(31_000) // prepare 10 s + set 1's 20 s of work: set 1 is done
+        runCurrent()
+        assertEquals(10, h.controller.state.value?.repsThisSet)
+        h.controller.stop()
+        assertEquals(10, summaries.single().repsDone) // 1 completed set × 10 reps
+    }
+
+    @Test
+    fun `after a switch the chart keeps only the new mode's points, and switching back restores the rep line`() = runTest {
+        val h = harness()
+        runCurrent()
+        h.vm.onCheckIn() // 24 Sep: 65 → 66
+        runCurrent()
+        clock.instant = Instant.parse("2026-09-25T15:00:00Z")
+        h.vm.onCheckIn() // 25 Sep: 67
+        runCurrent()
+        repo.switchMode(1, ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG)
+        clock.instant = Instant.parse("2026-09-26T15:00:00Z")
+        h.vm.onCheckIn() // fresh start: performed at 20 kg × 8 (§10 note 13)
+        runCurrent()
+        clock.instant = Instant.parse("2026-09-27T15:00:00Z")
+        h.vm.onCheckIn() // 20 kg × 9
+        runCurrent()
+        val s = h.vm.uiState.value
+        assertEquals(4, s.points.size)
+        assertEquals(ProgressMode.REPS_THEN_WEIGHT, s.mode)
+        val view = HistoryLayout.rangeView(s.points, HistoryRange.ALL, s.now, s.zone)
+        assertEquals(listOf(2000 to 8, 2000 to 9), HistoryLayout.shownPoints(view, s.type, s.mode).map { it.weight to it.reps })
+        repo.switchMode(1, ProgressMode.REPS, WeightUnit.KG)
+        runCurrent()
+        val back = h.vm.uiState.value
+        val repsView = HistoryLayout.rangeView(back.points, HistoryRange.ALL, back.now, back.zone)
+        assertEquals(listOf(66, 67), HistoryLayout.shownPoints(repsView, back.type, back.mode).map { it.total })
     }
 }

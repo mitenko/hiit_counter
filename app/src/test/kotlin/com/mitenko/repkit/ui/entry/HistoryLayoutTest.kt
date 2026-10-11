@@ -1,13 +1,22 @@
 package com.mitenko.repkit.ui.entry
 
+import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.Axis
 import com.mitenko.repkit.domain.HistoryRange
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.domain.niceAxis
 import com.mitenko.repkit.domain.rangeStart
 import com.mitenko.repkit.testutil.DefaultLocaleRule
+import com.mitenko.repkit.ui.common.UiText
+import com.mitenko.repkit.ui.common.weightText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
@@ -105,5 +114,66 @@ class HistoryLayoutTest {
     @Test
     fun `the point label reads day month and reps`() {
         assertEquals("23 Sep · 62", HistoryLayout.pointLabel(d, la))
+    }
+
+    private val w14 = CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 3, weight = 1400, reps = 10, unit = WeightUnit.KG)
+    private val w16 = CheckInPoint(Instant.parse("2026-09-23T16:00:00Z"), 4, weight = 1600, reps = 10, unit = WeightUnit.KG)
+
+    @Test
+    fun `a Counter shows the points of its mode family, and Timer only shows every point`() {
+        val view = HistoryLayout.rangeView(listOf(c, w14, w16), HistoryRange.FOUR_WEEKS, now, la)
+        assertEquals(listOf(c), HistoryLayout.shownPoints(view, EntryType.WORKOUT, ProgressMode.REPS))
+        assertEquals(listOf(w14, w16), HistoryLayout.shownPoints(view, EntryType.WORKOUT, ProgressMode.WEIGHT))
+        assertEquals(listOf(c, w14, w16), HistoryLayout.shownPoints(view, EntryType.CHECK_IN, ProgressMode.WEIGHT))
+    }
+
+    @Test
+    fun `no points in the current mode family says so, but a Reps history without weights is unchanged`() {
+        // Right after a switch into a weight mode: only rep points so far.
+        val repsOnly = listOf(c, d)
+        val view = HistoryLayout.rangeView(repsOnly, HistoryRange.FOUR_WEEKS, now, la)
+        val shownWeight = HistoryLayout.shownPoints(view, EntryType.WORKOUT, ProgressMode.WEIGHT)
+        assertEquals(HistoryEmpty.NONE_IN_MODE, HistoryLayout.empty(repsOnly, shownWeight, ProgressMode.WEIGHT))
+        // Switched back to Reps with only weight points recorded.
+        val weightsOnly = listOf(w14, w16)
+        val back = HistoryLayout.rangeView(weightsOnly, HistoryRange.FOUR_WEEKS, now, la)
+        val shownReps = HistoryLayout.shownPoints(back, EntryType.WORKOUT, ProgressMode.REPS)
+        assertEquals(HistoryEmpty.NONE_IN_MODE, HistoryLayout.empty(weightsOnly, shownReps, ProgressMode.REPS))
+        // A Reps Counter with only Timer only points (no weight anywhere) still says "none in this range", as before.
+        val untotalled = listOf(CheckInPoint(Instant.parse("2026-09-12T16:00:00Z"), null))
+        val old = HistoryLayout.rangeView(untotalled, HistoryRange.FOUR_WEEKS, now, la)
+        val shownOld = HistoryLayout.shownPoints(old, EntryType.WORKOUT, ProgressMode.REPS)
+        assertEquals(HistoryEmpty.NONE_IN_RANGE, HistoryLayout.empty(untotalled, shownOld, ProgressMode.REPS))
+        // Weight points that exist but fall outside the range: none in this range.
+        val longAgo = listOf(w14.copy(at = Instant.parse("2026-06-10T16:00:00Z")))
+        val far = HistoryLayout.rangeView(longAgo, HistoryRange.FOUR_WEEKS, now, la)
+        val shownFar = HistoryLayout.shownPoints(far, EntryType.WORKOUT, ProgressMode.WEIGHT)
+        assertEquals(HistoryEmpty.NONE_IN_RANGE, HistoryLayout.empty(longAgo, shownFar, ProgressMode.WEIGHT))
+        assertNull(HistoryLayout.empty(listOf(w16), listOf(w16), ProgressMode.WEIGHT))
+    }
+
+    @Test
+    fun `the series is rep totals in Reps mode and weights in the workout's unit in a weight mode`() {
+        val reps = HistoryLayout.series(listOf(c, d), ProgressMode.REPS, null)
+        assertEquals(ChartSeries.Reps(listOf(c, d)), reps)
+        assertEquals(listOf(60, 62), reps.values)
+        assertEquals(niceAxis(60, 62), reps.axis())
+        assertEquals("62", reps.tickLabel(62))
+        assertFalse(reps.stepped)
+
+        val lb = w16.copy(weight = 3500, unit = WeightUnit.LB) // 35 lb = 16 kg
+        val weights = HistoryLayout.series(listOf(w14, lb), ProgressMode.REPS_THEN_WEIGHT, WeightUnit.KG) as ChartSeries.Weights
+        assertEquals(listOf(1400, 1600), weights.values)
+        assertTrue(weights.stepped)
+        assertEquals(Axis(1400, 1600, 50), weights.axis())
+        assertEquals("15.5", weights.tickLabel(1550))
+        assertEquals(UiText.Res(R.string.load_value, listOf(weightText(1600, WeightUnit.KG), 10)), weights.load(1))
+        assertEquals(weightText(1400, WeightUnit.KG), weights.valueText(1400))
+    }
+
+    @Test
+    fun `an empty series is rejected rather than crashing on an empty axis`() {
+        assertThrows(IllegalArgumentException::class.java) { ChartSeries.Reps(emptyList()) }
+        assertThrows(IllegalArgumentException::class.java) { ChartSeries.Weights(emptyList(), WeightUnit.KG) }
     }
 }

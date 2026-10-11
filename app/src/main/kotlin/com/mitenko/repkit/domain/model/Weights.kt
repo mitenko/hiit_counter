@@ -42,6 +42,12 @@ data class WeightSteps(val start: Int, val step: Int, val top: Int) {
 data class WeightHold(val weight: Int, val reps: Int, val forCount: Int)
 
 /**
+ * A run's weight (spec rev 26 §4): [weight] in hundredths of [unit]. TimerController holds it for the
+ * timer, the voice and the notification; it is frozen from the load the Start check-in left.
+ */
+data class SetWeight(val weight: Int, val unit: WeightUnit)
+
+/**
  * A Counter workout's weight settings (spec rev 26 §2, §5). Every mode keeps them, so switching away
  * and back restores them. [unit] is null only while the workout has never been in a weight mode
  * (§9.3). [startWeight] null means the lightest weight; [startReps] null means [repMin].

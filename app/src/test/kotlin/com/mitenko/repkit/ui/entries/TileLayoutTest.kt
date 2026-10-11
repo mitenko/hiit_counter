@@ -1,8 +1,11 @@
 package com.mitenko.repkit.ui.entries
 
 import com.mitenko.repkit.domain.model.CheckInPoint
+import com.mitenko.repkit.domain.model.ProgressMode
+import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.common.PlotPoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -30,6 +33,30 @@ class TileLayoutTest {
         assertEquals(listOf(3), tile.week.indices.filter { tile.week[it] }) // Thu is index 3, Monday first
         assertEquals(listOf(SparkPoint(0, 48), SparkPoint(13, 55)), tile.spark)
         assertEquals(TileData(), TileLayout.tile(emptyList(), now, la))
+    }
+
+    @Test
+    fun `a weight tile plots the weight points in the workout's unit as steps`() {
+        val points = listOf(
+            CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 60), // a rep point from before the switch
+            CheckInPoint(Instant.parse("2026-09-12T16:00:00Z"), 3, 1400, 10, WeightUnit.KG), // day 15
+            CheckInPoint(Instant.parse("2026-09-24T14:00:00Z"), 4, 3500, 10, WeightUnit.LB), // today, 35 lb = 16 kg
+        )
+        val tile = TileLayout.tile(points, now, la, ProgressMode.WEIGHT, WeightUnit.KG)
+        assertEquals(3, tile.count) // every check-in still counts
+        assertEquals(listOf(SparkPoint(15, 1400), SparkPoint(27, 1600)), tile.spark)
+        assertTrue(tile.steps)
+    }
+
+    @Test
+    fun `a Reps tile leaves out weight points and draws a plain line`() {
+        val points = listOf(
+            CheckInPoint(Instant.parse("2026-09-10T16:00:00Z"), 60),
+            CheckInPoint(Instant.parse("2026-09-12T16:00:00Z"), 3, 1400, 10, WeightUnit.KG),
+        )
+        val tile = TileLayout.tile(points, now, la)
+        assertEquals(listOf(SparkPoint(13, 60)), tile.spark)
+        assertFalse(tile.steps)
     }
 
     @Test

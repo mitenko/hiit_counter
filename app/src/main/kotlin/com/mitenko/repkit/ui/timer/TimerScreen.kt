@@ -123,8 +123,22 @@ fun TimerScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
                 ) {
-                    ui.label?.let {
-                        Text(it.resolve(), color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
+                    val weight = ui.weight
+                    if (weight == null) {
+                        ui.label?.let { PhaseLabel(it.resolve(), color) }
+                    } else {
+                        // Spec rev 26 §4, plan Spec note 56: the weight takes the label's line (after "REST" in the
+                        // rest preview), so the stack is no taller than rev 35's and still fits the ring.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ui.label?.let { PhaseLabel(it.resolve(), color) }
+                            Text(
+                                weight.resolve(),
+                                color = color,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                modifier = Modifier.testTag("center_weight"),
+                            )
+                        }
                     }
                     ui.centerNumber?.let {
                         Text(
@@ -167,6 +181,12 @@ fun TimerScreen(
             }
         }
     }
+}
+
+/** The phase label over the number (WORK has none), unchanged since rev 35. */
+@Composable
+private fun PhaseLabel(text: String, color: Color) {
+    Text(text, color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
 }
 
 /**

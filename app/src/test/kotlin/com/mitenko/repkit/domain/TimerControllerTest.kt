@@ -3,7 +3,9 @@ package com.mitenko.repkit.domain
 import com.mitenko.repkit.domain.model.Cue
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimingConfig
+import com.mitenko.repkit.domain.model.WeightUnit
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -327,5 +329,74 @@ class TimerControllerTest {
         c.stop()
         assertNull(c.liveCues.value)
         assertNull(c.snapshot)
+    }
+
+    @Test
+    fun `a weight run carries its weight on every work start and marks only set 1 as new`() = runTest {
+        val c = controller()
+        val cues = mutableListOf<Cue>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
+        val w = SetWeight(1600, WeightUnit.KG)
+        c.prepare(snapshot)
+        c.onServiceStarted()
+        c.start(List(8) { 10 }, w)
+        assertEquals(w, c.weight)
+        advanceTimeBy(240_000)
+        runCurrent()
+        val work = cues.filterIsInstance<Cue.PhaseStart>().filter { it.phase == Phase.WORK }
+        assertEquals(8, work.size)
+        assertTrue(work.all { it.reps == 10 && it.weight == w })
+        assertEquals(listOf(true) + List(7) { false }, work.map { it.newWeight })
+        assertTrue(cues.filterIsInstance<Cue.PhaseStart>().filter { it.phase != Phase.WORK }.all { it.weight == null })
+        c.dismissDone()
+        assertNull(c.weight)
+    }
+
+    @Test
+    fun `a stopped weight run clears its weight`() = runTest {
+        val c = controller()
+        c.prepare(snapshot)
+        c.onServiceStarted()
+        c.start(List(8) { 10 }, SetWeight(1600, WeightUnit.KG))
+        runCurrent()
+        c.stop()
+        assertNull(c.weight)
+    }
+
+    @Test
+    fun `skipping back into set 1 sets newWeight again`() = runTest {
+        val c = controller()
+        val cues = mutableListOf<Cue>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
+        val w = SetWeight(1600, WeightUnit.KG)
+        c.prepare(snapshot)
+        c.onServiceStarted()
+        c.start(List(8) { 10 }, w)
+        // Prepare (10s) + set 1's work (20s): lands right at the start of the rest before set 2.
+        advanceTimeBy(30_000)
+        runCurrent()
+        cues.clear()
+        c.skipBack() // within 2s of that rest: jumps back to set 1's work
+        runCurrent()
+        val work = cues.filterIsInstance<Cue.PhaseStart>().filter { it.phase == Phase.WORK }
+        assertEquals(1, work.size)
+        assertEquals(w, work.single().weight)
+        assertTrue(work.single().newWeight)
+    }
+
+    @Test
+    fun `a Timer only run ignores a weight`() = runTest {
+        val c = controller()
+        val cues = mutableListOf<Cue>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { c.cues.collect { cues += it } }
+        c.prepare(snapshot.copy(countsReps = false))
+        c.onServiceStarted()
+        c.start(List(8) { 10 }, SetWeight(1600, WeightUnit.KG))
+        assertNull(c.weight)
+        advanceTimeBy(240_000)
+        runCurrent()
+        val work = cues.filterIsInstance<Cue.PhaseStart>().filter { it.phase == Phase.WORK }
+        assertEquals((8 downTo 1).toList(), work.map { it.reps })
+        assertTrue(work.all { it.weight == null && !it.newWeight })
     }
 }

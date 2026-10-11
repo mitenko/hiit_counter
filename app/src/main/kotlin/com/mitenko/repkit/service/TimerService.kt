@@ -67,7 +67,7 @@ class TimerService : Service() {
                 ServiceCompat.startForeground(
                     this,
                     WorkoutNotifications.NOTIFICATION_ID,
-                    notifications.build(controller.state.value, controller.snapshot?.entryName),
+                    notifications.build(controller.state.value, controller.snapshot?.entryName, controller.weight),
                     foregroundServiceType(),
                 )
                 controller.onServiceStarted()
@@ -117,7 +117,7 @@ class TimerService : Service() {
         scope.launch {
             controller.state.collect { state ->
                 if (state != null) {
-                    notifications.update(state, controller.snapshot?.entryName)
+                    notifications.update(state, controller.snapshot?.entryName, controller.weight)
                     updateWakeLock(state)
                 }
             }

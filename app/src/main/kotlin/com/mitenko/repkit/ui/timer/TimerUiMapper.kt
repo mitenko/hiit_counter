@@ -3,8 +3,11 @@ package com.mitenko.repkit.ui.timer
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.TimerText
 import com.mitenko.repkit.domain.model.Phase
+import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.ui.common.UiText
+import com.mitenko.repkit.ui.common.spokenWeight
+import com.mitenko.repkit.ui.common.weightText
 
 enum class PhaseTone { WORK, REST, NEUTRAL }
 
@@ -25,6 +28,8 @@ data class TimerUiState(
     val done: Boolean,
     /** What TalkBack says for the centre, resolved by the screen. */
     val description: UiText,
+    /** Spec rev 26 §4, plan Spec note 56: a weight run's weight ("16 kg") over the reps in WORK and REST; null otherwise. */
+    val weight: UiText? = null,
 )
 
 object TimerUiMapper {
@@ -33,9 +38,10 @@ object TimerUiMapper {
      * centre counts the sets down instead of showing reps — `sets - set + 1`, the current (or,
      * during REST/PREPARE, upcoming) set and every one still to come, including it — and no rep
      * value appears anywhere, including on DONE. The Voice cue says the same number
-     * (TimerController.withReps).
+     * (TimerController.withReps). [weight] is a weight run's frozen weight (spec rev 26 §4): shown in
+     * WORK and REST, and appended to their descriptions; never for Timer only.
      */
-    fun map(s: TimerState, entryName: String, countsReps: Boolean = true): TimerUiState {
+    fun map(s: TimerState, entryName: String, countsReps: Boolean = true, weight: SetWeight? = null): TimerUiState {
         val inner = if (s.phaseDurationSec > 0) s.phaseSecondsLeft.toFloat() / s.phaseDurationSec else 0f
         val workFraction = if (s.phase == Phase.WORK && s.phaseDurationSec > 0) {
             (s.phaseDurationSec - s.phaseSecondsLeft).toFloat() / s.phaseDurationSec
@@ -60,7 +66,7 @@ object TimerUiMapper {
         val setsToGo = s.sets - s.set + 1
         // Spec revision 24: the text is resource ids plus args; "last set" stays its own string,
         // and every other count goes through a plural.
-        return when (s.phase) {
+        val mapped = when (s.phase) {
             Phase.WORK -> base.copy(
                 centerNumber = if (countsReps) s.repsThisSet else setsToGo, tone = PhaseTone.WORK,
                 description = if (countsReps) {
@@ -106,5 +112,11 @@ object TimerUiMapper {
                 },
             )
         }
+        // Spec rev 26 §4, plan Spec note 56: a weight run shows its weight in WORK and in the rest preview.
+        val w = weight?.takeIf { countsReps && (s.phase == Phase.WORK || s.phase == Phase.REST) } ?: return mapped
+        return mapped.copy(
+            weight = weightText(w.weight, w.unit),
+            description = UiText.Res(R.string.timer_desc_with_weight, listOf(mapped.description, spokenWeight(w.weight, w.unit))),
+        )
     }
 }
