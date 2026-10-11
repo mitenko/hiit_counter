@@ -19,6 +19,7 @@ import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.domain.model.Phase
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.ui.theme.HiitTheme
+import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -253,5 +254,56 @@ class TimerScreenTest {
         assertTrue(sets.right <= elapsed.left)
         assertTrue(sets.left >= 0.dp)
         assertTrue(elapsed.right <= 320.dp)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `label, number and countdown fit inside the ring without overlapping at 320dp`() {
+        // Spec revision 35: bigger centre text ("88" reps, "00:59" countdown, REST label) must
+        // still fit inside the ring's open middle, stacked without overlapping each other.
+        val bigUi = TimerUiMapper.map(
+            TimerState(Phase.REST, set = 2, sets = 8, phaseSecondsLeft = 59, phaseDurationSec = 60, elapsedSec = 50,
+                totalDurationSec = 240, repsThisSet = 88, totalReps = 88, paused = false),
+            entryName = "Kettlebell Lunges",
+        )
+        assertEquals(88, bigUi.centerNumber)
+        assertEquals("00:59", bigUi.countdownText)
+        compose.setContent {
+            HiitTheme {
+                TimerScreen(
+                    bigUi, CueConfig(),
+                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                )
+            }
+        }
+        val label = compose.onNodeWithTag("phase_label", useUnmergedTree = true).getBoundsInRoot()
+        val number = compose.onNodeWithTag("center_number", useUnmergedTree = true).getBoundsInRoot()
+        val countdown = compose.onNodeWithTag("countdown", useUnmergedTree = true).getBoundsInRoot()
+        val ring = compose.onNodeWithTag("ring", useUnmergedTree = true).getBoundsInRoot()
+
+        // Not overlapping: the Column stacks them top to bottom with no extra arrangement.
+        assertTrue(label.bottom <= number.top)
+        assertTrue(number.bottom <= countdown.top)
+
+        // Inside the inner ring's open centre. DualRing.kt: outerStroke = d*0.02, a d*0.03 gap,
+        // innerStroke = d*0.07 — the inner ring's open middle has diameter
+        // d * (1 - 2*(0.02 + 0.03 + 0.07)) = d * 0.76, centred in the (square) ring box.
+        val d = ring.width
+        val openDiameterRatio = 1f - 2f * (0.02f + 0.03f + 0.07f)
+        val radius = (d * openDiameterRatio / 2f).value
+        val centerX = ((ring.left + ring.right) / 2f).value
+        val centerY = ((ring.top + ring.bottom) / 2f).value
+        listOf(label, number, countdown).forEach { bounds ->
+            listOf(
+                bounds.left.value to bounds.top.value,
+                bounds.right.value to bounds.top.value,
+                bounds.left.value to bounds.bottom.value,
+                bounds.right.value to bounds.bottom.value,
+            ).forEach { (x, y) ->
+                val distance = sqrt((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY))
+                assertTrue("corner ($x, $y) of $bounds outside radius $radius", distance <= radius)
+            }
+        }
     }
 }
