@@ -16,6 +16,10 @@ data class TimerUiState(
     val entryName: String,
     val setsText: String,
     val elapsedText: String,
+    /** TalkBack for the Sets circle ("Sets 8 of 8"), which has no visible label (spec revision 37). */
+    val setsDescription: UiText,
+    /** TalkBack for the Elapsed circle ("Elapsed 3 minutes 33 seconds"), which has no visible label (spec revision 37). */
+    val elapsedDescription: UiText,
     /** The phase label over the countdown (none during WORK), resolved by the screen (spec revision 24). */
     val label: UiText?,
     val centerNumber: Int?,
@@ -51,7 +55,9 @@ object TimerUiMapper {
         val base = TimerUiState(
             entryName = entryName,
             setsText = "${s.set}/${s.sets}",
-            elapsedText = TimerText.formatHms(s.elapsedSec),
+            elapsedText = TimerText.formatElapsed(s.elapsedSec),
+            setsDescription = UiText.Res(R.string.timer_desc_sets, listOf(s.set, s.sets)),
+            elapsedDescription = UiText.Res(R.string.timer_desc_elapsed, listOf(spokenElapsed(s.elapsedSec))),
             label = null,
             centerNumber = null,
             centerDimmed = false,
@@ -118,5 +124,18 @@ object TimerUiMapper {
             weight = weightText(w.weight, w.unit),
             description = UiText.Res(R.string.timer_desc_with_weight, listOf(mapped.description, spokenWeight(w.weight, w.unit))),
         )
+    }
+}
+
+/** "3 minutes 33 seconds" (spec revision 37); a whole minute drops the seconds and under a minute drops the minutes. */
+private fun spokenElapsed(sec: Int): UiText {
+    val minutes = sec / 60
+    val seconds = sec % 60
+    val m = UiText.Plural(R.plurals.duration_minutes, minutes)
+    val s = UiText.Plural(R.plurals.duration_seconds, seconds)
+    return when {
+        minutes == 0 -> s
+        seconds == 0 -> m
+        else -> UiText.Res(R.string.duration_minutes_seconds, listOf(m, s))
     }
 }

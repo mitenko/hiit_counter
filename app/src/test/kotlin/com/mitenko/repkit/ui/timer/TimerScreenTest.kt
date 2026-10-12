@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
@@ -230,40 +231,111 @@ class TimerScreenTest {
         compose.onNodeWithTag("skip_forward", useUnmergedTree = true).assertDoesNotExist()
     }
 
-    @Test
-    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
-    fun `sets and elapsed stats fit side by side at 320dp with the longest realistic values`() {
-        // Spec revision 33: larger stat text (headlineMedium/titleSmall) must still fit at 320dp.
-        // "99/99" and the formatHms-produced "01:59:59" are the longest realistic values.
-        val longUi = TimerUiMapper.map(
-            TimerState(Phase.WORK, set = 99, sets = 99, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = 7199,
-                totalDurationSec = 7200, repsThisSet = 8, totalReps = 65, paused = false),
-            entryName = "Kettlebell Lunges",
-        )
-        assertEquals("99/99", longUi.setsText)
-        assertEquals("01:59:59", longUi.elapsedText)
-        compose.setContent {
-            HiitTheme {
-                TimerScreen(
-                    longUi, CueConfig(),
-                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
-                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
-                )
-            }
-        }
-        val sets = compose.onNodeWithTag("stat_sets").getBoundsInRoot()
-        val elapsed = compose.onNodeWithTag("stat_elapsed").getBoundsInRoot()
-        // Side by side, not overlapping, and neither clipped by the 320dp root.
-        assertTrue(sets.right <= elapsed.left)
+    /** The longest realistic stat values (spec rev 37): "99/99" sets and 75:12 elapsed (no hours). */
+    private val longStatsUi = TimerUiMapper.map(
+        TimerState(Phase.WORK, set = 99, sets = 99, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = 4512,
+            totalDurationSec = 7200, repsThisSet = 8, totalReps = 65, paused = false),
+        entryName = "Kettlebell Lunges",
+    )
+
+    /**
+     * Spec revision 37: Sets and Elapsed are two circles side by side, at least 24 dp apart, each about
+     * 34% of the screen width (shrunk only to keep the gap), with its value inside the circle.
+     */
+    private fun assertStatCirclesFit(screenWidth: Float) {
+        assertEquals("99/99", longStatsUi.setsText)
+        assertEquals("75:12", longStatsUi.elapsedText)
+        showUi(longStatsUi)
+        compose.onNodeWithTag("stat_sets_value", useUnmergedTree = true).assertTextEquals("99/99")
+        compose.onNodeWithTag("stat_elapsed_value", useUnmergedTree = true).assertTextEquals("75:12")
+        val sets = bounds("stat_sets")
+        val elapsed = bounds("stat_elapsed")
+        // Side by side on one row, spaced apart, inside the screen.
+        assertEquals(sets.top.value, elapsed.top.value, 0.5f)
+        assertTrue("gap ${elapsed.left - sets.right}", elapsed.left - sets.right >= 23.5.dp)
         assertTrue(sets.left >= 0.dp)
-        assertTrue(elapsed.right <= 320.dp)
+        assertTrue(elapsed.right <= screenWidth.dp)
+        // Round, and about a third of the screen wide.
+        listOf(sets, elapsed).forEach { c ->
+            assertEquals(c.width.value, (c.bottom - c.top).value, 0.5f)
+            assertTrue("circle ${c.width}", c.width.value >= screenWidth * 0.30f && c.width.value <= screenWidth * 0.34f + 0.5f)
+        }
+        // Each value fits inside its own circle (every corner within the radius, less the outline).
+        assertInsideCircle(sets, bounds("stat_sets_value"))
+        assertInsideCircle(elapsed, bounds("stat_elapsed_value"))
+    }
+
+    private fun assertInsideCircle(circle: DpRect, node: DpRect) {
+        val radius = circle.width.value / 2f - 2f
+        val cx = ((circle.left + circle.right) / 2f).value
+        val cy = ((circle.top + circle.bottom) / 2f).value
+        listOf(node.left to node.top, node.right to node.top, node.left to node.bottom, node.right to node.bottom).forEach { (x, y) ->
+            val distance = sqrt((x.value - cx) * (x.value - cx) + (y.value - cy) * (y.value - cy))
+            assertTrue("corner (${x.value}, ${y.value}) of $node outside circle radius $radius", distance <= radius)
+        }
     }
 
     @Test
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
-    fun `label, number and countdown fit inside the ring without overlapping at 320dp`() {
-        // Spec revision 35: bigger centre text ("88" reps, "00:59" countdown, REST label) must
-        // still fit inside the ring's open middle, stacked without overlapping each other.
+    fun `the sets and elapsed circles sit apart and hold their values at 320dp`() = assertStatCirclesFit(320f)
+
+    @Test
+    fun `the sets and elapsed circles sit apart and hold their values at 411dp`() = assertStatCirclesFit(411f)
+
+    @Test
+    fun `the stat circles have no visible labels and read their values to TalkBack`() {
+        val ui = TimerUiMapper.map(
+            TimerState(Phase.REST, set = 8, sets = 8, phaseSecondsLeft = 7, phaseDurationSec = 10, elapsedSec = 213,
+                totalDurationSec = 240, repsThisSet = 8, totalReps = 65, paused = false),
+            entryName = "Pushups",
+        )
+        showUi(ui)
+        compose.onNodeWithText("Sets").assertDoesNotExist()
+        compose.onNodeWithText("Elapsed").assertDoesNotExist()
+        val sets = compose.onNodeWithTag("stat_sets").fetchSemanticsNode()
+        assertEquals("Sets 8 of 8", sets.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull())
+        val elapsed = compose.onNodeWithTag("stat_elapsed").fetchSemanticsNode()
+        assertEquals("Elapsed 3 minutes 33 seconds", elapsed.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull())
+        compose.onNodeWithTag("stat_elapsed_value", useUnmergedTree = true).assertTextEquals("03:33")
+        compose.onNodeWithTag("stat_sets_value", useUnmergedTree = true).assertTextEquals("8/8")
+    }
+
+    @Test
+    fun `the entry name sits close under the cue toggles`() {
+        // Spec revision 37: the user asked for the name to move up, nearer the sound buttons.
+        setScreen(Phase.WORK)
+        val toggles = bounds("cue_toggle_row")
+        val name = bounds("entry_name")
+        val circles = bounds("stat_sets")
+        assertTrue(name.top >= toggles.bottom)
+        assertTrue("gap ${name.top - toggles.bottom}", name.top - toggles.bottom <= 16.dp)
+        assertTrue(name.bottom <= circles.top)
+    }
+
+    @Test
+    fun `at done the final count sits at the ring's centre with DONE above it`() {
+        setScreen(Phase.DONE)
+        compose.onNodeWithTag("center_number", useUnmergedTree = true).assertTextEquals("65")
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("DONE")
+        val ring = bounds("ring")
+        val number = bounds("center_number")
+        val label = bounds("phase_label")
+        assertEquals(((ring.left + ring.right) / 2f).value, ((number.left + number.right) / 2f).value, 1f)
+        assertEquals(((ring.top + ring.bottom) / 2f).value, ((number.top + number.bottom) / 2f).value, 1f)
+        assertTrue(label.bottom <= number.top)
+        assertInsideRing(ring, label, number)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `label, number and countdown fit inside the ring without overlapping at 320dp`() = assertRingCentreFits()
+
+    @Test
+    fun `label, number and countdown fit inside the ring without overlapping at 411dp`() = assertRingCentreFits()
+
+    private fun assertRingCentreFits() {
+        // Spec revision 37 (rev 35's sizes reverted): "88" reps, "00:59" countdown and the REST label
+        // fit inside the ring's open middle, stacked without overlapping each other.
         val bigUi = TimerUiMapper.map(
             TimerState(Phase.REST, set = 2, sets = 8, phaseSecondsLeft = 59, phaseDurationSec = 60, elapsedSec = 50,
                 totalDurationSec = 240, repsThisSet = 88, totalReps = 88, paused = false),
@@ -324,7 +396,7 @@ class TimerScreenTest {
 
     private fun bounds(tag: String): DpRect = compose.onNodeWithTag(tag, useUnmergedTree = true).getBoundsInRoot()
 
-    /** Every corner of each of [nodes] lies inside the inner ring's open centre (rev 35 §3: diameter d × 0.76). */
+    /** Every corner of each of [nodes] lies inside the inner ring's open centre (rev 37: open diameter d × 0.76). */
     private fun assertInsideRing(ring: DpRect, vararg nodes: DpRect) {
         val radius = (ring.width * (1f - 2f * (0.02f + 0.03f + 0.07f)) / 2f).value
         val cx = ((ring.left + ring.right) / 2f).value
@@ -337,7 +409,7 @@ class TimerScreenTest {
         }
     }
 
-    /** The longest realistic centre (rev 35 §3) plus a long weight: "88" reps, "00:59", "112.5 lb". */
+    /** The longest realistic centre (rev 37) plus a long weight: "88" reps, "00:59", "112.5 lb". */
     private fun weightUi(phase: Phase) = TimerUiMapper.map(
         TimerState(phase, set = 2, sets = 8, phaseSecondsLeft = 59, phaseDurationSec = 60, elapsedSec = 50,
             totalDurationSec = 240, repsThisSet = 88, totalReps = 88, paused = false),
@@ -360,7 +432,12 @@ class TimerScreenTest {
 
     @Test
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
-    fun `a long weight shares the rest label's line inside the ring at 320dp`() {
+    fun `a long weight shares the rest label's line inside the ring at 320dp`() = assertRestWeightFits()
+
+    @Test
+    fun `a long weight shares the rest label's line inside the ring at 411dp`() = assertRestWeightFits()
+
+    private fun assertRestWeightFits() {
         showUi(weightUi(Phase.REST))
         compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("REST")
         compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertTextEquals("112.5 lb")
