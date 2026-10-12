@@ -1,7 +1,6 @@
 package com.mitenko.repkit.ui.timer
 
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -41,8 +42,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.ui.common.resolve
@@ -88,73 +91,83 @@ fun TimerScreen(
                 modifier = Modifier.padding(horizontal = 48.dp).testTag("cue_toggle_row"),
             )
         }
+        // The name frozen at Start (spec §7.6). Spec revision 37: it sits just under the cue toggles
+        // (12 dp) instead of being floated down by the SpaceEvenly column below.
+        Text(
+            ui.entryName,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(start = 24.dp, end = 24.dp, top = 12.dp)
+                .testTag("entry_name"),
+        )
         Column(
-            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 24.dp),
+            Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // The name frozen at Start (spec §7.6), above the Sets/Elapsed row.
-                Text(
-                    ui.entryName,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 8.dp).testTag("entry_name"),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-                    Stat(R.string.sets_label, ui.setsText, testTag = "stat_sets")
-                    Stat(R.string.elapsed_label, ui.elapsedText, testTag = "stat_elapsed")
-                }
-            }
+            StatCircles(ui)
             val description = ui.description.resolve()
-            // Spec revision 35: 0.95 ring, 0.44 number, 0.21 countdown — the largest factors that
-            // still fit the three inside the ring's open centre without overlapping.
-            BoxWithConstraints(Modifier.fillMaxWidth(0.95f).aspectRatio(1f), contentAlignment = Alignment.Center) {
+            // Spec revision 37 reverts rev 35's sizes: a 0.85 ring box, a 0.3 rep number and a
+            // displaySmall countdown, all inside the ring's open centre.
+            BoxWithConstraints(Modifier.fillMaxWidth(0.85f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                 // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
-                val numberSize = with(LocalDensity.current) { (maxWidth * 0.44f).toSp() }
-                val countdownSize = with(LocalDensity.current) { (maxWidth * 0.21f).toSp() }
+                val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
                 DualRing(
                     ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = HiitColors.SetRing,
                     modifier = Modifier.fillMaxSize().testTag("ring"),
                 )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
-                ) {
-                    val weight = ui.weight
-                    if (weight == null) {
-                        ui.label?.let { PhaseLabel(it.resolve(), color) }
+                val weight = ui.weight
+                val label = ui.label
+                val centerNumber = ui.centerNumber
+                RingCentre(
+                    modifier = Modifier.fillMaxSize().semantics(mergeDescendants = true) { contentDescription = description },
+                    top = if (label == null && weight == null) {
+                        null
                     } else {
-                        // Spec rev 26 §4, plan Spec note 56: the weight takes the label's line (after "REST" in the
-                        // rest preview), so the stack is no taller than rev 35's and still fits the ring.
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            ui.label?.let { PhaseLabel(it.resolve(), color) }
+                        {
+                            // Spec rev 26 §4, plan Spec note 56: the weight takes the label's line (after "REST" in
+                            // the rest preview), so the stack is no taller and still fits the ring.
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                label?.let { PhaseLabel(it.resolve(), color) }
+                                weight?.let {
+                                    Text(
+                                        it.resolve(),
+                                        color = color,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        maxLines = 1,
+                                        modifier = Modifier.testTag("center_weight"),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    number = centerNumber?.let { n ->
+                        {
                             Text(
-                                weight.resolve(),
-                                color = color,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                modifier = Modifier.testTag("center_weight"),
+                                "$n",
+                                color = if (ui.centerDimmed) color.copy(alpha = 0.45f) else color,
+                                style = tightTextStyle(numberSize, FontWeight.Bold),
+                                modifier = Modifier.testTag("center_number"),
                             )
                         }
-                    }
-                    ui.centerNumber?.let {
-                        Text(
-                            "$it",
-                            color = if (ui.centerDimmed) color.copy(alpha = 0.45f) else color,
-                            style = tightCentreTextStyle(numberSize, FontWeight.Bold),
-                            modifier = Modifier.testTag("center_number"),
-                        )
-                    }
-                    Text(
-                        ui.countdownText,
-                        color = Color.White,
-                        style = tightCentreTextStyle(countdownSize),
-                        modifier = Modifier.testTag("countdown"),
-                    )
-                }
+                    },
+                    bottom = if (ui.countdownText.isEmpty()) {
+                        null
+                    } else {
+                        {
+                            Text(
+                                ui.countdownText,
+                                color = Color.White,
+                                style = MaterialTheme.typography.displaySmall,
+                                modifier = Modifier.testTag("countdown"),
+                            )
+                        }
+                    },
+                )
             }
             if (!ui.done) {
                 // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while
@@ -183,17 +196,51 @@ fun TimerScreen(
     }
 }
 
-/** The phase label over the number (WORK has none), unchanged since rev 35. */
+/** The phase label over the number (WORK has none). */
 @Composable
 private fun PhaseLabel(text: String, color: Color) {
     Text(text, color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
 }
 
 /**
- * A tight line height (no extra font-padding leading) for the ring's centre text (spec revision
- * 35), so the larger rep number and countdown don't claim more vertical space than their glyphs.
+ * The ring's centre (spec revision 37): the number always sits at the ring's centre, the label line
+ * just above it and the countdown just below, so a missing countdown (DONE) never pulls the number
+ * off-centre. With no number (COOLDOWN, a Timer only DONE) the label and countdown are centred as a
+ * stack. Takes the whole ring box, so each part is centred horizontally on the ring.
  */
-private fun tightCentreTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = null) = TextStyle(
+@Composable
+private fun RingCentre(
+    top: (@Composable () -> Unit)?,
+    number: (@Composable () -> Unit)?,
+    bottom: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(top ?: {}, number ?: {}, bottom ?: {}), modifier = modifier) { (tops, numbers, bottoms), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val t = tops.firstOrNull()?.measure(loose)
+        val n = numbers.firstOrNull()?.measure(loose)
+        val b = bottoms.firstOrNull()?.measure(loose)
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        layout(width, height) {
+            val topHeight = t?.height ?: 0
+            val numberTop = if (n != null) {
+                (height - n.height) / 2
+            } else {
+                (height - topHeight - (b?.height ?: 0)) / 2 + topHeight
+            }
+            t?.placeRelative((width - t.width) / 2, numberTop - topHeight)
+            n?.placeRelative((width - n.width) / 2, numberTop)
+            b?.placeRelative((width - b.width) / 2, numberTop + (n?.height ?: 0))
+        }
+    }
+}
+
+/**
+ * A tight line height (no extra font-padding leading), so a large number claims no more vertical
+ * space than its glyphs: the ring's rep number (spec revision 35) and the stat circles' values (37).
+ */
+private fun tightTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = null) = TextStyle(
     fontSize = fontSize,
     lineHeight = fontSize,
     fontWeight = fontWeight,
@@ -201,12 +248,43 @@ private fun tightCentreTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = n
     lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both),
 )
 
+/**
+ * Sets and Elapsed as two outlined circles side by side (spec revision 37), with no visible labels;
+ * each circle carries its own TalkBack description. A circle is 34% of the screen width, shrunk only
+ * where that would leave less than 24 dp between and beside them (SpaceEvenly). The value is 0.3 of
+ * the circle (about 42 sp on a 411 dp phone), as [Dp] converted to sp so it fits at any font scale.
+ */
 @Composable
-private fun Stat(@StringRes label: Int, value: String, testTag: String) {
-    // Spec revision 33: larger than before (titleSmall/headlineMedium, up from labelLarge/titleLarge).
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.testTag(testTag)) {
-        Text(stringResource(label), color = Color.LightGray, style = MaterialTheme.typography.titleSmall)
-        Text(value, color = Color.White, style = MaterialTheme.typography.headlineMedium)
+private fun StatCircles(ui: TimerUiState) {
+    val screenWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val minGap = 24.dp
+        val circle = min(screenWidth * 0.34f, (maxWidth - minGap * 3) / 2)
+        val valueSize = with(LocalDensity.current) { (circle * 0.3f).toSp() }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            StatCircle(ui.setsText, ui.setsDescription.resolve(), circle, valueSize, testTag = "stat_sets")
+            StatCircle(ui.elapsedText, ui.elapsedDescription.resolve(), circle, valueSize, testTag = "stat_elapsed")
+        }
+    }
+}
+
+@Composable
+private fun StatCircle(value: String, description: String, size: Dp, valueSize: TextUnit, testTag: String) {
+    Box(
+        Modifier
+            .size(size)
+            .border(2.dp, HiitColors.Neutral.copy(alpha = 0.6f), CircleShape)
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .testTag(testTag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            value,
+            color = Color.White,
+            style = tightTextStyle(valueSize),
+            maxLines = 1,
+            modifier = Modifier.testTag("${testTag}_value"),
+        )
     }
 }
 

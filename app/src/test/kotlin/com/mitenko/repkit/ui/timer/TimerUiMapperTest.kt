@@ -1,6 +1,7 @@
 package com.mitenko.repkit.ui.timer
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mitenko.repkit.domain.model.Phase
@@ -15,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 /** Robolectric, so each description and label is checked as the English text it resolves to (spec revision 24). */
 @RunWith(AndroidJUnit4::class)
@@ -38,7 +40,9 @@ class TimerUiMapperTest {
         assertEquals(PhaseTone.WORK, ui.tone)
         assertEquals("00:15", ui.countdownText)
         assertEquals("2/8", ui.setsText)
-        assertEquals("00:00:50", ui.elapsedText)
+        assertEquals("00:50", ui.elapsedText)
+        assertEquals("Sets 2 of 8", ui.setsDescription.en())
+        assertEquals("Elapsed 50 seconds", ui.elapsedDescription.en())
         assertEquals(0.75f, ui.innerProgress, 1e-6f)
         assertEquals((1 + 5f / 20f) / 8f, ui.outerProgress, 1e-6f)
         assertEquals("Work, set 2 of 8, 8 reps", ui.description.en())
@@ -160,5 +164,39 @@ class TimerUiMapperTest {
     fun `a Timer only run and a Reps run show no weight`() {
         assertNull(TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Stretch", countsReps = false, weight = kg16).weight)
         assertNull(TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Burpees").weight)
+    }
+
+    @Test
+    fun `the stat circles read their values to TalkBack`() {
+        // Spec revision 37: the visible Sets / Elapsed labels are gone, so each circle carries its own description.
+        val ui = TimerUiMapper.map(state(Phase.WORK, set = 8, left = 5, duration = 20).copy(sets = 8, elapsedSec = 213), "Burpees")
+        assertEquals("8/8", ui.setsText)
+        assertEquals("03:33", ui.elapsedText)
+        assertEquals("Sets 8 of 8", ui.setsDescription.en())
+        assertEquals("Elapsed 3 minutes 33 seconds", ui.elapsedDescription.en())
+        val round = TimerUiMapper.map(state(Phase.WORK, set = 1, left = 5, duration = 20).copy(elapsedSec = 60), "Burpees")
+        assertEquals("Elapsed 1 minute", round.elapsedDescription.en())
+        val long = TimerUiMapper.map(state(Phase.WORK, set = 1, left = 5, duration = 20).copy(elapsedSec = 4512), "Burpees")
+        assertEquals("75:12", long.elapsedText)
+        assertEquals("Elapsed 75 minutes 12 seconds", long.elapsedDescription.en())
+        val one = TimerUiMapper.map(state(Phase.WORK, set = 1, left = 5, duration = 20).copy(elapsedSec = 61), "Burpees")
+        assertEquals("Elapsed 1 minute 1 second", one.elapsedDescription.en())
+    }
+
+    @Test
+    fun `the stat circle descriptions resolve in every language with no format left over`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        listOf("en", "es", "zh-CN", "hi").forEach { tag ->
+            val r = context.createConfigurationContext(
+                Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(tag)) },
+            ).resources
+            listOf(0, 1, 59, 60, 61, 213, 4512).forEach { sec ->
+                val ui = TimerUiMapper.map(state(Phase.WORK, set = 1, left = 5, duration = 20).copy(elapsedSec = sec), "Burpees")
+                listOf(ui.setsDescription.resolve(r), ui.elapsedDescription.resolve(r)).forEach { text ->
+                    assertTrue(text, text.isNotBlank())
+                    assertFalse(text, text.contains('%'))
+                }
+            }
+        }
     }
 }
