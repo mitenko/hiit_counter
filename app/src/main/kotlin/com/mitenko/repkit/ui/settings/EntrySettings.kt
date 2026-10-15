@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelShape
 import com.mitenko.repkit.ui.theme.panelColor
 
 /**
@@ -397,13 +398,14 @@ private fun ListRow(
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val shape = if (danger) SettingsCardShape else panelShape(SettingsCardShape)
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = SettingsCardShape,
+        shape = shape,
         color = if (danger) colors.errorContainer else panelColor(colors.surfaceContainer),
         contentColor = if (danger) colors.onErrorContainer else colors.onSurface,
-        modifier = Modifier.fillMaxWidth().then(if (danger) Modifier else Modifier.glowPanel(SettingsCardShape)).heightIn(min = 56.dp).testTag(tag),
+        modifier = Modifier.fillMaxWidth().then(if (danger) Modifier else Modifier.glowPanel(shape)).heightIn(min = 56.dp).testTag(tag),
     ) {
         Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
             Text(

@@ -1,4 +1,4 @@
-# REPKIT — Colour themes: Sonar (spec revision 36)
+# REPKIT — Colour themes: Sonar, Blossom, Grove, Foundry (spec revisions 36 and 39)
 
 Status: approved by the user, 2026-10-10; revised 2026-10-15:
 - one glowing dark theme, **Sonar**, next to System / Light / Dark ("i love the sonar theme");
@@ -7,6 +7,9 @@ Status: approved by the user, 2026-10-10; revised 2026-10-15:
 - Sonar is free. **Ember and Tide wait for Pro**: the user chose "Sonar only first", since Pro can't be bought
   yet and they would only show a lock (§8). Their draft palettes are kept in §8 for then.
 - It ships after 0.2.0, as its own release.
+- **Revision 39 (2026-10-15)** adds Blossom, Grove and Foundry (§10), chosen from the mockup
+  (`D:\Claude\apps\repkit-mockups\theme-suggestions.html`): the user found Tide "too similar to sonar", asked for
+  "a feminine theme and a woodland theme and an industrial theme", then "Blossom Grove and Foundry. do it".
 
 Amends revision 14 (light and dark: the Appearance choice and the always-dark timer). Covers the timer as it
 stands after revision 38 (the elapsed band).
@@ -120,7 +123,9 @@ The name stays "Sonar" in every language, as a product name, so it goes in `valu
 
 ## 8. Later and out of scope
 
-- **Ember and Tide (Pro), when billing exists.** They become `ThemeMode` values with a lock for a FREE tier,
+- **Ember (Pro), when billing exists.** Tide is dropped (rev 39: too close to Sonar). Ember's draft below
+  fails §6's hue rule (work, rest and prepare all orange, under 20° apart); the mockup's fix is rest `#D9579E`
+  (rose) and prepare / cooldown `#8FB3C9` (steel blue). Originally **Ember and Tide (Pro)**: They become `ThemeMode` values with a lock for a FREE tier,
   tapping one opens Go Pro (`isProTheme`, `canUseTheme(tier, mode)`, a Pro on FREE reading as DARK with the
   choice kept). Draft palettes, to re-preview on the then-current screens first:
 
@@ -150,3 +155,56 @@ The name stays "Sonar" in every language, as a product name, so it goes in `valu
 
 Built after 0.2.0 (weights and the elapsed band) is uploaded, and shipped as its own release with a version
 bump. The user approved Sonar from the preview (`D:\Claude\apps\repkit-mockups\theme-preview.html`).
+
+## 10. Revision 39: Blossom, Grove and Foundry
+
+Three more glowing dark themes join Sonar. They work exactly like Sonar (§2–§6) and differ only in their tokens,
+including how strongly they glow and, for two of them, their panel corners.
+
+- **The setting:** `ThemeMode` and `AppTheme` gain `BLOSSOM`, `GROVE` and `FOUNDRY`.
+  - The Appearance list reads System · Light · Dark · Sonar · Blossom · Grove · Foundry, each glowing theme
+    with its three-dot swatch (ground, accent, rest).
+  - `timerTheme` keeps every glowing theme; only Light maps to Dark.
+- **Free for now.** Pro can't be bought yet, so a lock would only be a wall. Revisit when billing lands (§8's
+  `canUseTheme` idea applies to any of them).
+- **Names** are product names, `translatable="false"`, like Sonar (`theme_blossom`, `theme_grove`, `theme_foundry`).
+- **Code:** a `ThemePalette` holds each theme's tokens; `paletteFor(AppTheme)` returns it (null for Light and
+  Dark), and the scheme, `GlowTokens` and `TimerColors` are built from it once. Sonar's tokens are unchanged.
+
+### 10.1 Palettes
+
+| Token | Blossom (feminine) | Grove (woodland) | Foundry (industrial) |
+| --- | --- | --- | --- |
+| ground | `#1A0E16` | `#0D120C` | `#111315` |
+| panel | `#2A1724` | `#18211A` | `#1C1F22` |
+| panel centre | `#3A1F33` | `#1F2D21` | `#262A2E` |
+| outline | `#B5578E` | `#5C7F4A` | `#6B737A` |
+| accent | `#FF8FC8` | `#9CCB6B` | `#F5C518` |
+| on accent | `#33081F` | `#142008` | `#1A1500` |
+| text | `#FBEFF5` | `#EEF0E6` | `#ECEEF0` |
+| secondary text | `#CFA8BE` | `#A9B49B` | `#A3AAB0` |
+| error | `#FF6B6B` | `#E86A5A` | `#FF5A4E` |
+| timer: work | `#FF8FC8` (pink) | `#9CCB6B` (moss) | `#F5C518` (safety yellow) |
+| timer: rest | `#F5C26B` (gold) | `#E0A458` (amber) | `#3FA7F0` (signal blue) |
+| timer: prepare / cooldown | `#B79CFF` (lavender) | `#6FC2A8` (lichen) | `#FF5E3A` (hazard red) |
+| timer: set ring | `#E9A8FF` | `#D8C17A` (birch) | `#C9D1D8` (steel) |
+| timer: track | `#3A2133` | `#2A2A1E` | `#2A2E33` |
+
+### 10.2 Glow and shape per theme
+
+| | Sonar | Blossom | Grove | Foundry |
+| --- | --- | --- | --- | --- |
+| panel halo (accent alpha) | 0.35 | 0.40 | 0.25 | 0.12 |
+| screen edge (accent alpha) | 0.12 | 0.13 | 0.09 | 0.05 |
+| ring halo (arc alpha) | 0.55 | 0.60 | 0.40 | 0.25 |
+| panel corner | each panel's own | 22 dp | each panel's own | 6 dp |
+
+`panelShape(default)` gives a panel its theme's corner (list tiles, settings cards, the entry settings action
+cards and the prescription card); the danger card keeps its own.
+
+### 10.3 Testing
+
+§6's contrast and hue checks run over every glowing palette. Also: each mode round-trips in `AppPreferences`, is
+dark, and keeps its own timer; `HiitTheme` provides each palette's scheme, glow and timer colours; `panelShape`
+gives Blossom 22 dp and Foundry 6 dp and leaves the rest alone; the Appearance list shows each theme with its
+swatch; the timer renders in each.

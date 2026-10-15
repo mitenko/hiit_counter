@@ -3,7 +3,9 @@ package com.mitenko.repkit.ui.theme
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
@@ -15,14 +17,15 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
- * A glowing panel in Sonar (spec rev 36 §4): a soft accent glow outside (coloured shadows, API 28+), a
- * radial gradient from the panel centre to the panel colour, and a 1.5 dp outline. Returns the receiver
- * unchanged in Light and Dark. Pair it with [panelColor] for the panel's own fill.
+ * A glowing panel (spec rev 36 §4): a soft accent glow outside (coloured shadows, API 28+, at the theme's
+ * panel halo strength), a radial gradient from the panel centre to the panel colour, and a 1.5 dp outline.
+ * Returns the receiver unchanged in Light and Dark. Pair it with [panelColor] for the panel's own fill, and
+ * pass the [panelShape] of the panel's own shape.
  */
 @Composable
 fun Modifier.glowPanel(shape: Shape): Modifier {
     val glow = LocalGlow.current ?: return this
-    val halo = glow.accent.copy(alpha = 0.35f)
+    val halo = glow.accent.copy(alpha = glow.panelHalo)
     val shadow = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         Modifier.shadow(12.dp, shape, clip = false, ambientColor = halo, spotColor = halo)
     } else {
@@ -34,16 +37,23 @@ fun Modifier.glowPanel(shape: Shape): Modifier {
         .border(1.5.dp, glow.outline, shape)
 }
 
-/** A panel's own fill: [default] in Light and Dark; transparent in Sonar, so [glowPanel]'s gradient shows. */
+/** A panel's shape: [default], or the glowing theme's own corner radius (spec rev 39 §10: Blossom rounder, Foundry squarer). */
+@Composable
+fun panelShape(default: Shape): Shape {
+    val corner = LocalGlow.current?.panelCorner ?: return default
+    return remember(corner) { RoundedCornerShape(corner) }
+}
+
+/** A panel's own fill: [default] in Light and Dark; transparent in a glowing theme, so [glowPanel]'s gradient shows. */
 @Composable
 fun panelColor(default: Color): Color = if (LocalGlow.current == null) default else Color.Transparent
 
-/** Sonar's faint inner glow along the screen edge (spec rev 36 §4): the accent at 12% fading in over 24 dp. */
+/** A glowing theme's faint inner glow along the screen edge (spec rev 36 §4): the accent (12% in Sonar) fading in over 24 dp. */
 @Composable
 fun Modifier.edgeGlow(): Modifier {
     val glow = LocalGlow.current ?: return this
     return drawWithCache {
-        val edge = glow.accent.copy(alpha = 0.12f)
+        val edge = glow.accent.copy(alpha = glow.edgeHalo)
         val clear = Color.Transparent
         val w = 24.dp.toPx()
         val top = Brush.verticalGradient(listOf(edge, clear), startY = 0f, endY = w)

@@ -62,10 +62,12 @@ class AppPreferencesTest {
     }
 
     @Test
-    fun `setThemeMode round trips SONAR`() = runTest {
+    fun `setThemeMode round trips every glowing theme`() = runTest {
         val prefs = AppPreferences(store())
-        prefs.setThemeMode(ThemeMode.SONAR)
-        assertEquals(ThemeMode.SONAR, prefs.themeMode.first())
+        listOf(ThemeMode.SONAR, ThemeMode.BLOSSOM, ThemeMode.GROVE, ThemeMode.FOUNDRY).forEach { mode ->
+            prefs.setThemeMode(mode)
+            assertEquals(mode, prefs.themeMode.first())
+        }
     }
 
     @Test

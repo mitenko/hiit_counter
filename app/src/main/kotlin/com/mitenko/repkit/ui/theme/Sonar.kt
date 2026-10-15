@@ -1,7 +1,5 @@
 package com.mitenko.repkit.ui.theme
 
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /** Sonar's palette (spec rev 36 §3.1; prepare moved to #6A9FE0 for the 30° hue rule, plan ruling 2). */
@@ -22,34 +20,13 @@ object SonarColors {
     val Track = Color(0xFF12302F)
 }
 
-/** What the glow modifiers draw with (spec rev 36 §4); provided only in Sonar. */
-@Immutable
-data class GlowTokens(val panel: Color, val panelCentre: Color, val outline: Color, val accent: Color)
-
-val SonarGlow = GlowTokens(
-    panel = SonarColors.Panel, panelCentre = SonarColors.PanelCentre, outline = SonarColors.Outline, accent = SonarColors.Accent,
+val SonarPalette = ThemePalette(
+    ground = SonarColors.Ground, panel = SonarColors.Panel, panelCentre = SonarColors.PanelCentre,
+    outline = SonarColors.Outline, accent = SonarColors.Accent, onAccent = SonarColors.OnAccent,
+    text = SonarColors.Text, secondaryText = SonarColors.SecondaryText, error = SonarColors.Error,
+    work = SonarColors.Work, rest = SonarColors.Rest, prepare = SonarColors.Prepare,
+    setRing = SonarColors.SetRing, track = SonarColors.Track,
+    panelHalo = 0.35f, edgeHalo = 0.12f, ringHalo = 0.55f, panelCorner = null,
 )
 
-/** Sonar as a Material scheme: chips, buttons, switches and dialogs take it from here (plan ruling 3). */
-internal val SonarScheme = darkColorScheme(
-    primary = SonarColors.Accent,
-    onPrimary = SonarColors.OnAccent,
-    primaryContainer = SonarColors.PanelCentre,
-    onPrimaryContainer = SonarColors.Text,
-    secondary = SonarColors.SetRing,
-    onSecondary = SonarColors.OnAccent,
-    secondaryContainer = SonarColors.PanelCentre,
-    onSecondaryContainer = SonarColors.Text,
-    background = SonarColors.Ground,
-    onBackground = SonarColors.Text,
-    surface = SonarColors.Ground,
-    onSurface = SonarColors.Text,
-    surfaceVariant = SonarColors.Panel,
-    onSurfaceVariant = SonarColors.SecondaryText,
-    surfaceContainer = SonarColors.Panel,
-    surfaceContainerHigh = SonarColors.Panel,
-    surfaceContainerHighest = SonarColors.PanelCentre,
-    outline = SonarColors.Outline,
-    outlineVariant = SonarColors.Outline.copy(alpha = 0.5f),
-    error = SonarColors.Error,
-)
+val SonarGlow = SonarPalette.glow()

@@ -81,11 +81,13 @@ import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.common.longLabel
-import com.mitenko.repkit.ui.theme.SonarColors
 import com.mitenko.repkit.ui.theme.ThemeMode
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.mitenko.repkit.ui.theme.effectiveTheme
 import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.paletteFor
+import com.mitenko.repkit.ui.theme.panelShape
 import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
@@ -251,6 +253,9 @@ private fun SettingsDialog(
                     ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
                     ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
                     ThemeOptionRow(ThemeMode.SONAR, R.string.theme_sonar, current, onSelect)
+                    ThemeOptionRow(ThemeMode.BLOSSOM, R.string.theme_blossom, current, onSelect)
+                    ThemeOptionRow(ThemeMode.GROVE, R.string.theme_grove, current, onSelect)
+                    ThemeOptionRow(ThemeMode.FOUNDRY, R.string.theme_foundry, current, onSelect)
                 }
                 // Spec rev 26 §3, plan Spec note 36: the unit new weight workouts start in; saved at once, closing like Appearance.
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -297,9 +302,10 @@ private fun ThemeOptionRow(mode: ThemeMode, label: Int, current: ThemeMode, onSe
     ) {
         RadioButton(selected = selected, onClick = null)
         Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
-        if (mode == ThemeMode.SONAR) {
+        // A glowing theme shows its swatch (spec rev 36 §2); the phone setting doesn't matter for those.
+        paletteFor(effectiveTheme(mode, systemDark = true))?.let { p ->
             Spacer(Modifier.weight(1f))
-            ThemeSwatch(listOf(SonarColors.Ground, SonarColors.Accent, SonarColors.Rest), Modifier.testTag("theme_swatch_${mode.name}"))
+            ThemeSwatch(listOf(p.ground, p.accent, p.rest), Modifier.testTag("theme_swatch_${mode.name}"))
         }
     }
 }
@@ -459,11 +465,12 @@ private fun EntryRowItem(
     val moveUpLabel = stringResource(R.string.move_up)
     val moveDownLabel = stringResource(R.string.move_down)
     // Spec rev 9 §2: a rounded surfaceContainer card; the whole card lifts while it's dragged (R5).
+    val shape = panelShape(TileShape)
     Surface(
-        shape = TileShape,
+        shape = shape,
         color = panelColor(if (isDragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer),
         shadowElevation = if (isDragging) 6.dp else 0.dp,
-        modifier = Modifier.fillMaxWidth().glowPanel(TileShape),
+        modifier = Modifier.fillMaxWidth().glowPanel(shape),
     ) {
         Row(
             Modifier

@@ -59,7 +59,7 @@ private val LightScheme = lightColorScheme(
 /** The theme being drawn (spec rev 36): the timer reads it to pick its own theme ([timerTheme]). */
 val LocalAppTheme = staticCompositionLocalOf { AppTheme.LIGHT }
 
-/** Sonar's glow tokens; null in Light and Dark, so the glow modifiers do nothing there (spec rev 36 §4). */
+/** The glowing theme's glow tokens; null in Light and Dark, so the glow modifiers do nothing there (spec rev 36 §4). */
 val LocalGlow = staticCompositionLocalOf<GlowTokens?> { null }
 
 /** The timer screen's colours (spec rev 36 §3). */
@@ -70,18 +70,25 @@ val LocalTimerColors = staticCompositionLocalOf { DarkTimerColors }
 fun HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) =
     HiitTheme(if (darkTheme) AppTheme.DARK else AppTheme.LIGHT, content)
 
+/** A glowing theme's Material scheme, glow and timer colours, built once (spec rev 36 §3, rev 39 §10). */
+private class Themed(palette: ThemePalette) {
+    val scheme = palette.scheme()
+    val glow = palette.glow()
+    val timer = palette.timerColors()
+}
+
+private val ThemedSets: Map<AppTheme, Themed> =
+    AppTheme.entries.mapNotNull { theme -> paletteFor(theme)?.let { theme to Themed(it) } }.toMap()
+
 /** Spec rev 36 §3: the scheme, the glow and the timer colours for [theme]. */
 @Composable
 fun HiitTheme(theme: AppTheme, content: @Composable () -> Unit) {
-    val scheme = when (theme) {
-        AppTheme.LIGHT -> LightScheme
-        AppTheme.DARK -> DarkScheme
-        AppTheme.SONAR -> SonarScheme
-    }
+    val themed = ThemedSets[theme]
+    val scheme = themed?.scheme ?: if (theme == AppTheme.LIGHT) LightScheme else DarkScheme
     CompositionLocalProvider(
         LocalAppTheme provides theme,
-        LocalGlow provides if (theme == AppTheme.SONAR) SonarGlow else null,
-        LocalTimerColors provides if (theme == AppTheme.SONAR) SonarTimerColors else DarkTimerColors,
+        LocalGlow provides themed?.glow,
+        LocalTimerColors provides (themed?.timer ?: DarkTimerColors),
     ) {
         MaterialTheme(colorScheme = scheme, content = content)
     }

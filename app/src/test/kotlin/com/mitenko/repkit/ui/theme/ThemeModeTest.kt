@@ -25,9 +25,11 @@ class ThemeModeTest {
     }
 
     @Test
-    fun `SONAR is dark whatever the phone says`() {
-        assertTrue(isDark(ThemeMode.SONAR, systemDark = true))
-        assertTrue(isDark(ThemeMode.SONAR, systemDark = false))
+    fun `the glowing themes are dark whatever the phone says`() {
+        listOf(ThemeMode.SONAR, ThemeMode.BLOSSOM, ThemeMode.GROVE, ThemeMode.FOUNDRY).forEach { mode ->
+            assertTrue(isDark(mode, systemDark = true))
+            assertTrue(isDark(mode, systemDark = false))
+        }
     }
 
     @Test
@@ -38,13 +40,16 @@ class ThemeModeTest {
             assertEquals(AppTheme.LIGHT, effectiveTheme(ThemeMode.LIGHT, systemDark))
             assertEquals(AppTheme.DARK, effectiveTheme(ThemeMode.DARK, systemDark))
             assertEquals(AppTheme.SONAR, effectiveTheme(ThemeMode.SONAR, systemDark))
+            assertEquals(AppTheme.BLOSSOM, effectiveTheme(ThemeMode.BLOSSOM, systemDark))
+            assertEquals(AppTheme.GROVE, effectiveTheme(ThemeMode.GROVE, systemDark))
+            assertEquals(AppTheme.FOUNDRY, effectiveTheme(ThemeMode.FOUNDRY, systemDark))
         }
     }
 
     @Test
-    fun `the timer is dark in Light and Dark and Sonar in Sonar`() {
+    fun `the timer is dark in Light and Dark and keeps each glowing theme`() {
         assertEquals(AppTheme.DARK, timerTheme(AppTheme.LIGHT))
         assertEquals(AppTheme.DARK, timerTheme(AppTheme.DARK))
-        assertEquals(AppTheme.SONAR, timerTheme(AppTheme.SONAR))
+        listOf(AppTheme.SONAR, AppTheme.BLOSSOM, AppTheme.GROVE, AppTheme.FOUNDRY).forEach { assertEquals(it, timerTheme(it)) }
     }
 }

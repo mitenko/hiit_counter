@@ -49,14 +49,14 @@ class MainActivity : ComponentActivity() {
             val tier by entitlements.tier.collectAsStateWithLifecycle()
 
             // Status/navigation bar icons follow the theme drawn too - not just the phone's own night
-            // mode - since a manual choice can disagree with it. Sonar is dark (rev 36 §5).
+            // mode - since a manual choice can disagree with it. Every glowing theme is dark (rev 36 §5).
             LaunchedEffect(appTheme) {
                 val style = if (appTheme != AppTheme.LIGHT) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
 
             HiitTheme(appTheme) {
-                // Sonar's faint glow along the screen edge (rev 36 §4); nothing in Light and Dark.
+                // A glowing theme's faint glow along the screen edge (rev 36 §4); nothing in Light and Dark.
                 Surface(Modifier.fillMaxSize().edgeGlow(), color = MaterialTheme.colorScheme.background) {
                     CompositionLocalProvider(LocalTier provides tier, LocalAdRenderer provides adRenderer) {
                         Box(Modifier.safeDrawingPadding()) { HiitNavHost(controller) }

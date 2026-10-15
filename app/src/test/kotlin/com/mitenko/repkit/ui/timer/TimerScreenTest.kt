@@ -24,10 +24,12 @@ import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.AppTheme
 import com.mitenko.repkit.ui.theme.DarkTimerColors
+import com.mitenko.repkit.ui.theme.FoundryPalette
 import com.mitenko.repkit.ui.theme.HiitTheme
 import com.mitenko.repkit.ui.theme.LocalTimerColors
 import com.mitenko.repkit.ui.theme.SonarTimerColors
 import com.mitenko.repkit.ui.theme.TimerColors
+import com.mitenko.repkit.ui.theme.timerColors
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -542,6 +544,23 @@ class TimerScreenTest {
     }
 
     @Test
+    fun `the timer renders in Blossom`() = rendersIn(AppTheme.BLOSSOM)
+
+    @Test
+    fun `the timer renders in Grove`() = rendersIn(AppTheme.GROVE)
+
+    @Test
+    fun `the timer renders in Foundry`() = rendersIn(AppTheme.FOUNDRY)
+
+    private fun rendersIn(theme: AppTheme) {
+        // Spec rev 39 §10: each glowing theme's own timer, ring halo included.
+        timerIn(theme)
+        compose.onNodeWithTag("ring", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("stat_band", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
     fun `the timer renders in Light, staying dark`() {
         timerIn(AppTheme.LIGHT)
         compose.onNodeWithTag("pause").assertIsDisplayed()
@@ -552,12 +571,15 @@ class TimerScreenTest {
         var sonar: TimerColors? = null
         var light: TimerColors? = null
         var dark: TimerColors? = null
+        var foundry: TimerColors? = null
         compose.setContent {
+            HiitTheme(AppTheme.FOUNDRY) { TimerColorsProbe { foundry = it } }
             HiitTheme(AppTheme.SONAR) { TimerColorsProbe { sonar = it } }
             HiitTheme(AppTheme.LIGHT) { TimerColorsProbe { light = it } }
             HiitTheme(AppTheme.DARK) { TimerColorsProbe { dark = it } }
         }
         assertEquals(SonarTimerColors, sonar)
+        assertEquals(FoundryPalette.timerColors(), foundry)
         assertEquals(DarkTimerColors, light)
         assertEquals(DarkTimerColors, dark)
     }

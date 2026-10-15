@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Spec rev 36 §4: the glow exists only in Sonar; Light and Dark get the very same modifiers and colours. */
+/** Spec rev 36 §4, rev 39 §10: the glow exists only in the glowing themes; Light and Dark get the very same modifiers and colours. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class GlowTest {
@@ -58,5 +58,34 @@ class GlowTest {
         assertNotSame(Modifier, panel)
         assertNotSame(Modifier, edge)
         assertEquals(Color.Transparent, color)
+    }
+
+    @Test
+    fun `panels keep their own shape unless the theme sets a corner`() {
+        val shapes = mutableMapOf<AppTheme, androidx.compose.ui.graphics.Shape>()
+        compose.setContent {
+            listOf(AppTheme.LIGHT, AppTheme.SONAR, AppTheme.GROVE, AppTheme.BLOSSOM, AppTheme.FOUNDRY).forEach { t ->
+                HiitTheme(t) { shapes[t] = panelShape(shape) }
+            }
+        }
+        compose.waitForIdle()
+        assertSame(shape, shapes[AppTheme.LIGHT])
+        assertSame(shape, shapes[AppTheme.SONAR])
+        assertSame(shape, shapes[AppTheme.GROVE])
+        assertEquals(RoundedCornerShape(22.dp), shapes[AppTheme.BLOSSOM])
+        assertEquals(RoundedCornerShape(6.dp), shapes[AppTheme.FOUNDRY])
+    }
+
+    @Test
+    fun `every glowing theme glows`() {
+        val panels = mutableMapOf<AppTheme, Modifier>()
+        compose.setContent {
+            listOf(AppTheme.BLOSSOM, AppTheme.GROVE, AppTheme.FOUNDRY).forEach { t ->
+                HiitTheme(t) { panels[t] = Modifier.glowPanel(shape) }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(3, panels.size)
+        panels.forEach { (t, m) -> assertNotSame("$t", Modifier, m) }
     }
 }

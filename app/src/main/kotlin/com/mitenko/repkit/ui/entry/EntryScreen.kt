@@ -78,6 +78,7 @@ import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.weightText
 import kotlinx.coroutines.launch
 import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelShape
 import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
@@ -473,7 +474,7 @@ private fun PrescriptionCard(load: Prescription.Load, sets: Int, unit: WeightUni
         }
     }
     val description = prescriptionDescription(load, sets, unit).resolve()
-    val shape = RoundedCornerShape(12.dp)
+    val shape = panelShape(RoundedCornerShape(12.dp))
     Box {
         Column(
             Modifier

@@ -21,8 +21,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 
 /**
- * Thick inner ring = current phase; thin outer ring = work-set progress (spec §9.2). In Sonar each arc has
- * a blurred halo under it (rev 36 §4, API 28+).
+ * Thick inner ring = current phase; thin outer ring = work-set progress (spec §9.2). In a glowing theme
+ * each arc has a blurred halo under it at [haloAlpha] (rev 36 §4, API 28+); null draws none.
  */
 @Composable
 fun DualRing(
@@ -31,7 +31,7 @@ fun DualRing(
     innerColor: Color,
     outerColor: Color,
     trackColor: Color,
-    glow: Boolean,
+    haloAlpha: Float?,
     modifier: Modifier = Modifier,
 ) {
     val innerAnim = remember { Animatable(inner) }
@@ -45,7 +45,7 @@ fun DualRing(
     }
     val outerHalo = remember { HaloPaint() }
     val innerHalo = remember { HaloPaint() }
-    val haloOn = glow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+    val haloStrength = haloAlpha?.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.P }
     Canvas(modifier) {
         val d = size.minDimension
         val outerStroke = d * 0.02f
@@ -53,10 +53,10 @@ fun DualRing(
         val outerInset = outerStroke / 2
         val innerInset = outerStroke + d * 0.03f + innerStroke / 2
         ring(trackColor, 1f, outerInset, outerStroke)
-        if (haloOn) halo(outerHalo, outerColor, outerAnim.value, outerInset, outerStroke)
+        if (haloStrength != null) halo(outerHalo, outerColor.copy(alpha = haloStrength), outerAnim.value, outerInset, outerStroke)
         ring(outerColor, outerAnim.value, outerInset, outerStroke)
         ring(trackColor, 1f, innerInset, innerStroke)
-        if (haloOn) halo(innerHalo, innerColor, innerAnim.value, innerInset, innerStroke)
+        if (haloStrength != null) halo(innerHalo, innerColor.copy(alpha = haloStrength), innerAnim.value, innerInset, innerStroke)
         ring(innerColor, innerAnim.value, innerInset, innerStroke)
     }
 }
@@ -85,7 +85,7 @@ private class HaloPaint {
 
     fun update(color: Color, stroke: Float) {
         paint.strokeWidth = stroke * 1.8f
-        paint.color = color.copy(alpha = 0.55f).toArgb()
+        paint.color = color.toArgb()
         if (blur != stroke) {
             blur = stroke
             paint.maskFilter = BlurMaskFilter(stroke, BlurMaskFilter.Blur.NORMAL)

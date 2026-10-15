@@ -664,6 +664,27 @@ class EntryListScreenTest {
     }
 
     @Test
+    fun `the Settings dialog offers Blossom, Grove and Foundry with their swatches`() {
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.GROVE)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        listOf("Blossom" to "BLOSSOM", "Grove" to "GROVE", "Foundry" to "FOUNDRY").forEach { (label, name) ->
+            compose.onNodeWithText(label).assertExists()
+            compose.onNodeWithTag("theme_$name").assertHeightIsAtLeast(48.dp)
+            compose.onNodeWithTag("theme_swatch_$name", useUnmergedTree = true).assertExists()
+        }
+        compose.onNodeWithTag("theme_GROVE").assertIsSelected()
+    }
+
+    @Test
+    fun `choosing Foundry calls the setter`() {
+        var chosen: ThemeMode? = null
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.SYSTEM, onSetThemeMode = { chosen = it })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("theme_FOUNDRY").performScrollTo().performClick()
+        assertEquals(ThemeMode.FOUNDRY, chosen)
+    }
+
+    @Test
     fun `choosing Sonar calls the setter`() {
         var chosen: ThemeMode? = null
         show(EntryListUiState.Items(rows), themeMode = ThemeMode.SYSTEM, onSetThemeMode = { chosen = it })

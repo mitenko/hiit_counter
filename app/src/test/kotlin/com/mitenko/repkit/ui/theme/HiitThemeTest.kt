@@ -72,4 +72,19 @@ class HiitThemeTest {
         assertEquals(HiitColors.Work, DarkTimerColors.work)
         assertEquals(Color.Black, DarkTimerColors.ground)
     }
+
+    @Test
+    fun `each glowing theme provides its own ground, glow and timer colours`() {
+        val themes = listOf(AppTheme.BLOSSOM to BlossomPalette, AppTheme.GROVE to GrovePalette, AppTheme.FOUNDRY to FoundryPalette)
+        val seen = mutableMapOf<AppTheme, Triple<Color, GlowTokens?, TimerColors>>()
+        compose.setContent {
+            themes.forEach { (t, _) ->
+                HiitTheme(t) { seen[t] = Triple(MaterialTheme.colorScheme.background, LocalGlow.current, LocalTimerColors.current) }
+            }
+        }
+        compose.waitForIdle()
+        themes.forEach { (t, p) ->
+            assertEquals("$t", Triple(p.ground, p.glow(), p.timerColors()), seen[t])
+        }
+    }
 }

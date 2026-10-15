@@ -67,7 +67,7 @@ import com.mitenko.repkit.ui.theme.timerTheme
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** The timer's own theme (spec rev 14 §3, rev 36 §3): dark from Light or Dark, Sonar from Sonar. */
+/** The timer's own theme (spec rev 14 §3, rev 36 §3): dark from Light or Dark, else the glowing theme's own. */
 @Composable
 internal fun TimerTheme(content: @Composable () -> Unit) = HiitTheme(timerTheme(LocalAppTheme.current), content)
 
@@ -137,7 +137,7 @@ fun TimerScreen(
                 val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
                 DualRing(
                     ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = tc.setRing,
-                    trackColor = tc.track, glow = LocalGlow.current != null,
+                    trackColor = tc.track, haloAlpha = LocalGlow.current?.ringHalo,
                     modifier = Modifier.fillMaxSize().testTag("ring"),
                 )
                 val weight = ui.weight
