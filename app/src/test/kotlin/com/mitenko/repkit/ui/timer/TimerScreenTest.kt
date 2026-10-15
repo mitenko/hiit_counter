@@ -22,7 +22,12 @@ import com.mitenko.repkit.domain.model.Phase
 import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.ui.theme.AppTheme
+import com.mitenko.repkit.ui.theme.DarkTimerColors
 import com.mitenko.repkit.ui.theme.HiitTheme
+import com.mitenko.repkit.ui.theme.LocalTimerColors
+import com.mitenko.repkit.ui.theme.SonarTimerColors
+import com.mitenko.repkit.ui.theme.TimerColors
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -514,4 +519,50 @@ class TimerScreenTest {
         setScreen(Phase.WORK)
         compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertDoesNotExist()
     }
+
+    private fun timerIn(theme: AppTheme) {
+        compose.setContent {
+            HiitTheme(theme) {
+                TimerScreen(
+                    ui(Phase.REST), CueConfig(),
+                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the timer renders in Sonar with its ring, band and controls`() {
+        // Spec rev 36 §3: Sonar's own timer, ring glow included; must not crash where blur is drawn.
+        timerIn(AppTheme.SONAR)
+        compose.onNodeWithTag("ring", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("stat_band", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the timer renders in Light, staying dark`() {
+        timerIn(AppTheme.LIGHT)
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the timer's colours follow timerTheme`() {
+        var sonar: TimerColors? = null
+        var light: TimerColors? = null
+        var dark: TimerColors? = null
+        compose.setContent {
+            HiitTheme(AppTheme.SONAR) { TimerColorsProbe { sonar = it } }
+            HiitTheme(AppTheme.LIGHT) { TimerColorsProbe { light = it } }
+            HiitTheme(AppTheme.DARK) { TimerColorsProbe { dark = it } }
+        }
+        assertEquals(SonarTimerColors, sonar)
+        assertEquals(DarkTimerColors, light)
+        assertEquals(DarkTimerColors, dark)
+    }
 }
+
+/** Reads the timer colours the way TimerScreen does: inside the timer's own theme. */
+@androidx.compose.runtime.Composable
+private fun TimerColorsProbe(onColors: (TimerColors) -> Unit) = TimerTheme { onColors(LocalTimerColors.current) }

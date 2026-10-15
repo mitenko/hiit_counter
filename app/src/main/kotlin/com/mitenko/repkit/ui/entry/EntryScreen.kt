@@ -77,6 +77,8 @@ import com.mitenko.repkit.ui.common.reducedMotionEnabled
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.weightText
 import kotlinx.coroutines.launch
+import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
 fun EntryRoute(onBack: () -> Unit, onOpenSettings: () -> Unit, onEntryGone: () -> Unit, vm: EntryViewModel = hiltViewModel()) {
@@ -477,7 +479,8 @@ private fun PrescriptionCard(load: Prescription.Load, sets: Int, unit: WeightUni
             Modifier
                 .fillMaxWidth()
                 .scale(scale.value)
-                .background(MaterialTheme.colorScheme.surfaceVariant, shape)
+                .glowPanel(shape)
+                .background(panelColor(MaterialTheme.colorScheme.surfaceVariant), shape)
                 .then(if (tint != null) Modifier.background(tint.copy(alpha = HIGHLIGHT_ALPHA * colorFraction.value), shape) else Modifier)
                 .semantics(mergeDescendants = true) {
                     contentDescription = description

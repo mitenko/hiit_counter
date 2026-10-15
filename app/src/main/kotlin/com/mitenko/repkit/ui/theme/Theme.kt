@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 object HiitColors {
@@ -54,8 +56,33 @@ private val LightScheme = lightColorScheme(
     error = Color(0xFFC62828),
 )
 
+/** The theme being drawn (spec rev 36): the timer reads it to pick its own theme ([timerTheme]). */
+val LocalAppTheme = staticCompositionLocalOf { AppTheme.LIGHT }
+
+/** Sonar's glow tokens; null in Light and Dark, so the glow modifiers do nothing there (spec rev 36 §4). */
+val LocalGlow = staticCompositionLocalOf<GlowTokens?> { null }
+
+/** The timer screen's colours (spec rev 36 §3). */
+val LocalTimerColors = staticCompositionLocalOf { DarkTimerColors }
+
 /** Spec rev 14 §1: [darkTheme] is driven by the user's Appearance choice, defaulting to the phone's setting. */
 @Composable
-fun HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) DarkScheme else LightScheme, content = content)
+fun HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) =
+    HiitTheme(if (darkTheme) AppTheme.DARK else AppTheme.LIGHT, content)
+
+/** Spec rev 36 §3: the scheme, the glow and the timer colours for [theme]. */
+@Composable
+fun HiitTheme(theme: AppTheme, content: @Composable () -> Unit) {
+    val scheme = when (theme) {
+        AppTheme.LIGHT -> LightScheme
+        AppTheme.DARK -> DarkScheme
+        AppTheme.SONAR -> SonarScheme
+    }
+    CompositionLocalProvider(
+        LocalAppTheme provides theme,
+        LocalGlow provides if (theme == AppTheme.SONAR) SonarGlow else null,
+        LocalTimerColors provides if (theme == AppTheme.SONAR) SonarTimerColors else DarkTimerColors,
+    ) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
 }

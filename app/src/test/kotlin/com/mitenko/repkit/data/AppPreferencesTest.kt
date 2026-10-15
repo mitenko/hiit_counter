@@ -62,6 +62,13 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `setThemeMode round trips SONAR`() = runTest {
+        val prefs = AppPreferences(store())
+        prefs.setThemeMode(ThemeMode.SONAR)
+        assertEquals(ThemeMode.SONAR, prefs.themeMode.first())
+    }
+
+    @Test
     fun `an unknown stored value reads as SYSTEM`() = runTest {
         val store = store()
         store.edit { it[stringPreferencesKey("theme_mode")] = "GARBAGE" }

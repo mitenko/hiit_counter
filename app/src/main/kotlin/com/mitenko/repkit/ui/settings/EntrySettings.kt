@@ -69,6 +69,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelColor
 
 /**
  * The four per-entry settings pages (spec R2 §7.5). [label] is the Entry Settings row. The pager
@@ -399,9 +401,9 @@ private fun ListRow(
         onClick = onClick,
         enabled = enabled,
         shape = SettingsCardShape,
-        color = if (danger) colors.errorContainer else colors.surfaceContainer,
+        color = if (danger) colors.errorContainer else panelColor(colors.surfaceContainer),
         contentColor = if (danger) colors.onErrorContainer else colors.onSurface,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag(tag),
+        modifier = Modifier.fillMaxWidth().then(if (danger) Modifier else Modifier.glowPanel(SettingsCardShape)).heightIn(min = 56.dp).testTag(tag),
     ) {
         Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
             Text(

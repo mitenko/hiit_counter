@@ -1,5 +1,7 @@
 package com.mitenko.repkit.ui.entries
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -50,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,9 +81,12 @@ import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.common.longLabel
+import com.mitenko.repkit.ui.theme.SonarColors
 import com.mitenko.repkit.ui.theme.ThemeMode
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
 fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
@@ -243,6 +250,7 @@ private fun SettingsDialog(
                     ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
                     ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
                     ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
+                    ThemeOptionRow(ThemeMode.SONAR, R.string.theme_sonar, current, onSelect)
                 }
                 // Spec rev 26 §3, plan Spec note 36: the unit new weight workouts start in; saved at once, closing like Appearance.
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -289,6 +297,20 @@ private fun ThemeOptionRow(mode: ThemeMode, label: Int, current: ThemeMode, onSe
     ) {
         RadioButton(selected = selected, onClick = null)
         Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
+        if (mode == ThemeMode.SONAR) {
+            Spacer(Modifier.weight(1f))
+            ThemeSwatch(listOf(SonarColors.Ground, SonarColors.Accent, SonarColors.Rest), Modifier.testTag("theme_swatch_${mode.name}"))
+        }
+    }
+}
+
+/** Three dots for a theme's ground, accent and rest colours (spec rev 36 §2); decorative, so no semantics. */
+@Composable
+private fun ThemeSwatch(colors: List<Color>, modifier: Modifier = Modifier) {
+    Row(modifier.padding(end = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        colors.forEach { c ->
+            Box(Modifier.size(12.dp).background(c, CircleShape).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
+        }
     }
 }
 
@@ -439,9 +461,9 @@ private fun EntryRowItem(
     // Spec rev 9 §2: a rounded surfaceContainer card; the whole card lifts while it's dragged (R5).
     Surface(
         shape = TileShape,
-        color = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer,
+        color = panelColor(if (isDragging) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer),
         shadowElevation = if (isDragging) 6.dp else 0.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().glowPanel(TileShape),
     ) {
         Row(
             Modifier

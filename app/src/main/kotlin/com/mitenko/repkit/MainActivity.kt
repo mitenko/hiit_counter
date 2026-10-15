@@ -24,9 +24,11 @@ import com.mitenko.repkit.ui.ads.AdRenderer
 import com.mitenko.repkit.ui.ads.LocalAdRenderer
 import com.mitenko.repkit.ui.ads.LocalTier
 import com.mitenko.repkit.ui.navigation.HiitNavHost
+import com.mitenko.repkit.ui.theme.AppTheme
 import com.mitenko.repkit.ui.theme.HiitTheme
 import com.mitenko.repkit.ui.theme.ThemeMode
-import com.mitenko.repkit.ui.theme.isDark
+import com.mitenko.repkit.ui.theme.edgeGlow
+import com.mitenko.repkit.ui.theme.effectiveTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -40,21 +42,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Spec rev 14 §4: the Appearance choice (default SYSTEM) decides the effective theme.
+            // Spec rev 14 §4, rev 36 §2: the Appearance choice (default SYSTEM) decides the theme drawn.
             val themeMode by preferences.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
-            val darkTheme = isDark(themeMode, isSystemInDarkTheme())
+            val appTheme = effectiveTheme(themeMode, isSystemInDarkTheme())
             // Spec revision 18 §4: the ad slots read the tier and renderer from here. v1: PRO, no renderer.
             val tier by entitlements.tier.collectAsStateWithLifecycle()
 
-            // Status/navigation bar icons follow the effective theme too - not just the phone's own
-            // night mode - since a manual Light/Dark override can disagree with it.
-            LaunchedEffect(darkTheme) {
-                val style = if (darkTheme) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
+            // Status/navigation bar icons follow the theme drawn too - not just the phone's own night
+            // mode - since a manual choice can disagree with it. Sonar is dark (rev 36 §5).
+            LaunchedEffect(appTheme) {
+                val style = if (appTheme != AppTheme.LIGHT) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
 
-            HiitTheme(darkTheme = darkTheme) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            HiitTheme(appTheme) {
+                // Sonar's faint glow along the screen edge (rev 36 §4); nothing in Light and Dark.
+                Surface(Modifier.fillMaxSize().edgeGlow(), color = MaterialTheme.colorScheme.background) {
                     CompositionLocalProvider(LocalTier provides tier, LocalAdRenderer provides adRenderer) {
                         Box(Modifier.safeDrawingPadding()) { HiitNavHost(controller) }
                     }

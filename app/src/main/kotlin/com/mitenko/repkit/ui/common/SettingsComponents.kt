@@ -44,6 +44,8 @@ import com.mitenko.repkit.R
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.mitenko.repkit.ui.theme.glowPanel
+import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
 fun SettingsScaffold(
@@ -109,7 +111,12 @@ val SettingsCardShape = RoundedCornerShape(16.dp)
  */
 @Composable
 fun SettingsCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = SettingsCardShape, color = MaterialTheme.colorScheme.surfaceContainer, content = content)
+    Surface(
+        modifier.fillMaxWidth().glowPanel(SettingsCardShape),
+        shape = SettingsCardShape,
+        color = panelColor(MaterialTheme.colorScheme.surfaceContainer),
+        content = content,
+    )
 }
 
 /**

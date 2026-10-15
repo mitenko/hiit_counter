@@ -652,4 +652,23 @@ class EntryListScreenTest {
         compose.onNodeWithTag("add").performClick()
         compose.onNodeWithTag("name_field").assertExists()
     }
+
+    @Test
+    fun `the Settings dialog offers Sonar with its swatch`() {
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.SONAR)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Sonar").assertExists()
+        compose.onNodeWithTag("theme_SONAR").assertIsSelected().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithTag("theme_swatch_SONAR", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("theme_swatch_DARK", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `choosing Sonar calls the setter`() {
+        var chosen: ThemeMode? = null
+        show(EntryListUiState.Items(rows), themeMode = ThemeMode.SYSTEM, onSetThemeMode = { chosen = it })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("theme_SONAR").performClick()
+        assertEquals(ThemeMode.SONAR, chosen)
+    }
 }

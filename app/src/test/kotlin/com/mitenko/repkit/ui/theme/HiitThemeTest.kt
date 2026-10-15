@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,5 +35,41 @@ class HiitThemeTest {
             HiitTheme(darkTheme = true) { background = MaterialTheme.colorScheme.background }
         }
         assertEquals(Color(0xFF12181B), background)
+    }
+
+    @Test
+    fun `Sonar provides its ground, glow and timer colours`() {
+        var background by mutableStateOf(Color.Unspecified)
+        var glow: GlowTokens? = null
+        var timer: TimerColors? = null
+        var theme: AppTheme? = null
+        compose.setContent {
+            HiitTheme(AppTheme.SONAR) {
+                background = MaterialTheme.colorScheme.background
+                glow = LocalGlow.current
+                timer = LocalTimerColors.current
+                theme = LocalAppTheme.current
+            }
+        }
+        assertEquals(Color(0xFF071014), background)
+        assertEquals(SonarGlow, glow)
+        assertEquals(SonarTimerColors, timer)
+        assertEquals(AppTheme.SONAR, theme)
+    }
+
+    @Test
+    fun `Dark has no glow and keeps the HiitColors timer`() {
+        var glow: GlowTokens? = SonarGlow
+        var timer: TimerColors? = null
+        compose.setContent {
+            HiitTheme(darkTheme = true) {
+                glow = LocalGlow.current
+                timer = LocalTimerColors.current
+            }
+        }
+        assertNull(glow)
+        assertEquals(DarkTimerColors, timer)
+        assertEquals(HiitColors.Work, DarkTimerColors.work)
+        assertEquals(Color.Black, DarkTimerColors.ground)
     }
 }
