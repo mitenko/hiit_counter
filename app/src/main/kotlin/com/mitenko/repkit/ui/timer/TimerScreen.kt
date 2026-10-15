@@ -1,6 +1,10 @@
 package com.mitenko.repkit.ui.timer
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -8,9 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -25,11 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -42,15 +52,17 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.min
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
+import com.mitenko.repkit.ui.common.reducedMotionEnabled
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.theme.HiitColors
 import com.mitenko.repkit.ui.theme.HiitTheme
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Spec rev 14 §3 (deliberate, overturnable): the timer screen stays dark regardless of the
@@ -104,12 +116,14 @@ fun TimerScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 12.dp)
                 .testTag("entry_name"),
         )
+        // Spec revision 38: the ring sits 16 dp under the stats band and the spare room goes above the
+        // controls, instead of SpaceEvenly opening a gap between the stats and the ring.
         Column(
             Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            StatCircles(ui)
+            StatBand(ui)
+            Spacer(Modifier.height(16.dp))
             val description = ui.description.resolve()
             // Spec revision 37 reverts rev 35's sizes: a 0.85 ring box, a 0.3 rep number and a
             // displaySmall countdown, all inside the ring's open centre.
@@ -169,6 +183,7 @@ fun TimerScreen(
                     },
                 )
             }
+            Spacer(Modifier.weight(1f))
             if (!ui.done) {
                 // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while
                 // paused. Spec revision 22: 56 dp apart, so they're harder to hit by mistake.
@@ -249,44 +264,102 @@ private fun tightTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = null) =
 )
 
 /**
- * Sets and Elapsed as two outlined circles side by side (spec revision 37), with no visible labels;
- * each circle carries its own TalkBack description. A circle is 34% of the screen width, shrunk only
- * where that would leave less than 24 dp between and beside them (SpaceEvenly). The value is 0.3 of
- * the circle (about 42 sp on a 411 dp phone), as [Dp] converted to sp so it fits at any font scale.
+ * Sets and Elapsed (spec revision 38): the Sets circle sits at the left end of a band of two full-width
+ * lines, with Elapsed large between the lines to its right. Behind Elapsed, a blue fill grows from just
+ * inside the circle's right edge by [TimerUiState.elapsedProgress], with a bright leading edge; the lines
+ * are lit blue up to the fill's edge (so the short pieces left of the circle are always lit) and grey
+ * ahead of it. The fill glides between the once-a-second updates, or steps with Remove animations on.
+ * Neither value has a visible label; each carries its own TalkBack description.
  */
 @Composable
-private fun StatCircles(ui: TimerUiState) {
-    val screenWidth = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+private fun StatBand(ui: TimerUiState) {
+    val setsDescription = ui.setsDescription.resolve()
+    val elapsedDescription = ui.elapsedDescription.resolve()
+    val reducedMotion = reducedMotionEnabled()
+    // Read only while drawing and placing, never in composition: the tween runs for the whole workout,
+    // and a composition read would recompose the band every frame instead of once a second.
+    val progress = animateFloatAsState(
+        targetValue = ui.elapsedProgress,
+        animationSpec = if (reducedMotion) snap() else tween(durationMillis = 1000, easing = LinearEasing),
+    )
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val minGap = 24.dp
-        val circle = min(screenWidth * 0.34f, (maxWidth - minGap * 3) / 2)
-        val valueSize = with(LocalDensity.current) { (circle * 0.3f).toSp() }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            StatCircle(ui.setsText, ui.setsDescription.resolve(), circle, valueSize, testTag = "stat_sets")
-            StatCircle(ui.elapsedText, ui.elapsedDescription.resolve(), circle, valueSize, testTag = "stat_elapsed")
+        val circle = maxWidth * 0.28f
+        val bandHeight = circle * 0.84f
+        val fillStart = circle * 0.86f
+        val setsSize = with(LocalDensity.current) { (circle * 0.3f).toSp() }
+        val elapsedSize = with(LocalDensity.current) { (circle * 0.6f).toSp() }
+        Box(Modifier.fillMaxWidth().height(circle), contentAlignment = Alignment.CenterStart) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(bandHeight)
+                    .drawBehind {
+                        val start = fillStart.toPx()
+                        val litEnd = start + (size.width - start) * progress.value
+                        if (litEnd > start) {
+                            drawRect(
+                                Brush.horizontalGradient(
+                                    listOf(HiitColors.SetRing.copy(alpha = 0.08f), HiitColors.SetRing.copy(alpha = 0.25f)),
+                                    startX = start, endX = litEnd,
+                                ),
+                                topLeft = Offset(start, 0f), size = Size(litEnd - start, size.height),
+                            )
+                            val edge = min(2.dp.toPx(), litEnd - start)
+                            drawRect(HiitColors.SetRing, topLeft = Offset(litEnd - edge, 0f), size = Size(edge, size.height))
+                        }
+                        val stroke = 1.5.dp.toPx()
+                        listOf(stroke / 2, size.height - stroke / 2).forEach { y ->
+                            drawLine(BandLine, Offset(litEnd, y), Offset(size.width, y), stroke)
+                            drawLine(HiitColors.SetRing, Offset(0f, y), Offset(litEnd, y), stroke)
+                        }
+                    }
+                    .testTag("stat_band"),
+            ) {
+                // An empty node over the drawn fill, so tests can measure it; placed, never composed, per frame.
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .layout { measurable, constraints ->
+                            val start = fillStart.roundToPx()
+                            val width = ((constraints.maxWidth - start) * progress.value).roundToInt().coerceAtLeast(0)
+                            val placeable = measurable.measure(Constraints.fixed(width, constraints.maxHeight))
+                            layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(start, 0) }
+                        }
+                        .testTag("stat_fill"),
+                )
+            }
+            Box(
+                Modifier
+                    .size(circle)
+                    .background(Color.Black, CircleShape)
+                    .border(2.dp, HiitColors.Neutral.copy(alpha = 0.6f), CircleShape)
+                    .semantics(mergeDescendants = true) { contentDescription = setsDescription }
+                    .testTag("stat_sets"),
+                contentAlignment = Alignment.Center,
+            ) {
+                StatValue(ui.setsText, setsSize, testTag = "stat_sets_value")
+            }
+            Box(
+                Modifier
+                    .padding(start = circle)
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) { contentDescription = elapsedDescription }
+                    .testTag("stat_elapsed"),
+                contentAlignment = Alignment.Center,
+            ) {
+                StatValue(ui.elapsedText, elapsedSize, testTag = "stat_elapsed_value")
+            }
         }
     }
 }
 
 @Composable
-private fun StatCircle(value: String, description: String, size: Dp, valueSize: TextUnit, testTag: String) {
-    Box(
-        Modifier
-            .size(size)
-            .border(2.dp, HiitColors.Neutral.copy(alpha = 0.6f), CircleShape)
-            .semantics(mergeDescendants = true) { contentDescription = description }
-            .testTag(testTag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            value,
-            color = Color.White,
-            style = tightTextStyle(valueSize),
-            maxLines = 1,
-            modifier = Modifier.testTag("${testTag}_value"),
-        )
-    }
+private fun StatValue(value: String, size: TextUnit, testTag: String) {
+    Text(value, color = Color.White, style = tightTextStyle(size), maxLines = 1, modifier = Modifier.testTag(testTag))
 }
+
+/** The band's lines ahead of the fill (spec revision 38): the stat outline's grey, a little fainter. */
+private val BandLine = HiitColors.Neutral.copy(alpha = 0.53f)
 
 /** Round toggle buttons for Sound, Vibration and Voice (spec revision 7): live, applied at once. */
 @Composable
