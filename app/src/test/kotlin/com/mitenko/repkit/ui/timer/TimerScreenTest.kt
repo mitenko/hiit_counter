@@ -67,10 +67,11 @@ class TimerScreenTest {
     }
 
     @Test
-    fun `work shows reps and no phase label`() {
+    fun `work shows reps under the WORK label`() {
         setScreen(Phase.WORK)
         compose.onNodeWithTag("center_number", useUnmergedTree = true).assertTextEquals("8")
-        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("WORK")
+        assertTrue(bounds("phase_label").bottom <= bounds("center_number").top)
         compose.onNodeWithTag("countdown", useUnmergedTree = true).assertTextEquals("00:15")
     }
 
@@ -239,30 +240,30 @@ class TimerScreenTest {
     )
 
     /**
-     * Spec revision 37: Sets and Elapsed are two circles side by side, at least 24 dp apart, each about
-     * 34% of the screen width (shrunk only to keep the gap), with its value inside the circle.
+     * Spec revision 38: the Sets circle sits at the left of a full-width band of two lines, with Elapsed
+     * large between the lines to its right; each value fits its own space.
      */
-    private fun assertStatCirclesFit(screenWidth: Float) {
+    private fun assertStatBandFits(screenWidth: Float) {
         assertEquals("99/99", longStatsUi.setsText)
         assertEquals("75:12", longStatsUi.elapsedText)
         showUi(longStatsUi)
         compose.onNodeWithTag("stat_sets_value", useUnmergedTree = true).assertTextEquals("99/99")
         compose.onNodeWithTag("stat_elapsed_value", useUnmergedTree = true).assertTextEquals("75:12")
+        val band = bounds("stat_band")
         val sets = bounds("stat_sets")
-        val elapsed = bounds("stat_elapsed")
-        // Side by side on one row, spaced apart, inside the screen.
-        assertEquals(sets.top.value, elapsed.top.value, 0.5f)
-        assertTrue("gap ${elapsed.left - sets.right}", elapsed.left - sets.right >= 23.5.dp)
-        assertTrue(sets.left >= 0.dp)
-        assertTrue(elapsed.right <= screenWidth.dp)
-        // Round, and about a third of the screen wide.
-        listOf(sets, elapsed).forEach { c ->
-            assertEquals(c.width.value, (c.bottom - c.top).value, 0.5f)
-            assertTrue("circle ${c.width}", c.width.value >= screenWidth * 0.30f && c.width.value <= screenWidth * 0.34f + 0.5f)
-        }
-        // Each value fits inside its own circle (every corner within the radius, less the outline).
+        val elapsed = bounds("stat_elapsed_value")
+        // The band runs the row's width, inside the screen, and the circle is round, at its left end.
+        assertTrue(band.left >= 0.dp && band.right <= screenWidth.dp)
+        assertTrue("band ${band.width}", band.width.value >= screenWidth - 48.5f)
+        assertEquals(sets.width.value, (sets.bottom - sets.top).value, 0.5f)
+        assertEquals(band.left.value, sets.left.value, 0.5f)
+        assertTrue("circle ${sets.width}", sets.width.value >= band.width.value * 0.27f && sets.width.value <= band.width.value * 0.29f)
+        // The band is narrower than the circle, so the circle sits across both lines.
+        assertTrue(band.top > sets.top && band.bottom < sets.bottom)
+        // "99/99" fits inside the circle; "75:12" fits between the lines, right of the circle.
         assertInsideCircle(sets, bounds("stat_sets_value"))
-        assertInsideCircle(elapsed, bounds("stat_elapsed_value"))
+        assertTrue(elapsed.left >= sets.right && elapsed.right <= band.right)
+        assertTrue(elapsed.top >= band.top && elapsed.bottom <= band.bottom)
     }
 
     private fun assertInsideCircle(circle: DpRect, node: DpRect) {
@@ -277,13 +278,67 @@ class TimerScreenTest {
 
     @Test
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
-    fun `the sets and elapsed circles sit apart and hold their values at 320dp`() = assertStatCirclesFit(320f)
+    fun `the sets circle and elapsed band hold their values at 320dp`() = assertStatBandFits(320f)
 
     @Test
-    fun `the sets and elapsed circles sit apart and hold their values at 411dp`() = assertStatCirclesFit(411f)
+    fun `the sets circle and elapsed band hold their values at 411dp`() = assertStatBandFits(411f)
+
+    private fun progressUi(elapsed: Int, phase: Phase = Phase.WORK) = TimerUiMapper.map(
+        TimerState(phase, set = 2, sets = 8, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = elapsed,
+            totalDurationSec = 240, repsThisSet = 8, totalReps = 65, paused = false),
+        entryName = "Kettlebell Lunges",
+    )
+
+    /** The fill runs from just inside the circle's right edge to [fraction] of the way along the rest of the band. */
+    private fun assertFillAt(fraction: Float) {
+        val band = bounds("stat_band")
+        val sets = bounds("stat_sets")
+        val fill = bounds("stat_fill")
+        assertTrue("fill starts at ${fill.left}", fill.left <= sets.right && fill.left >= sets.left + sets.width / 2f)
+        val expected = fill.left.value + (band.right - fill.left).value * fraction
+        assertEquals(expected, fill.right.value, 1f)
+    }
 
     @Test
-    fun `the stat circles have no visible labels and read their values to TalkBack`() {
+    fun `the elapsed fill is empty at the start`() {
+        showUi(progressUi(0))
+        assertTrue(bounds("stat_fill").width <= 0.5.dp)
+    }
+
+    @Test
+    fun `the elapsed fill is half way at half the planned length`() {
+        showUi(progressUi(120))
+        assertFillAt(0.5f)
+    }
+
+    @Test
+    fun `the elapsed fill is full at done`() {
+        showUi(progressUi(0, Phase.DONE))
+        assertFillAt(1f)
+    }
+
+    @Test
+    fun `the ring sits just under the stats`() {
+        // Spec revision 38: a 32 dp space between the band and the ring; the spare room goes above the controls.
+        setScreen(Phase.REST)
+        val gap = bounds("ring").top - bounds("stat_sets").bottom
+        assertTrue("gap $gap", gap >= 30.dp && gap <= 34.dp)
+        assertTrue(bounds("pause").top - bounds("ring").bottom >= gap)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `the controls stay on screen under the band and ring at 320dp`() {
+        setScreen(Phase.REST)
+        val ring = bounds("ring")
+        val pause = bounds("pause")
+        assertTrue(ring.top >= bounds("stat_sets").bottom)
+        assertTrue(pause.top >= ring.bottom)
+        assertTrue("pause bottom ${pause.bottom}", pause.bottom <= 640.dp)
+    }
+
+    @Test
+    fun `the stats have no visible labels and read their values to TalkBack`() {
         val ui = TimerUiMapper.map(
             TimerState(Phase.REST, set = 8, sets = 8, phaseSecondsLeft = 7, phaseDurationSec = 10, elapsedSec = 213,
                 totalDurationSec = 240, repsThisSet = 8, totalReps = 65, paused = false),
@@ -421,13 +476,16 @@ class TimerScreenTest {
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
     fun `a long weight fits over the reps inside the ring during work at 320dp`() {
         showUi(weightUi(Phase.WORK))
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("WORK")
         compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertTextEquals("112.5 lb")
+        val label = bounds("phase_label")
         val weight = bounds("center_weight")
         val number = bounds("center_number")
         val countdown = bounds("countdown")
-        assertTrue(weight.bottom <= number.top)
+        assertTrue(label.right <= weight.left)
+        assertTrue(label.bottom <= number.top && weight.bottom <= number.top)
         assertTrue(number.bottom <= countdown.top)
-        assertInsideRing(bounds("ring"), weight, number, countdown)
+        assertInsideRing(bounds("ring"), label, weight, number, countdown)
     }
 
     @Test
