@@ -1,6 +1,5 @@
 package com.mitenko.repkit.ui.entry
 
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
@@ -49,7 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -75,6 +73,7 @@ import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
 import com.mitenko.repkit.ui.common.loadText
 import com.mitenko.repkit.ui.common.prescriptionDescription
+import com.mitenko.repkit.ui.common.reducedMotionEnabled
 import com.mitenko.repkit.ui.common.resolve
 import com.mitenko.repkit.ui.common.weightText
 import kotlinx.coroutines.launch
@@ -526,13 +525,6 @@ private fun LoadAnnouncement(active: Highlight?, load: Prescription.Load, unit: 
             .testTag("load_announcement")
             .semantics { liveRegion = LiveRegionMode.Polite },
     )
-}
-
-/** Settings → Accessibility → Remove animations (spec revision 12 §3): read once per composition. */
-@Composable
-private fun reducedMotionEnabled(): Boolean {
-    val resolver = LocalContext.current.contentResolver
-    return remember { Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
 }
 
 private val REPS_COLUMN_WIDTH = 56.dp

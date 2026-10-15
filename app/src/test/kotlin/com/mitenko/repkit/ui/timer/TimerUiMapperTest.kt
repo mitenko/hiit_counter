@@ -58,6 +58,23 @@ class TimerUiMapperTest {
         assertEquals(2f / 8f, ui.outerProgress, 1e-6f)
     }
 
+    /** Spec revision 38: the elapsed band fills by elapsed ÷ the planned length, full at DONE. */
+    @Test
+    fun `the elapsed band fills by elapsed over the planned length`() {
+        fun at(elapsed: Int, total: Int, phase: Phase = Phase.WORK, paused: Boolean = false) = TimerUiMapper.map(
+            TimerState(phase, set = 2, sets = 8, phaseSecondsLeft = 15, phaseDurationSec = 20, elapsedSec = elapsed,
+                totalDurationSec = total, repsThisSet = 8, totalReps = 65, paused = paused),
+            "Burpees",
+        ).elapsedProgress
+        assertEquals(0f, at(0, 240), 1e-6f)
+        assertEquals(50f / 240f, at(50, 240), 1e-6f)
+        assertEquals(50f / 240f, at(50, 240, paused = true), 1e-6f)
+        assertEquals(1f, at(240, 240, Phase.COOLDOWN), 1e-6f)
+        assertEquals(1f, at(0, 0, Phase.DONE), 1e-6f)
+        assertEquals(1f, at(300, 240), 1e-6f)
+        assertEquals(0f, at(10, 0), 1e-6f)
+    }
+
     @Test
     fun `prepare cooldown and done`() {
         val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10, reps = 9), "Burpees")

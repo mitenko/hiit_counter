@@ -18,8 +18,13 @@ data class TimerUiState(
     val elapsedText: String,
     /** TalkBack for the Sets circle ("Sets 8 of 8"), which has no visible label (spec revision 37). */
     val setsDescription: UiText,
-    /** TalkBack for the Elapsed circle ("Elapsed 3 minutes 33 seconds"), which has no visible label (spec revision 37). */
+    /** TalkBack for Elapsed ("Elapsed 3 minutes 33 seconds"), which has no visible label (spec revision 37). */
     val elapsedDescription: UiText,
+    /**
+     * How far the elapsed band is filled (spec revision 38): elapsed ÷ the planned workout length, 0..1.
+     * The engine's elapsed time holds while paused and jumps with a skip, so the fill does too; full at DONE.
+     */
+    val elapsedProgress: Float,
     /** The phase label over the countdown (none during WORK), resolved by the screen (spec revision 24). */
     val label: UiText?,
     val centerNumber: Int?,
@@ -58,6 +63,7 @@ object TimerUiMapper {
             elapsedText = TimerText.formatElapsed(s.elapsedSec),
             setsDescription = UiText.Res(R.string.timer_desc_sets, listOf(s.set, s.sets)),
             elapsedDescription = UiText.Res(R.string.timer_desc_elapsed, listOf(spokenElapsed(s.elapsedSec))),
+            elapsedProgress = if (s.totalDurationSec > 0) (s.elapsedSec.toFloat() / s.totalDurationSec).coerceIn(0f, 1f) else 0f,
             label = null,
             centerNumber = null,
             centerDimmed = false,
@@ -110,7 +116,7 @@ object TimerUiMapper {
             Phase.DONE -> base.copy(
                 label = UiText.Res(R.string.timer_label_done),
                 centerNumber = if (countsReps) s.totalReps else null, countdownText = "", innerProgress = 0f,
-                outerProgress = 1f, done = true,
+                outerProgress = 1f, elapsedProgress = 1f, done = true,
                 description = if (countsReps) {
                     UiText.Plural(R.plurals.timer_desc_done_reps, s.totalReps)
                 } else {
