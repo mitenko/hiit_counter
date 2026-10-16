@@ -22,7 +22,14 @@ import com.mitenko.repkit.domain.model.Phase
 import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.ui.theme.AppTheme
+import com.mitenko.repkit.ui.theme.DarkTimerColors
+import com.mitenko.repkit.ui.theme.FoundryPalette
 import com.mitenko.repkit.ui.theme.HiitTheme
+import com.mitenko.repkit.ui.theme.LocalTimerColors
+import com.mitenko.repkit.ui.theme.SonarTimerColors
+import com.mitenko.repkit.ui.theme.TimerColors
+import com.mitenko.repkit.ui.theme.timerColors
 import kotlin.math.sqrt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -67,10 +74,11 @@ class TimerScreenTest {
     }
 
     @Test
-    fun `work shows reps and no phase label`() {
+    fun `work shows reps under the WORK label`() {
         setScreen(Phase.WORK)
         compose.onNodeWithTag("center_number", useUnmergedTree = true).assertTextEquals("8")
-        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("WORK")
+        assertTrue(bounds("phase_label").bottom <= bounds("center_number").top)
         compose.onNodeWithTag("countdown", useUnmergedTree = true).assertTextEquals("00:15")
     }
 
@@ -318,10 +326,10 @@ class TimerScreenTest {
 
     @Test
     fun `the ring sits just under the stats`() {
-        // Spec revision 38: no gap between the band and the ring; the spare room goes above the controls.
+        // Spec revision 38: a 32 dp space between the band and the ring; the spare room goes above the controls.
         setScreen(Phase.REST)
         val gap = bounds("ring").top - bounds("stat_sets").bottom
-        assertTrue("gap $gap", gap >= 0.dp && gap <= 20.dp)
+        assertTrue("gap $gap", gap >= 30.dp && gap <= 34.dp)
         assertTrue(bounds("pause").top - bounds("ring").bottom >= gap)
     }
 
@@ -475,13 +483,16 @@ class TimerScreenTest {
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
     fun `a long weight fits over the reps inside the ring during work at 320dp`() {
         showUi(weightUi(Phase.WORK))
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("WORK")
         compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertTextEquals("112.5 lb")
+        val label = bounds("phase_label")
         val weight = bounds("center_weight")
         val number = bounds("center_number")
         val countdown = bounds("countdown")
-        assertTrue(weight.bottom <= number.top)
+        assertTrue(label.right <= weight.left)
+        assertTrue(label.bottom <= number.top && weight.bottom <= number.top)
         assertTrue(number.bottom <= countdown.top)
-        assertInsideRing(bounds("ring"), weight, number, countdown)
+        assertInsideRing(bounds("ring"), label, weight, number, countdown)
     }
 
     @Test
@@ -510,4 +521,70 @@ class TimerScreenTest {
         setScreen(Phase.WORK)
         compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertDoesNotExist()
     }
+
+    private fun timerIn(theme: AppTheme) {
+        compose.setContent {
+            HiitTheme(theme) {
+                TimerScreen(
+                    ui(Phase.REST), CueConfig(),
+                    onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                    onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the timer renders in Sonar with its ring, band and controls`() {
+        // Spec rev 36 §3: Sonar's own timer, ring glow included; must not crash where blur is drawn.
+        timerIn(AppTheme.SONAR)
+        compose.onNodeWithTag("ring", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("stat_band", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the timer renders in Blossom`() = rendersIn(AppTheme.BLOSSOM)
+
+    @Test
+    fun `the timer renders in Grove`() = rendersIn(AppTheme.GROVE)
+
+    @Test
+    fun `the timer renders in Foundry`() = rendersIn(AppTheme.FOUNDRY)
+
+    private fun rendersIn(theme: AppTheme) {
+        // Spec rev 39 §10: each glowing theme's own timer, ring halo included.
+        timerIn(theme)
+        compose.onNodeWithTag("ring", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("stat_band", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the timer renders in Light, staying dark`() {
+        timerIn(AppTheme.LIGHT)
+        compose.onNodeWithTag("pause").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the timer's colours follow timerTheme`() {
+        var sonar: TimerColors? = null
+        var light: TimerColors? = null
+        var dark: TimerColors? = null
+        var foundry: TimerColors? = null
+        compose.setContent {
+            HiitTheme(AppTheme.FOUNDRY) { TimerColorsProbe { foundry = it } }
+            HiitTheme(AppTheme.SONAR) { TimerColorsProbe { sonar = it } }
+            HiitTheme(AppTheme.LIGHT) { TimerColorsProbe { light = it } }
+            HiitTheme(AppTheme.DARK) { TimerColorsProbe { dark = it } }
+        }
+        assertEquals(SonarTimerColors, sonar)
+        assertEquals(FoundryPalette.timerColors(), foundry)
+        assertEquals(DarkTimerColors, light)
+        assertEquals(DarkTimerColors, dark)
+    }
 }
+
+/** Reads the timer colours the way TimerScreen does: inside the timer's own theme. */
+@androidx.compose.runtime.Composable
+private fun TimerColorsProbe(onColors: (TimerColors) -> Unit) = TimerTheme { onColors(LocalTimerColors.current) }

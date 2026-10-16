@@ -1,5 +1,7 @@
 package com.mitenko.repkit.ui.timer
 
+import android.graphics.BlurMaskFilter
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -14,11 +16,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.mitenko.repkit.ui.theme.HiitColors
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 
-/** Thick inner ring = current phase; thin outer ring = work-set progress (spec §9.2). */
+/**
+ * Thick inner ring = current phase; thin outer ring = work-set progress (spec §9.2). In a glowing theme
+ * each arc has a blurred halo under it at [haloAlpha] (rev 36 §4, API 28+); null draws none.
+ */
 @Composable
-fun DualRing(inner: Float, outer: Float, innerColor: Color, outerColor: Color, modifier: Modifier = Modifier) {
+fun DualRing(
+    inner: Float,
+    outer: Float,
+    innerColor: Color,
+    outerColor: Color,
+    trackColor: Color,
+    haloAlpha: Float?,
+    modifier: Modifier = Modifier,
+) {
     val innerAnim = remember { Animatable(inner) }
     val outerAnim = remember { Animatable(outer) }
     // Sweep smoothly while counting down / filling up; snap on phase or set resets.
@@ -28,15 +43,20 @@ fun DualRing(inner: Float, outer: Float, innerColor: Color, outerColor: Color, m
     LaunchedEffect(outer) {
         if (outer > outerAnim.value) outerAnim.animateTo(outer, tween(900, easing = LinearEasing)) else outerAnim.snapTo(outer)
     }
+    val outerHalo = remember { HaloPaint() }
+    val innerHalo = remember { HaloPaint() }
+    val haloStrength = haloAlpha?.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.P }
     Canvas(modifier) {
         val d = size.minDimension
         val outerStroke = d * 0.02f
         val innerStroke = d * 0.07f
         val outerInset = outerStroke / 2
         val innerInset = outerStroke + d * 0.03f + innerStroke / 2
-        ring(HiitColors.Track, 1f, outerInset, outerStroke)
+        ring(trackColor, 1f, outerInset, outerStroke)
+        if (haloStrength != null) halo(outerHalo, outerColor.copy(alpha = haloStrength), outerAnim.value, outerInset, outerStroke)
         ring(outerColor, outerAnim.value, outerInset, outerStroke)
-        ring(HiitColors.Track, 1f, innerInset, innerStroke)
+        ring(trackColor, 1f, innerInset, innerStroke)
+        if (haloStrength != null) halo(innerHalo, innerColor.copy(alpha = haloStrength), innerAnim.value, innerInset, innerStroke)
         ring(innerColor, innerAnim.value, innerInset, innerStroke)
     }
 }
@@ -52,4 +72,34 @@ private fun DrawScope.ring(color: Color, fraction: Float, inset: Float, stroke: 
         size = Size(size.width - 2 * inset, size.height - 2 * inset),
         style = Stroke(width = stroke, cap = StrokeCap.Round),
     )
+}
+
+/** One reusable halo paint per ring; its blur filter is rebuilt only when that ring's stroke changes (a resize). */
+private class HaloPaint {
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.STROKE
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+    private var blur = -1f
+
+    fun update(color: Color, stroke: Float) {
+        paint.strokeWidth = stroke * 1.8f
+        paint.color = color.toArgb()
+        if (blur != stroke) {
+            blur = stroke
+            paint.maskFilter = BlurMaskFilter(stroke, BlurMaskFilter.Blur.NORMAL)
+        }
+    }
+}
+
+private fun DrawScope.halo(halo: HaloPaint, color: Color, fraction: Float, inset: Float, stroke: Float) {
+    if (fraction <= 0f) return
+    halo.update(color, stroke)
+    drawIntoCanvas { canvas ->
+        canvas.nativeCanvas.drawArc(
+            inset, inset, size.width - inset, size.height - inset,
+            -90f, 360f * fraction.coerceAtMost(1f), false, halo.paint,
+        )
+    }
 }

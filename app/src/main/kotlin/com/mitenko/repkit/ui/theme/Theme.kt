@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 object HiitColors {
@@ -54,8 +56,40 @@ private val LightScheme = lightColorScheme(
     error = Color(0xFFC62828),
 )
 
+/** The theme being drawn (spec rev 36): the timer reads it to pick its own theme ([timerTheme]). */
+val LocalAppTheme = staticCompositionLocalOf { AppTheme.LIGHT }
+
+/** The glowing theme's glow tokens; null in Light and Dark, so the glow modifiers do nothing there (spec rev 36 §4). */
+val LocalGlow = staticCompositionLocalOf<GlowTokens?> { null }
+
+/** The timer screen's colours (spec rev 36 §3). */
+val LocalTimerColors = staticCompositionLocalOf { DarkTimerColors }
+
 /** Spec rev 14 §1: [darkTheme] is driven by the user's Appearance choice, defaulting to the phone's setting. */
 @Composable
-fun HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) DarkScheme else LightScheme, content = content)
+fun HiitTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) =
+    HiitTheme(if (darkTheme) AppTheme.DARK else AppTheme.LIGHT, content)
+
+/** A glowing theme's Material scheme, glow and timer colours, built once (spec rev 36 §3, rev 39 §10). */
+private class Themed(palette: ThemePalette) {
+    val scheme = palette.scheme()
+    val glow = palette.glow()
+    val timer = palette.timerColors()
+}
+
+private val ThemedSets: Map<AppTheme, Themed> =
+    AppTheme.entries.mapNotNull { theme -> paletteFor(theme)?.let { theme to Themed(it) } }.toMap()
+
+/** Spec rev 36 §3: the scheme, the glow and the timer colours for [theme]. */
+@Composable
+fun HiitTheme(theme: AppTheme, content: @Composable () -> Unit) {
+    val themed = ThemedSets[theme]
+    val scheme = themed?.scheme ?: if (theme == AppTheme.LIGHT) LightScheme else DarkScheme
+    CompositionLocalProvider(
+        LocalAppTheme provides theme,
+        LocalGlow provides themed?.glow,
+        LocalTimerColors provides (themed?.timer ?: DarkTimerColors),
+    ) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
 }
