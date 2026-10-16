@@ -59,17 +59,21 @@ import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.ui.common.reducedMotionEnabled
 import com.mitenko.repkit.ui.common.resolve
-import com.mitenko.repkit.ui.theme.HiitColors
 import com.mitenko.repkit.ui.theme.HiitTheme
+import com.mitenko.repkit.ui.theme.LocalAppTheme
+import com.mitenko.repkit.ui.theme.LocalGlow
+import com.mitenko.repkit.ui.theme.LocalTimerColors
+import com.mitenko.repkit.ui.theme.timerTheme
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/** The timer's own theme (spec rev 14 §3, rev 36 §3): dark from Light or Dark, else the glowing theme's own. */
+@Composable
+internal fun TimerTheme(content: @Composable () -> Unit) = HiitTheme(timerTheme(LocalAppTheme.current), content)
+
 /**
- * Spec rev 14 §3 (deliberate, overturnable): the timer screen stays dark regardless of the
- * Appearance choice, for visibility mid-workout. It already hard-codes black/white for its own
- * text and icons; this wrap only matters for anything that reads [MaterialTheme]'s colour scheme
- * (currently just the cue toggle row's "on" fill), so that it's still the dark scheme's colours
- * even when the rest of the app is light.
+ * Spec rev 14 §3 / rev 36 §3: the timer screen stays dark in Light and Dark, and takes Sonar's own
+ * colours in Sonar. The wrap also sets the Material scheme (the cue toggles' "on" fill) to match.
  */
 @Composable
 fun TimerScreen(
@@ -82,15 +86,16 @@ fun TimerScreen(
     onToggleSound: () -> Unit,
     onToggleVibration: () -> Unit,
     onToggleVoice: () -> Unit,
-) = HiitTheme(darkTheme = true) {
+) = TimerTheme {
+    val tc = LocalTimerColors.current
     val color = when (ui.tone) {
-        PhaseTone.WORK -> HiitColors.Work
-        PhaseTone.REST -> HiitColors.Rest
-        PhaseTone.NEUTRAL -> HiitColors.Neutral
+        PhaseTone.WORK -> tc.work
+        PhaseTone.REST -> tc.rest
+        PhaseTone.NEUTRAL -> tc.neutral
     }
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
+    Column(Modifier.fillMaxSize().background(tc.ground)) {
         IconButton(onClick = onClose, modifier = Modifier.padding(8.dp).testTag("close")) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.stop), tint = Color.White)
+            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.stop), tint = tc.text)
         }
         // The run's cues are live (spec revision 7): hidden once the run is DONE, matching the pause
         // button. Spec revision 22: they have their own row under ✕, spread across the width.
@@ -107,7 +112,7 @@ fun TimerScreen(
         // (12 dp) instead of being floated down by the SpaceEvenly column below.
         Text(
             ui.entryName,
-            color = Color.White,
+            color = tc.text,
             style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -116,14 +121,14 @@ fun TimerScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 12.dp)
                 .testTag("entry_name"),
         )
-        // Spec revision 38: the ring sits 16 dp under the stats band and the spare room goes above the
+        // Spec revision 38: the ring sits 32 dp under the stats band and the spare room goes above the
         // controls, instead of SpaceEvenly opening a gap between the stats and the ring.
         Column(
             Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             StatBand(ui)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(32.dp))
             val description = ui.description.resolve()
             // Spec revision 37 reverts rev 35's sizes: a 0.85 ring box, a 0.3 rep number and a
             // displaySmall countdown, all inside the ring's open centre.
@@ -131,7 +136,8 @@ fun TimerScreen(
                 // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
                 val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
                 DualRing(
-                    ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = HiitColors.SetRing,
+                    ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = tc.setRing,
+                    trackColor = tc.track, haloAlpha = LocalGlow.current?.ringHalo,
                     modifier = Modifier.fillMaxSize().testTag("ring"),
                 )
                 val weight = ui.weight
@@ -175,7 +181,7 @@ fun TimerScreen(
                         {
                             Text(
                                 ui.countdownText,
-                                color = Color.White,
+                                color = tc.text,
                                 style = MaterialTheme.typography.displaySmall,
                                 modifier = Modifier.testTag("countdown"),
                             )
@@ -189,7 +195,7 @@ fun TimerScreen(
                 // paused. Spec revision 22: 56 dp apart, so they're harder to hit by mistake.
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(56.dp)) {
                     IconButton(onClick = onSkipBack, modifier = Modifier.size(48.dp).testTag("skip_back")) {
-                        Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = Color.White)
+                        Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = tc.text)
                     }
                     FilledIconButton(
                         onClick = onTogglePause,
@@ -203,7 +209,7 @@ fun TimerScreen(
                         )
                     }
                     IconButton(onClick = onSkipForward, modifier = Modifier.size(48.dp).testTag("skip_forward")) {
-                        Icon(painterResource(R.drawable.ic_skip_forward), contentDescription = stringResource(R.string.skip_forward), tint = Color.White)
+                        Icon(painterResource(R.drawable.ic_skip_forward), contentDescription = stringResource(R.string.skip_forward), tint = tc.text)
                     }
                 }
             }
@@ -211,7 +217,7 @@ fun TimerScreen(
     }
 }
 
-/** The phase label over the number (WORK has none). */
+/** The phase label over the number: WORK, REST, GET READY, COOLDOWN or DONE (spec revision 38 §2.4). */
 @Composable
 private fun PhaseLabel(text: String, color: Color) {
     Text(text, color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("phase_label"))
@@ -273,6 +279,7 @@ private fun tightTextStyle(fontSize: TextUnit, fontWeight: FontWeight? = null) =
  */
 @Composable
 private fun StatBand(ui: TimerUiState) {
+    val tc = LocalTimerColors.current
     val setsDescription = ui.setsDescription.resolve()
     val elapsedDescription = ui.elapsedDescription.resolve()
     val reducedMotion = reducedMotionEnabled()
@@ -299,18 +306,18 @@ private fun StatBand(ui: TimerUiState) {
                         if (litEnd > start) {
                             drawRect(
                                 Brush.horizontalGradient(
-                                    listOf(HiitColors.SetRing.copy(alpha = 0.08f), HiitColors.SetRing.copy(alpha = 0.25f)),
+                                    listOf(tc.setRing.copy(alpha = 0.08f), tc.setRing.copy(alpha = 0.25f)),
                                     startX = start, endX = litEnd,
                                 ),
                                 topLeft = Offset(start, 0f), size = Size(litEnd - start, size.height),
                             )
                             val edge = min(2.dp.toPx(), litEnd - start)
-                            drawRect(HiitColors.SetRing, topLeft = Offset(litEnd - edge, 0f), size = Size(edge, size.height))
+                            drawRect(tc.setRing, topLeft = Offset(litEnd - edge, 0f), size = Size(edge, size.height))
                         }
                         val stroke = 1.5.dp.toPx()
                         listOf(stroke / 2, size.height - stroke / 2).forEach { y ->
-                            drawLine(BandLine, Offset(litEnd, y), Offset(size.width, y), stroke)
-                            drawLine(HiitColors.SetRing, Offset(0f, y), Offset(litEnd, y), stroke)
+                            drawLine(tc.bandLine, Offset(litEnd, y), Offset(size.width, y), stroke)
+                            drawLine(tc.setRing, Offset(0f, y), Offset(litEnd, y), stroke)
                         }
                     }
                     .testTag("stat_band"),
@@ -331,13 +338,13 @@ private fun StatBand(ui: TimerUiState) {
             Box(
                 Modifier
                     .size(circle)
-                    .background(Color.Black, CircleShape)
-                    .border(2.dp, HiitColors.Neutral.copy(alpha = 0.6f), CircleShape)
+                    .background(tc.ground, CircleShape)
+                    .border(2.dp, tc.circleOutline, CircleShape)
                     .semantics(mergeDescendants = true) { contentDescription = setsDescription }
                     .testTag("stat_sets"),
                 contentAlignment = Alignment.Center,
             ) {
-                StatValue(ui.setsText, setsSize, testTag = "stat_sets_value")
+                StatValue(ui.setsText, setsSize, tc.text, testTag = "stat_sets_value")
             }
             Box(
                 Modifier
@@ -347,19 +354,16 @@ private fun StatBand(ui: TimerUiState) {
                     .testTag("stat_elapsed"),
                 contentAlignment = Alignment.Center,
             ) {
-                StatValue(ui.elapsedText, elapsedSize, testTag = "stat_elapsed_value")
+                StatValue(ui.elapsedText, elapsedSize, tc.text, testTag = "stat_elapsed_value")
             }
         }
     }
 }
 
 @Composable
-private fun StatValue(value: String, size: TextUnit, testTag: String) {
-    Text(value, color = Color.White, style = tightTextStyle(size), maxLines = 1, modifier = Modifier.testTag(testTag))
+private fun StatValue(value: String, size: TextUnit, color: Color, testTag: String) {
+    Text(value, color = color, style = tightTextStyle(size), maxLines = 1, modifier = Modifier.testTag(testTag))
 }
-
-/** The band's lines ahead of the fill (spec revision 38): the stat outline's grey, a little fainter. */
-private val BandLine = HiitColors.Neutral.copy(alpha = 0.53f)
 
 /** Round toggle buttons for Sound, Vibration and Voice (spec revision 7): live, applied at once. */
 @Composable
@@ -403,7 +407,7 @@ private fun CueToggleButton(
     testTag: String,
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    val outline = Color.White.copy(alpha = 0.5f)
+    val outline = LocalTimerColors.current.text.copy(alpha = 0.5f)
     Box(
         Modifier
             .size(48.dp)

@@ -32,9 +32,10 @@ class TimerUiMapperTest {
     )
 
     @Test
-    fun `work shows bright reps without a label`() {
+    fun `work shows bright reps under a WORK label`() {
+        // Spec revision 38 §2.4: WORK has its label again, in the same place as REST and DONE.
         val ui = TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20), "Burpees")
-        assertNull(ui.label.en())
+        assertEquals("WORK", ui.label.en())
         assertEquals(8, ui.centerNumber)
         assertFalse(ui.centerDimmed)
         assertEquals(PhaseTone.WORK, ui.tone)
@@ -161,7 +162,7 @@ class TimerUiMapperTest {
         val work = TimerUiMapper.map(state(Phase.WORK, set = 2, left = 15, duration = 20, reps = 10), "Curls", weight = kg16)
         assertEquals("16 kg", work.weight.en())
         assertEquals(10, work.centerNumber)
-        assertNull(work.label.en())
+        assertEquals("WORK", work.label.en())
         assertEquals("Work, set 2 of 8, 10 reps, 16 kilograms", work.description.en())
         val rest = TimerUiMapper.map(state(Phase.REST, set = 3, left = 10, duration = 10, reps = 10), "Curls", weight = kg16)
         assertEquals("16 kg", rest.weight.en())

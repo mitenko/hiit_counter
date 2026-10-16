@@ -25,7 +25,7 @@ data class TimerUiState(
      * The engine's elapsed time holds while paused and jumps with a skip, so the fill does too; full at DONE.
      */
     val elapsedProgress: Float,
-    /** The phase label over the countdown (none during WORK), resolved by the screen (spec revision 24). */
+    /** The phase label over the number (WORK too since spec revision 38), resolved by the screen (spec revision 24). */
     val label: UiText?,
     val centerNumber: Int?,
     val centerDimmed: Boolean,
@@ -80,6 +80,7 @@ object TimerUiMapper {
         // and every other count goes through a plural.
         val mapped = when (s.phase) {
             Phase.WORK -> base.copy(
+                label = UiText.Res(R.string.work),
                 centerNumber = if (countsReps) s.repsThisSet else setsToGo, tone = PhaseTone.WORK,
                 description = if (countsReps) {
                     UiText.Plural(R.plurals.timer_desc_work_reps, s.repsThisSet, listOf(s.repsThisSet, s.set, s.sets))

@@ -40,8 +40,15 @@ Sizes are fractions of the content row's width W (the screen less the column's 2
   snaps instead.
 
 ### 2.3 Spacing
-The column under the name is no longer `SpaceEvenly`: the band, 16 dp, the ring, then a weighted spacer, then the
+The column under the name is no longer `SpaceEvenly`: the band, 32 dp, the ring, then a weighted spacer, then the
 controls. The ring sits right under the band and the spare room falls above Back / Pause / Skip.
+
+### 2.4 WORK has its label again (amends rev 10 / rev 26 §4)
+On the phone, the user asked for "WORK" back in the ring during work, in the same place as REST and DONE: the
+label line over the number reads WORK (`R.string.work`, already translated for the Timing page), for Counter and
+Timer only runs alike. A weight run shows "WORK 16 kg" there, like "REST 16 kg". TalkBack is unchanged (the
+work description already starts "Work, …"). The user also asked for more room between the band and the ring:
+the space is 32 dp (it was 16 dp in the first build of this revision).
 
 ## 3. Tests (Robolectric, sdk 34)
 - `TimerUiMapperTest`: `elapsedProgress` is 0 at the start, 50/240 mid-run and while paused, 1 at the end of
@@ -51,5 +58,6 @@ controls. The ring sits right under the band and the spare room falls above Back
   lines right of the circle.
 - The fill: empty at the start; at half the planned length its right edge is half way from its start to the
   band's end; full at DONE; it starts inside the circle's right half.
-- The ring is at most 20 dp under the stats, and the space above the controls is at least that gap.
+- The ring is 30–34 dp under the stats, and the space above the controls is at least that gap.
+- WORK shows the WORK label over the number; a weight run's "WORK 112.5 lb" fits the label line inside the ring at 320 dp.
 - Unchanged: no "Sets" / "Elapsed" text on screen, the TalkBack descriptions, the name under the toggles.
