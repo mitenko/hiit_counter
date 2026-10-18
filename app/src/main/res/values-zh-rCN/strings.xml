@@ -133,6 +133,9 @@
         <item quantity="other">打卡 %1$d 次，从 %2$d 次到 %3$d 次</item>
     </plurals>
     <string name="streak_line">连续 %1$d · 最长 %2$d</string>
+    <plurals name="hold_remaining">
+        <item quantity="other">再保持 %1$d 次打卡</item>
+    </plurals>
     <string name="reps_per_set_desc">每组次数：%1$s</string>
     <plurals name="calendar_desc">
         <item quantity="other">打卡 %1$d 天</item>

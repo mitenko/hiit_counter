@@ -136,7 +136,12 @@
         <item quantity="other">%1$d registros, de %2$d a %3$d repeticiones</item>
         <item quantity="many">%1$d registros, de %2$d a %3$d repeticiones</item>
     </plurals>
-    <string name="streak_line">Racha %1$d · mejor %2$d</string>
+    <string name="streak_line">Racha %1$d · Mejor %2$d</string>
+    <plurals name="hold_remaining">
+        <item quantity="one">Mantén %1$d registro más</item>
+        <item quantity="other">Mantén %1$d registros más</item>
+        <item quantity="many">Mantén %1$d registros más</item>
+    </plurals>
     <string name="reps_per_set_desc">Repeticiones por serie: %1$s</string>
     <plurals name="calendar_desc">
         <item quantity="one">%1$d día con registro</item>

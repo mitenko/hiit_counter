@@ -135,6 +135,10 @@
         <item quantity="other">%1$d चेक-इन, %2$d से %3$d रेप्स</item>
     </plurals>
     <string name="streak_line">स्ट्रीक %1$d · सबसे लंबी %2$d</string>
+    <plurals name="hold_remaining">
+        <item quantity="one">%1$d और चेक-इन तक होल्ड</item>
+        <item quantity="other">%1$d और चेक-इन तक होल्ड</item>
+    </plurals>
     <string name="reps_per_set_desc">हर सेट के रेप्स: %1$s</string>
     <plurals name="calendar_desc">
         <item quantity="one">%1$d दिन चेक-इन</item>
