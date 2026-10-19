@@ -184,7 +184,12 @@
         <item quantity="other">%1$d check-ins, from %2$d to %3$d reps</item>
     </plurals>
 
-    <string name="streak_line">Streak %1$d · best %2$d</string>
+    <string name="streak_line">Streak %1$d · Best %2$d</string>
+    <!-- Spec rev 40: on-time check-ins left on the current hold -->
+    <plurals name="hold_remaining">
+        <item quantity="one">Hold for %1$d more</item>
+        <item quantity="other">Hold for %1$d more</item>
+    </plurals>
     <string name="reps_per_set_desc">Reps per set: %1$s</string>
 
     <plurals name="calendar_desc">

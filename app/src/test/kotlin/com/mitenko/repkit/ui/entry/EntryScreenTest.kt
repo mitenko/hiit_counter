@@ -93,6 +93,18 @@ class EntryScreenTest {
     }
 
     @Test
+    fun `on a hold the line under the streak says how many more check-ins stay`() {
+        show(state.copy(holdRemaining = 3))
+        compose.onNodeWithTag("hold_remaining").assertTextEquals("Hold for 3 more")
+    }
+
+    @Test
+    fun `off a hold there is no hold line`() {
+        show(state)
+        compose.onNodeWithTag("hold_remaining").assertDoesNotExist()
+    }
+
+    @Test
     fun `a Workout shows the range switch, the chart, the reps column, the streak line and both buttons`() {
         show(state)
         compose.onNodeWithTag("entry_name").assertTextEquals("Burpees")
@@ -101,7 +113,7 @@ class EntryScreenTest {
         compose.onNodeWithContentDescription("2 check-ins, from 60 to 62 reps").assertExists()
         compose.onNodeWithTag("rep_0", useUnmergedTree = true).assertTextEquals("9")
         compose.onNodeWithTag("rep_7", useUnmergedTree = true).assertTextEquals("8")
-        compose.onNodeWithTag("streak_line").assertTextEquals("Streak 4 · best 24")
+        compose.onNodeWithTag("streak_line").assertTextEquals("Streak 4 · Best 24")
         compose.onNodeWithTag("check_in").assertExists()
         compose.onNodeWithTag("start").assertExists()
         compose.onNodeWithTag("calendar").assertDoesNotExist()
@@ -177,7 +189,7 @@ class EntryScreenTest {
         compose.onNodeWithTag("reps_column").assertDoesNotExist()
         compose.onNodeWithTag("rep_0", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("chart").assertDoesNotExist()
-        compose.onNodeWithTag("streak_line").assertTextEquals("Streak 4 · best 24")
+        compose.onNodeWithTag("streak_line").assertTextEquals("Streak 4 · Best 24")
         compose.onNodeWithTag("check_in").assertIsEnabled()
         compose.onNodeWithTag("start").performScrollTo().assertIsEnabled()
     }

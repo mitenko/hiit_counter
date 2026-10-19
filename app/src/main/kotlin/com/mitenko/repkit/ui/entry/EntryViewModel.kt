@@ -15,6 +15,7 @@ import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.WorkoutSnapshot
 import com.mitenko.repkit.domain.engineConfig
 import com.mitenko.repkit.domain.historyMode
+import com.mitenko.repkit.domain.holdRemaining
 import com.mitenko.repkit.domain.load
 import com.mitenko.repkit.domain.loadAt
 import com.mitenko.repkit.domain.setReps
@@ -55,6 +56,8 @@ data class EntryUiState(
     val total: Int = 0,
     val bestStreak: Int = 0,
     val currentStreak: Int = 0,
+    /** Spec rev 40: on-time check-ins left on the current hold ("Hold for x more"); null off a hold and for Timer only. */
+    val holdRemaining: Int? = null,
     val checkedInToday: Boolean = false,
     val starting: Boolean = false,
     /** A Check in call is in flight (spec R4 §4.1): both buttons are disabled until it returns. */
@@ -134,6 +137,7 @@ class EntryViewModel @Inject constructor(
                 total = counter.total,
                 bestStreak = counter.bestStreak,
                 currentStreak = counter.currentStreak,
+                holdRemaining = if (entry.type == EntryType.WORKOUT) holdRemaining(entry.progression, counter) else null,
                 checkedInToday = counter.lastCheckIn?.atZone(zone)?.toLocalDate() == now.atZone(zone).toLocalDate(),
                 starting = tr.starting,
                 checkingIn = tr.checkingIn,

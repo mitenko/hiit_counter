@@ -168,6 +168,15 @@ fun EntryScreen(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.testTag("streak_line"),
                 )
+                // Spec rev 40: while on a hold, how many more check-ins stay there.
+                state.holdRemaining?.let { n ->
+                    Text(
+                        pluralStringResource(R.plurals.hold_remaining, n, n),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp).testTag("hold_remaining"),
+                    )
+                }
                 Spacer(Modifier.height(24.dp))
                 // Spec R4 §4.1, amended by spec revision 8: every entry has Check in (outlined) and Start
                 // (filled), laid out the same way whether it's a Workout or Timer only.
