@@ -256,6 +256,19 @@
 
     <string name="go_pro">Go Pro</string>
     <string name="not_now">Not now</string>
+    <!-- Spec rev 41 §3: the Pro purchase -->
+    <string name="pro_title">REPKIT Pro</string>
+    <string name="go_pro_price">Go Pro · %1$s</string>
+    <string name="pro_subtitle_free">Unlimited workouts, no ads, every theme</string>
+    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_subtitle_pro">Thanks for your support</string>
+    <string name="purchase_pending">Purchase pending</string>
+    <string name="restore_purchase">Restore purchase</string>
+    <string name="restore_ok">Pro restored</string>
+    <string name="restore_none">No purchase found on this Google account</string>
+    <string name="billing_unavailable">Couldn\'t reach Google Play. Try again later.</string>
+    <string name="pro_theme_text">Blossom, Grove and Foundry come with Pro, along with unlimited workouts and no ads.</string>
+    <string name="pro_lock">Pro</string>
     <!-- Validation messages (spec revision 24) -->
     <plurals name="error_sets_range">
         <item quantity="one">1–%1$d set</item>

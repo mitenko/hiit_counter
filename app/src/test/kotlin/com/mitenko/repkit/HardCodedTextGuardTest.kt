@@ -1,6 +1,7 @@
 package com.mitenko.repkit
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -39,6 +40,15 @@ class HardCodedTextGuardTest {
             listOf(3 to "Hello there", 5 to "tag_name", 6 to "increased"),
             literals(src).filter { (_, s) -> WORD.containsMatchIn(s) },
         )
+    }
+
+    @Test
+    fun `const vals are exempt only for whole TAG, KEY, ARG and ID names`() {
+        listOf(
+            "const val TAG = \"x\"", "const val PRO_PRODUCT_ID = \"x\"", "const val NAV_KEY = \"x\"", "const val ID = \"x\"",
+        ).forEach { assertTrue(it, EXEMPT_LINE.containsMatchIn(it)) }
+        listOf("const val VALID = \"x\"", "const val AVOID = \"x\"", "const val HEADTAG = \"x\"")
+            .forEach { assertFalse(it, EXEMPT_LINE.containsMatchIn(it)) }
     }
 
     private fun offendersIn(file: File): List<String> {
@@ -122,7 +132,7 @@ class HardCodedTextGuardTest {
         val EXEMPT_LINE = Regex(
             listOf(
                 """testTag""", """\btag = """, """Log\.[a-z]""", """\brequire""", """\bcheck(NotNull)?\b""", """\berror\(""",
-                """Exception\(""", """const val \w*(TAG|KEY|ARG)\b""", """hiltViewModel\(key""", """@(Suppress|Deprecated|OptIn)""",
+                """Exception\(""", """const val (\w*_)?(TAG|KEY|ARG|ID)\b""", """hiltViewModel\(key""", """@(Suppress|Deprecated|OptIn)""",
             ).joinToString("|"),
         )
 

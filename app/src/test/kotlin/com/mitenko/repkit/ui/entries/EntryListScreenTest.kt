@@ -1,5 +1,6 @@
 package com.mitenko.repkit.ui.entries
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -30,8 +32,10 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.WeightUnit
+import com.mitenko.repkit.ui.ads.LocalTier
 import com.mitenko.repkit.ui.theme.HiitTheme
 import com.mitenko.repkit.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
@@ -68,8 +72,16 @@ class EntryListScreenTest {
         limitDialog: Boolean = false,
         onGoPro: () -> Unit = {},
         onDismissLimit: () -> Unit = {},
+        tier: Tier = Tier.PRO,
+        proPending: Boolean = false,
+        proPrice: String? = null,
+        onRestore: () -> Unit = {},
+        proDialog: Boolean = false,
+        onDismissPro: () -> Unit = {},
+        onLockedTheme: () -> Unit = {},
     ) {
         compose.setContent {
+            CompositionLocalProvider(LocalTier provides tier) {
             HiitTheme {
                 EntryListScreen(
                     state, onOpenEntry = onOpen, onMove = onMove, onCreate = onCreate,
@@ -78,9 +90,88 @@ class EntryListScreenTest {
                     weightUnit = weightUnit, onSetWeightUnit = onSetWeightUnit,
                     onRequestAdd = onRequestAdd, limitDialog = limitDialog, maxEntries = 3,
                     onGoPro = onGoPro, onDismissLimit = onDismissLimit,
+                    tier = tier, proPending = proPending, proPrice = proPrice, onRestore = onRestore,
+                    proDialog = proDialog, onDismissPro = onDismissPro, onLockedTheme = onLockedTheme,
                 )
             }
+            }
         }
+    }
+
+    @Test fun `FREE shows Go Pro with Play's price and Restore`() {
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, proPrice = "\$3.99")
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("pro_row").assertTextContains("Go Pro · \$3.99")
+        compose.onNodeWithText("Unlimited workouts, no ads, every theme").assertExists()
+        compose.onNodeWithTag("restore_purchase").assertExists()
+    }
+
+    @Test fun `FREE without a price still offers Go Pro`() {
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, proPrice = null)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("pro_row").assertTextContains("Go Pro")
+    }
+
+    @Test fun `pending shows Purchase pending and no buttons`() {
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, proPending = true)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Purchase pending").assertExists()
+        compose.onNodeWithTag("restore_purchase").assertDoesNotExist()
+    }
+
+    @Test fun `PRO shows the thank-you row`() {
+        show(EntryListUiState.Items(rows), tier = Tier.PRO)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("REPKIT Pro ✓").assertExists()
+        compose.onNodeWithText("Thanks for your support").assertExists()
+        compose.onNodeWithTag("restore_purchase").assertDoesNotExist()
+    }
+
+    @Test fun `tapping Go Pro starts the purchase and Restore restores`() {
+        var goPro = 0; var restore = 0
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, onGoPro = { goPro++ }, onRestore = { restore++ })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("pro_row").performClick()
+        assertEquals(1, goPro)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("restore_purchase").performClick()
+        assertEquals(1, restore)
+    }
+
+    @Test fun `on FREE the Pro themes are locked and tapping one opens the Pro dialog, not the theme`() {
+        var chosen: ThemeMode? = null; var locked = 0
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, onSetThemeMode = { chosen = it }, onLockedTheme = { locked++ })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        listOf("BLOSSOM", "GROVE", "FOUNDRY").forEach { compose.onNodeWithTag("theme_lock_$it", useUnmergedTree = true).assertExists() }
+        compose.onNodeWithTag("theme_lock_SONAR", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("theme_GROVE").performScrollTo().performClick()
+        assertEquals(null, chosen)
+        assertEquals(1, locked)
+    }
+
+    @Test fun `on PRO no theme is locked and Grove applies`() {
+        var chosen: ThemeMode? = null
+        show(EntryListUiState.Items(rows), tier = Tier.PRO, onSetThemeMode = { chosen = it })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("theme_lock_GROVE", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("theme_GROVE").performScrollTo().performClick()
+        assertEquals(ThemeMode.GROVE, chosen)
+    }
+
+    @Test fun `the Pro dialog shows its text and Go Pro`() {
+        var goPro = 0
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, proDialog = true, onGoPro = { goPro++ })
+        compose.onNodeWithText("REPKIT Pro").assertExists()
+        compose.onNodeWithText("Blossom, Grove and Foundry come with Pro, along with unlimited workouts and no ads.").assertExists()
+        compose.onNodeWithText("Go Pro").performClick()
+        assertEquals(1, goPro)
+    }
+
+    @Test fun `a stored Pro theme on FREE stays selected, with its lock`() {
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, themeMode = ThemeMode.BLOSSOM)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("theme_BLOSSOM").assertIsSelected()
+        compose.onNodeWithTag("theme_lock_BLOSSOM", useUnmergedTree = true).assertExists()
     }
 
     private fun customActionLabels(entryId: Long): List<String> =

@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Tier
+import com.mitenko.repkit.ui.timer.TimerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -86,5 +88,28 @@ class HiitThemeTest {
         themes.forEach { (t, p) ->
             assertEquals("$t", Triple(p.ground, p.glow(), p.timerColors()), seen[t])
         }
+    }
+
+    @Test
+    fun `a locked Pro theme on FREE draws as Dark, timer included, and as itself on PRO`() {
+        var app: AppTheme? = null
+        var timer: TimerColors? = null
+        var proApp: AppTheme? = null
+        var proTimer: TimerColors? = null
+        compose.setContent {
+            HiitTheme(effectiveTheme(ThemeMode.BLOSSOM, systemDark = false, tier = Tier.FREE)) {
+                app = LocalAppTheme.current
+                TimerTheme { timer = LocalTimerColors.current }
+            }
+            HiitTheme(effectiveTheme(ThemeMode.BLOSSOM, systemDark = false, tier = Tier.PRO)) {
+                proApp = LocalAppTheme.current
+                TimerTheme { proTimer = LocalTimerColors.current }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(AppTheme.DARK, app)
+        assertEquals(DarkTimerColors, timer)
+        assertEquals(AppTheme.BLOSSOM, proApp)
+        assertEquals(BlossomPalette.timerColors(), proTimer)
     }
 }

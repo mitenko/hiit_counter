@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.defaultWeightUnit
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.ThemeMode
@@ -84,6 +85,22 @@ class AppPreferences(
         store.edit { it[CRASH_REPORTS_ENABLED] = enabled }
     }
 
+    /** Spec rev 41 §1.4: the last tier Play confirmed, so a buyer opens straight into Pro, offline too. FREE when absent. */
+    val proCached: Flow<Tier> = store.data
+        .catch { e ->
+            if (e is IOException) {
+                Log.e(TAG, "App preferences read failed", e)
+                emit(emptyPreferences())
+            } else {
+                throw e
+            }
+        }
+        .map { prefs -> prefs[PRO_CACHED]?.let { runCatching { Tier.valueOf(it) }.getOrNull() } ?: Tier.FREE }
+
+    suspend fun setProCached(tier: Tier) {
+        store.edit { it[PRO_CACHED] = tier.name }
+    }
+
     /**
      * Spec rev 26 §5: the unit new weight workouts start in (⚙ › Units in PR 2). When it is absent or
      * unrecognised, it follows the locale (defaultWeightUnit). A workout copies it on its first switch
@@ -114,6 +131,7 @@ class AppPreferences(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         val WEIGHT_UNIT_DEFAULT = stringPreferencesKey("weight_unit_default")
+        val PRO_CACHED = stringPreferencesKey("pro_cached")
         private const val TAG = "AppPreferences"
     }
 }

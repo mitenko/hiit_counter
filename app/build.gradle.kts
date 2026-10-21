@@ -22,6 +22,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Spec rev 30 §2: debug builds send no crash reports or analytics unless built with -PcrashlyticsInDebug=true.
         buildConfigField("boolean", "CRASHLYTICS_IN_DEBUG", (project.findProperty("crashlyticsInDebug") == "true").toString())
+        // Spec rev 41 §1.4: -Prepkit.tier=FREE|PRO fixes the tier in debug builds (no billing); release ignores it.
+        buildConfigField("String", "FORCED_TIER", "\"${project.findProperty("repkit.tier") ?: ""}\"")
     }
 
     // Play upload key (spec rev 31): read from the user-level ~/.gradle/gradle.properties, never from the repo.
@@ -97,6 +99,7 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.billing.ktx)
     ksp(libs.room.compiler)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)

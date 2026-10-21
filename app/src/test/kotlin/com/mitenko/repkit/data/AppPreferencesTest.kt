@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.first
@@ -75,6 +76,23 @@ class AppPreferencesTest {
         val store = store()
         store.edit { it[stringPreferencesKey("theme_mode")] = "GARBAGE" }
         assertEquals(ThemeMode.SYSTEM, AppPreferences(store).themeMode.first())
+    }
+
+    @Test
+    fun `proCached defaults to FREE and round trips`() = runTest {
+        val prefs = AppPreferences(store())
+        assertEquals(Tier.FREE, prefs.proCached.first())
+        prefs.setProCached(Tier.PRO)
+        assertEquals(Tier.PRO, prefs.proCached.first())
+        prefs.setProCached(Tier.FREE)
+        assertEquals(Tier.FREE, prefs.proCached.first())
+    }
+
+    @Test
+    fun `an unknown stored pro_cached reads as FREE`() = runTest {
+        val store = store()
+        store.edit { it[stringPreferencesKey("pro_cached")] = "GARBAGE" }
+        assertEquals(Tier.FREE, AppPreferences(store).proCached.first())
     }
 
     @Test

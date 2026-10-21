@@ -182,6 +182,18 @@
     </plurals>
     <string name="go_pro">升级 Pro</string>
     <string name="not_now">以后再说</string>
+    <string name="pro_title">REPKIT Pro</string>
+    <string name="go_pro_price">升级 Pro · %1$s</string>
+    <string name="pro_subtitle_free">无限训练、无广告、全部主题</string>
+    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_subtitle_pro">感谢你的支持</string>
+    <string name="purchase_pending">购买处理中</string>
+    <string name="restore_purchase">恢复购买</string>
+    <string name="restore_ok">已恢复 Pro</string>
+    <string name="restore_none">此 Google 账号没有找到购买记录</string>
+    <string name="billing_unavailable">无法连接 Google Play，请稍后再试。</string>
+    <string name="pro_theme_text">Blossom、Grove 和 Foundry 随 Pro 提供，还有无限训练和无广告。</string>
+    <string name="pro_lock">Pro</string>
     <plurals name="error_sets_range">
         <item quantity="other">1–%1$d 组</item>
     </plurals>
