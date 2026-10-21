@@ -189,6 +189,18 @@
     </plurals>
     <string name="go_pro">Pro लें</string>
     <string name="not_now">अभी नहीं</string>
+    <string name="pro_title">REPKIT Pro</string>
+    <string name="go_pro_price">Pro लें · %1$s</string>
+    <string name="pro_subtitle_free">असीमित वर्कआउट, कोई विज्ञापन नहीं, सभी थीम</string>
+    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_subtitle_pro">आपके सहयोग के लिए धन्यवाद</string>
+    <string name="purchase_pending">खरीदारी लंबित है</string>
+    <string name="restore_purchase">खरीदारी बहाल करें</string>
+    <string name="restore_ok">Pro बहाल हो गया</string>
+    <string name="restore_none">इस Google खाते पर कोई खरीदारी नहीं मिली</string>
+    <string name="billing_unavailable">Google Play से कनेक्ट नहीं हो सका। बाद में फिर कोशिश करें।</string>
+    <string name="pro_theme_text">Blossom, Grove और Foundry Pro के साथ आते हैं, साथ में असीमित वर्कआउट और कोई विज्ञापन नहीं।</string>
+    <string name="pro_lock">Pro</string>
     <plurals name="error_sets_range">
         <item quantity="one">1–%1$d सेट</item>
         <item quantity="other">1–%1$d सेट</item>

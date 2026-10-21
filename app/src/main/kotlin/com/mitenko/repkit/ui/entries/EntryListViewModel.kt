@@ -9,6 +9,7 @@ import com.mitenko.repkit.domain.Clock
 import com.mitenko.repkit.domain.Entitlements
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.ProUpgrade
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.canAddEntry
 import com.mitenko.repkit.domain.historyMode
 import com.mitenko.repkit.domain.nextWorkoutReps
@@ -18,6 +19,7 @@ import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.tileWindowStart
 import com.mitenko.repkit.domain.weekCount
+import com.mitenko.repkit.monetisation.ProStore
 import com.mitenko.repkit.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,8 +70,31 @@ class EntryListViewModel @Inject constructor(
     private val entitlements: Entitlements,
     private val limits: FreeLimits,
     private val proUpgrade: ProUpgrade,
+    private val proStore: ProStore,
 ) : ViewModel() {
     private val refresh = MutableStateFlow(0)
+
+    /** Spec rev 41 §3: the tier, the pending purchase and Play's price, for the Settings Pro row. */
+    val tier: StateFlow<Tier> = entitlements.tier
+    val proPending: StateFlow<Boolean> = proStore.pending
+    val proPrice: StateFlow<String?> = proStore.price
+
+    private val _proDialog = MutableStateFlow(false)
+
+    /** Spec rev 41 §3: the Pro dialog a free user gets from tapping a locked theme. */
+    val proDialog: StateFlow<Boolean> = _proDialog.asStateFlow()
+
+    /** A free user tapped a Pro theme (spec rev 41 §3). */
+    fun lockedTheme() {
+        _proDialog.value = true
+    }
+
+    fun dismissPro() {
+        _proDialog.value = false
+    }
+
+    /** ⚙ › Restore purchase; the outcome shows in MainActivity's ProMessageHost. */
+    fun restore() = proStore.restore()
 
     private val _limitDialog = MutableStateFlow(false)
 
@@ -154,10 +179,11 @@ class EntryListViewModel @Inject constructor(
         return allowAdd(count)
     }
 
-    /** Go Pro (spec revision 18 §3): starts the upgrade, then closes the dialog. */
+    /** Go Pro (spec revision 18 §3, rev 41 §3): starts the upgrade, then closes the limit and Pro dialogs. */
     fun goPro() {
         proUpgrade.start()
         _limitDialog.value = false
+        _proDialog.value = false
     }
 
     /** Not now (spec revision 18 §3). */

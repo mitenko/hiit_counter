@@ -15,6 +15,7 @@ import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.model.WeightsKind
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeProStore
 import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeEntryRepository
 import com.mitenko.repkit.testutil.MainDispatcherRule
@@ -56,13 +57,14 @@ class EntryListViewModelTest {
     )
 
     private val proUpgrade = FakeProUpgrade()
+    private val proStore = FakeProStore()
 
     private fun TestScope.vm(
         repo: FakeEntryRepository,
         preferences: AppPreferences = preferences(),
         tier: Tier = Tier.PRO,
     ) =
-        EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade).also { vm ->
+        EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade, proStore).also { vm ->
             backgroundScope.launch { vm.uiState.collect {} }
             backgroundScope.launch { vm.themeMode.collect {} }
             backgroundScope.launch { vm.crashReportsEnabled.collect {} }
@@ -366,6 +368,36 @@ class EntryListViewModelTest {
         vm.goPro()
         assertEquals(1, proUpgrade.starts)
         assertFalse(vm.limitDialog.value)
+    }
+
+    @Test
+    fun `a locked theme opens the Pro dialog and dismissPro closes it`() = runTest {
+        val vm = vm(entries(1), tier = Tier.FREE)
+        assertFalse(vm.proDialog.value)
+        vm.lockedTheme()
+        assertTrue(vm.proDialog.value)
+        vm.dismissPro()
+        assertFalse(vm.proDialog.value)
+        assertEquals(0, proUpgrade.starts)
+    }
+
+    @Test
+    fun `Go Pro closes both the Pro and limit dialogs`() = runTest {
+        val vm = vm(entries(3), tier = Tier.FREE)
+        vm.requestAdd()
+        vm.lockedTheme()
+        assertTrue(vm.limitDialog.value && vm.proDialog.value)
+        vm.goPro()
+        assertEquals(1, proUpgrade.starts)
+        assertFalse(vm.limitDialog.value)
+        assertFalse(vm.proDialog.value)
+    }
+
+    @Test
+    fun `restore asks the store`() = runTest {
+        val vm = vm(entries(1), tier = Tier.FREE)
+        vm.restore()
+        assertEquals(1, proStore.restores)
     }
 
     @Test

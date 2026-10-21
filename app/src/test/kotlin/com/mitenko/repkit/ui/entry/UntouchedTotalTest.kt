@@ -13,6 +13,7 @@ import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeProStore
 import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeServiceStarter
 import com.mitenko.repkit.testutil.MainDispatcherRule
@@ -56,7 +57,7 @@ class UntouchedTotalTest {
             val preferences = AppPreferences(
                 PreferenceDataStoreFactory.create(scope = backgroundScope, produceFile = { File(tmp.root, "app.preferences_pb") }),
             )
-            val listVm = EntryListViewModel(repo, clock, preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade())
+            val listVm = EntryListViewModel(repo, clock, preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade(), FakeProStore())
             backgroundScope.launch { entryVm.uiState.collect {} }
             backgroundScope.launch { listVm.uiState.collect {} }
             val entry = entryVm.uiState.first { it.name == "Burpees" }

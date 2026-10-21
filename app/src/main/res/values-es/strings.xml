@@ -196,6 +196,18 @@
     </plurals>
     <string name="go_pro">Hazte Pro</string>
     <string name="not_now">Ahora no</string>
+    <string name="pro_title">REPKIT Pro</string>
+    <string name="go_pro_price">Hazte Pro · %1$s</string>
+    <string name="pro_subtitle_free">Entrenamientos ilimitados, sin anuncios, todos los temas</string>
+    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_subtitle_pro">Gracias por tu apoyo</string>
+    <string name="purchase_pending">Compra pendiente</string>
+    <string name="restore_purchase">Restaurar compra</string>
+    <string name="restore_ok">Pro restaurado</string>
+    <string name="restore_none">No se encontró ninguna compra en esta cuenta de Google</string>
+    <string name="billing_unavailable">No se pudo conectar con Google Play. Inténtalo más tarde.</string>
+    <string name="pro_theme_text">Blossom, Grove y Foundry vienen con Pro, junto con entrenamientos ilimitados y sin anuncios.</string>
+    <string name="pro_lock">Pro</string>
     <plurals name="error_sets_range">
         <item quantity="one">1–%1$d serie</item>
         <item quantity="other">1–%1$d series</item>

@@ -42,6 +42,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,6 +73,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.FreeLimits
+import com.mitenko.repkit.domain.Tier
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.ads.AdPlacement
@@ -79,9 +81,11 @@ import com.mitenko.repkit.ui.ads.AdSlot
 import com.mitenko.repkit.ui.common.EntryLimitDialog
 import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
+import com.mitenko.repkit.ui.common.ProDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.common.longLabel
 import com.mitenko.repkit.ui.theme.ThemeMode
+import com.mitenko.repkit.ui.theme.canUseTheme
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import com.mitenko.repkit.ui.theme.effectiveTheme
@@ -97,6 +101,10 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
     val crashReports by vm.crashReportsEnabled.collectAsStateWithLifecycle()
     val weightUnit by vm.weightUnitDefault.collectAsStateWithLifecycle()
     val limitDialog by vm.limitDialog.collectAsStateWithLifecycle()
+    val tier by vm.tier.collectAsStateWithLifecycle()
+    val proPending by vm.proPending.collectAsStateWithLifecycle()
+    val proPrice by vm.proPrice.collectAsStateWithLifecycle()
+    val proDialog by vm.proDialog.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
@@ -117,6 +125,13 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         maxEntries = vm.maxEntries,
         onGoPro = vm::goPro,
         onDismissLimit = vm::dismissLimit,
+        tier = tier,
+        proPending = proPending,
+        proPrice = proPrice,
+        onRestore = vm::restore,
+        proDialog = proDialog,
+        onDismissPro = vm::dismissPro,
+        onLockedTheme = vm::lockedTheme,
     )
 }
 
@@ -142,6 +157,13 @@ fun EntryListScreen(
     maxEntries: Int = FreeLimits().maxEntries,
     onGoPro: () -> Unit = {},
     onDismissLimit: () -> Unit = {},
+    tier: Tier = Tier.PRO,
+    proPending: Boolean = false,
+    proPrice: String? = null,
+    onRestore: () -> Unit = {},
+    proDialog: Boolean = false,
+    onDismissPro: () -> Unit = {},
+    onLockedTheme: () -> Unit = {},
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
     val requestAdd = { if (onRequestAdd()) naming = true }
@@ -202,8 +224,26 @@ fun EntryListScreen(
     if (limitDialog) {
         EntryLimitDialog(maxEntries, onGoPro = onGoPro, onDismiss = onDismissLimit)
     }
+    if (proDialog) {
+        ProDialog(onGoPro = onGoPro, onDismiss = onDismissPro)
+    }
     if (showSettings) {
         SettingsDialog(
+            tier = tier,
+            proPending = proPending,
+            proPrice = proPrice,
+            onGoPro = {
+                showSettings = false
+                onGoPro()
+            },
+            onRestore = {
+                showSettings = false
+                onRestore()
+            },
+            onLockedTheme = {
+                showSettings = false
+                onLockedTheme()
+            },
             current = themeMode,
             onSelect = { mode ->
                 showSettings = false
@@ -229,6 +269,12 @@ fun EntryListScreen(
  */
 @Composable
 private fun SettingsDialog(
+    tier: Tier,
+    proPending: Boolean,
+    proPrice: String?,
+    onGoPro: () -> Unit,
+    onRestore: () -> Unit,
+    onLockedTheme: () -> Unit,
     current: ThemeMode,
     onSelect: (ThemeMode) -> Unit,
     crashReports: Boolean,
@@ -242,6 +288,8 @@ private fun SettingsDialog(
         title = { Text(stringResource(R.string.settings), modifier = Modifier.testTag("settings_title")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                ProRow(tier, proPending, proPrice, onGoPro, onRestore)
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(
                     stringResource(R.string.appearance),
                     style = MaterialTheme.typography.titleSmall,
@@ -249,13 +297,13 @@ private fun SettingsDialog(
                     modifier = Modifier.padding(bottom = 4.dp).semantics { heading() }.testTag("appearance_heading"),
                 )
                 Column(Modifier.selectableGroup()) {
-                    ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect)
-                    ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect)
-                    ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect)
-                    ThemeOptionRow(ThemeMode.SONAR, R.string.theme_sonar, current, onSelect)
-                    ThemeOptionRow(ThemeMode.BLOSSOM, R.string.theme_blossom, current, onSelect)
-                    ThemeOptionRow(ThemeMode.GROVE, R.string.theme_grove, current, onSelect)
-                    ThemeOptionRow(ThemeMode.FOUNDRY, R.string.theme_foundry, current, onSelect)
+                    ThemeOptionRow(ThemeMode.SYSTEM, R.string.theme_system, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.LIGHT, R.string.theme_light, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.DARK, R.string.theme_dark, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.SONAR, R.string.theme_sonar, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.BLOSSOM, R.string.theme_blossom, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.GROVE, R.string.theme_grove, current, onSelect, tier, onLockedTheme)
+                    ThemeOptionRow(ThemeMode.FOUNDRY, R.string.theme_foundry, current, onSelect, tier, onLockedTheme)
                 }
                 // Spec rev 26 §3, plan Spec note 36: the unit new weight workouts start in; saved at once, closing like Appearance.
                 Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -278,6 +326,42 @@ private fun SettingsDialog(
     )
 }
 
+/**
+ * Spec rev 41 §3: the Pro row at the top of Settings. Free shows "Go Pro · price" (just "Go Pro" until Play's
+ * price is known) with Restore purchase under it, a pending purchase says so, and Pro says thanks.
+ */
+@Composable
+private fun ProRow(tier: Tier, pending: Boolean, price: String?, onGoPro: () -> Unit, onRestore: () -> Unit) {
+    Column(Modifier.fillMaxWidth().testTag("pro_row_group")) {
+        when {
+            pending -> Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("pro_row"), contentAlignment = Alignment.CenterStart) {
+                Text(stringResource(R.string.purchase_pending), style = MaterialTheme.typography.titleMedium)
+            }
+            tier == Tier.PRO -> Column(Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("pro_row"), verticalArrangement = Arrangement.Center) {
+                Text(stringResource(R.string.pro_active), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.pro_subtitle_pro), style = MaterialTheme.typography.bodySmall)
+            }
+            else -> {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .clickable(role = Role.Button, onClick = onGoPro)
+                        .testTag("pro_row"),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        if (price != null) stringResource(R.string.go_pro_price, price) else stringResource(R.string.go_pro),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(stringResource(R.string.pro_subtitle_free), style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = onRestore, modifier = Modifier.testTag("restore_purchase")) {
+                    Text(stringResource(R.string.restore_purchase))
+                }
+            }
+        }
+    }
+}
+
 /** Spec rev 30 §3: the label, its ⓘ and the switch (tagged `crash_reports`). */
 @Composable
 private fun CrashReportsRow(checked: Boolean, onChange: (Boolean) -> Unit) {
@@ -290,22 +374,38 @@ private fun CrashReportsRow(checked: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun ThemeOptionRow(mode: ThemeMode, label: Int, current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+private fun ThemeOptionRow(
+    mode: ThemeMode,
+    label: Int,
+    current: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    tier: Tier,
+    onLockedTheme: () -> Unit,
+) {
     val selected = mode == current
+    // Spec rev 41 §3: a Pro theme on the free tier shows a lock and opens the Pro dialog instead of applying.
+    val locked = !canUseTheme(tier, mode)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .selectable(selected = selected, onClick = { onSelect(mode) }, role = Role.RadioButton)
+            .selectable(selected = selected, onClick = { if (locked) onLockedTheme() else onSelect(mode) }, role = Role.RadioButton)
             .testTag("theme_${mode.name}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
         Text(stringResource(label), modifier = Modifier.padding(start = 8.dp))
         // A glowing theme shows its swatch (spec rev 36 §2); the phone setting doesn't matter for those.
-        paletteFor(effectiveTheme(mode, systemDark = true))?.let { p ->
+        paletteFor(effectiveTheme(mode, systemDark = true, tier = Tier.PRO))?.let { p ->
             Spacer(Modifier.weight(1f))
             ThemeSwatch(listOf(p.ground, p.accent, p.rest), Modifier.testTag("theme_swatch_${mode.name}"))
+        }
+        if (locked) {
+            Icon(
+                painterResource(R.drawable.ic_lock),
+                contentDescription = stringResource(R.string.pro_lock),
+                modifier = Modifier.size(16.dp).testTag("theme_lock_${mode.name}"),
+            )
         }
     }
 }
