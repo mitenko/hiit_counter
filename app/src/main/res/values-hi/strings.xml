@@ -114,6 +114,19 @@
     <string name="cue_vibration_off">कंपन बंद</string>
     <string name="cue_voice_on">आवाज़ संकेत चालू</string>
     <string name="cue_voice_off">आवाज़ संकेत बंद</string>
+    <string name="cue_label_sound">ध्वनि</string>
+    <string name="cue_label_vibration">कंपन</string>
+    <string name="cue_label_voice">आवाज़</string>
+    <string name="skip_label">छोड़ें</string>
+    <plurals name="timer_next_reps">
+        <item quantity="one">अगला: %1$d</item>
+        <item quantity="other">अगला: %1$d</item>
+    </plurals>
+    <plurals name="timer_next_sets">
+        <item quantity="one">अगला: %1$d सेट</item>
+        <item quantity="other">अगला: %1$d सेट</item>
+    </plurals>
+    <string name="reps_heading">रेप्स</string>
     <string name="appearance">दिखावट</string>
     <string name="theme_system">सिस्टम डिफ़ॉल्ट</string>
     <string name="theme_light">लाइट</string>

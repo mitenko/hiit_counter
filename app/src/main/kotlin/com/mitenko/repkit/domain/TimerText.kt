@@ -16,6 +16,10 @@ object TimerText {
      */
     fun formatElapsed(sec: Int): String = formatMmSs(sec)
 
+    /** Spec rev 42 §3: the prepare countdown as the big number: whole seconds under a minute ("7"), else m:ss ("1:30"). */
+    fun formatCountdown(sec: Int): String =
+        if (sec < 60) "$sec" else String.format(Locale.ENGLISH, "%d:%02d", sec / 60, sec % 60)
+
     fun formatDuration(sec: Int): String =
         if (sec >= 3600) String.format(Locale.ENGLISH, "%d:%02d:%02d", sec / 3600, (sec % 3600) / 60, sec % 60)
         else formatMmSs(sec)

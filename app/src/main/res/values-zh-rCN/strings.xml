@@ -114,6 +114,17 @@
     <string name="cue_vibration_off">振动已关闭</string>
     <string name="cue_voice_on">语音已开启</string>
     <string name="cue_voice_off">语音已关闭</string>
+    <string name="cue_label_sound">声音</string>
+    <string name="cue_label_vibration">振动</string>
+    <string name="cue_label_voice">语音</string>
+    <string name="skip_label">跳过</string>
+    <plurals name="timer_next_reps">
+        <item quantity="other">下一组：%1$d</item>
+    </plurals>
+    <plurals name="timer_next_sets">
+        <item quantity="other">下一组：%1$d 组</item>
+    </plurals>
+    <string name="reps_heading">次数</string>
     <string name="appearance">外观</string>
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>

@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -102,6 +103,39 @@ class EntryScreenTest {
     fun `off a hold there is no hold line`() {
         show(state)
         compose.onNodeWithTag("hold_remaining").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a Counter's reps column has a Reps heading`() {
+        show(state)
+        compose.onNodeWithTag("reps_heading", useUnmergedTree = true).assertTextEquals("Reps").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the Reps heading is hidden from the accessibility tree`() {
+        show(state)
+        compose.onNodeWithTag("reps_heading", useUnmergedTree = true)
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
+    }
+
+    @Test
+    fun `the chart and the reps column end level`() {
+        show(state)
+        val chart = compose.onNodeWithTag("chart").getBoundsInRoot()
+        val column = compose.onNodeWithTag("reps_column").getBoundsInRoot()
+        assertEquals(column.bottom.value, chart.bottom.value, 0.5f)
+    }
+
+    @Test
+    fun `a weight mode has no Reps heading`() {
+        show(weightState)
+        compose.onNodeWithTag("reps_heading", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a Timer only entry has no Reps heading`() {
+        show(state.copy(type = EntryType.CHECK_IN, points = listOf(c.copy(total = null))))
+        compose.onNodeWithTag("reps_heading", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test

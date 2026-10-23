@@ -5,6 +5,16 @@ import org.junit.Test
 
 class TimerTextTest {
     @Test
+    fun `formatCountdown is whole seconds under a minute, m colon ss from a minute`() {
+        assertEquals("0", TimerText.formatCountdown(0))
+        assertEquals("7", TimerText.formatCountdown(7))
+        assertEquals("59", TimerText.formatCountdown(59))
+        assertEquals("1:00", TimerText.formatCountdown(60))
+        assertEquals("1:30", TimerText.formatCountdown(90))
+        assertEquals("10:00", TimerText.formatCountdown(600))
+    }
+
+    @Test
     fun `formats times`() {
         assertEquals("00:15", TimerText.formatMmSs(15))
         assertEquals("01:15", TimerText.formatMmSs(75))

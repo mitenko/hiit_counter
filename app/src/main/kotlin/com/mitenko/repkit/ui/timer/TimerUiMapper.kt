@@ -30,6 +30,10 @@ data class TimerUiState(
     val centerNumber: Int?,
     val centerDimmed: Boolean,
     val countdownText: String,
+    /** Spec rev 42 §3: PREPARE's countdown, drawn as the big number; null in every other phase. */
+    val centerCountdown: String? = null,
+    /** Spec rev 42 §3: "Next: 42" / "Next: 8 sets" (a weight run: "Next: 10 · 16 kg") under the prepare countdown; null otherwise. */
+    val nextText: UiText? = null,
     val innerProgress: Float,
     val outerProgress: Float,
     val tone: PhaseTone,
@@ -48,7 +52,7 @@ object TimerUiMapper {
      * during REST/PREPARE, upcoming) set and every one still to come, including it — and no rep
      * value appears anywhere, including on DONE. The Voice cue says the same number
      * (TimerController.withReps). [weight] is a weight run's frozen weight (spec rev 26 §4): shown in
-     * WORK and REST, and appended to their descriptions; never for Timer only.
+     * WORK and REST, on PREPARE's Next line (spec rev 42 §3), and appended to their descriptions; never for Timer only.
      */
     fun map(s: TimerState, entryName: String, countsReps: Boolean = true, weight: SetWeight? = null): TimerUiState {
         val inner = if (s.phaseDurationSec > 0) s.phaseSecondsLeft.toFloat() / s.phaseDurationSec else 0f
@@ -103,7 +107,14 @@ object TimerUiMapper {
             )
             Phase.PREPARE -> base.copy(
                 label = UiText.Res(R.string.timer_label_get_ready),
-                centerNumber = if (countsReps) s.repsThisSet else setsToGo, centerDimmed = true,
+                centerNumber = null,
+                centerCountdown = TimerText.formatCountdown(s.phaseSecondsLeft),
+                countdownText = "",
+                nextText = if (countsReps) {
+                    UiText.Plural(R.plurals.timer_next_reps, s.repsThisSet, listOf(s.repsThisSet))
+                } else {
+                    UiText.Plural(R.plurals.timer_next_sets, setsToGo, listOf(setsToGo))
+                },
                 description = if (countsReps) {
                     UiText.Plural(R.plurals.timer_desc_prepare_reps, s.repsThisSet)
                 } else {
@@ -125,12 +136,17 @@ object TimerUiMapper {
                 },
             )
         }
-        // Spec rev 26 §4, plan Spec note 56: a weight run shows its weight in WORK and in the rest preview.
-        val w = weight?.takeIf { countsReps && (s.phase == Phase.WORK || s.phase == Phase.REST) } ?: return mapped
-        return mapped.copy(
-            weight = weightText(w.weight, w.unit),
-            description = UiText.Res(R.string.timer_desc_with_weight, listOf(mapped.description, spokenWeight(w.weight, w.unit))),
-        )
+        // Spec rev 26 §4, plan Spec note 56: a weight run shows its weight in WORK and the rest preview.
+        // Spec rev 42 §3: in PREPARE it joins the Next line instead ("Next: 10 · 16 kg"), so GET READY stays short
+        // enough for the ring's opening; the description still says it.
+        val w = weight?.takeIf { countsReps && (s.phase == Phase.WORK || s.phase == Phase.REST || s.phase == Phase.PREPARE) } ?: return mapped
+        val description = UiText.Res(R.string.timer_desc_with_weight, listOf(mapped.description, spokenWeight(w.weight, w.unit)))
+        if (s.phase == Phase.PREPARE) {
+            // notification_with_weight is the translated "a · b" join, reused here for the Next line.
+            val next = mapped.nextText?.let { UiText.Res(R.string.notification_with_weight, listOf(it, weightText(w.weight, w.unit))) }
+            return mapped.copy(nextText = next, description = description)
+        }
+        return mapped.copy(weight = weightText(w.weight, w.unit), description = description)
     }
 }
 

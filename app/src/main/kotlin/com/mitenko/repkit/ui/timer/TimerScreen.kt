@@ -13,15 +13,17 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +48,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -55,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.CueConfig
 import com.mitenko.repkit.ui.common.reducedMotionEnabled
@@ -102,6 +106,7 @@ fun TimerScreen(
         if (!ui.done) {
             CueToggleRow(
                 cues = cues,
+                captionColor = tc.text,
                 onToggleSound = onToggleSound,
                 onToggleVibration = onToggleVibration,
                 onToggleVoice = onToggleVoice,
@@ -132,84 +137,133 @@ fun TimerScreen(
             val description = ui.description.resolve()
             // Spec revision 37 reverts rev 35's sizes: a 0.85 ring box, a 0.3 rep number and a
             // displaySmall countdown, all inside the ring's open centre.
-            BoxWithConstraints(Modifier.fillMaxWidth(0.85f).aspectRatio(1f), contentAlignment = Alignment.Center) {
-                // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
-                val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
-                DualRing(
-                    ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = tc.setRing,
-                    trackColor = tc.track, haloAlpha = LocalGlow.current?.ringHalo,
-                    modifier = Modifier.fillMaxSize().testTag("ring"),
-                )
-                val weight = ui.weight
-                val label = ui.label
-                val centerNumber = ui.centerNumber
-                RingCentre(
-                    modifier = Modifier.fillMaxSize().semantics(mergeDescendants = true) { contentDescription = description },
-                    top = if (label == null && weight == null) {
-                        null
-                    } else {
-                        {
-                            // Spec rev 26 §4, plan Spec note 56: the weight takes the label's line (after "REST" in
-                            // the rest preview), so the stack is no taller and still fits the ring.
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                label?.let { PhaseLabel(it.resolve(), color) }
-                                weight?.let {
+            // Spec rev 42 §2: the captions add height, so the ring (not the controls) gives way when the
+            // screen is short: a square of at most 0.85 of the width, capped by the height left over.
+            // The spare room on a tall screen goes under the ring, above the controls.
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                BoxWithConstraints(
+                    Modifier.layout { measurable, c ->
+                        val side = min((c.maxWidth * 0.85f).roundToInt(), c.maxHeight)
+                        val placeable = measurable.measure(Constraints.fixed(side, side))
+                        layout(side, side) { placeable.place(0, 0) }
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Dp.toSp() cancels the user's font scale, so the digits always fit the ring.
+                    val numberSize = with(LocalDensity.current) { (maxWidth * 0.3f).toSp() }
+                    val clockSize = with(LocalDensity.current) { (maxWidth * 0.22f).toSp() }
+                    DualRing(
+                        ui.innerProgress, ui.outerProgress, innerColor = color, outerColor = tc.setRing,
+                        trackColor = tc.track, haloAlpha = LocalGlow.current?.ringHalo,
+                        modifier = Modifier.fillMaxSize().testTag("ring"),
+                    )
+                    val weight = ui.weight
+                    val label = ui.label
+                    val centerNumber = ui.centerNumber
+                    val centerCountdown = ui.centerCountdown
+                    val nextText = ui.nextText
+                    RingCentre(
+                        modifier = Modifier.fillMaxSize().semantics(mergeDescendants = true) { contentDescription = description },
+                        top = if (label == null && weight == null) {
+                            null
+                        } else {
+                            {
+                                // Spec rev 26 §4, plan Spec note 56: the weight takes the label's line (after "REST" in
+                                // the rest preview), so the stack is no taller and still fits the ring.
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    label?.let { PhaseLabel(it.resolve(), color) }
+                                    weight?.let {
+                                        Text(
+                                            it.resolve(),
+                                            color = color,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            maxLines = 1,
+                                            modifier = Modifier.testTag("center_weight"),
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        number = if (centerCountdown != null) {
+                            {
+                                // Spec rev 42 §3: PREPARE's countdown is the big number; m:ss is wider, so it's smaller.
+                                Text(
+                                    centerCountdown,
+                                    color = color,
+                                    style = tightTextStyle(if (':' in centerCountdown) clockSize else numberSize, FontWeight.Bold),
+                                    maxLines = 1,
+                                    modifier = Modifier.testTag("center_countdown"),
+                                )
+                            }
+                        } else {
+                            centerNumber?.let { n ->
+                                {
                                     Text(
-                                        it.resolve(),
-                                        color = color,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        maxLines = 1,
-                                        modifier = Modifier.testTag("center_weight"),
+                                        "$n",
+                                        color = if (ui.centerDimmed) color.copy(alpha = 0.45f) else color,
+                                        style = tightTextStyle(numberSize, FontWeight.Bold),
+                                        modifier = Modifier.testTag("center_number"),
                                     )
                                 }
                             }
-                        }
-                    },
-                    number = centerNumber?.let { n ->
-                        {
-                            Text(
-                                "$n",
-                                color = if (ui.centerDimmed) color.copy(alpha = 0.45f) else color,
-                                style = tightTextStyle(numberSize, FontWeight.Bold),
-                                modifier = Modifier.testTag("center_number"),
-                            )
-                        }
-                    },
-                    bottom = if (ui.countdownText.isEmpty()) {
-                        null
-                    } else {
-                        {
-                            Text(
-                                ui.countdownText,
-                                color = tc.text,
-                                style = MaterialTheme.typography.displaySmall,
-                                modifier = Modifier.testTag("countdown"),
-                            )
-                        }
-                    },
-                )
+                        },
+                        bottom = if (nextText != null) {
+                            {
+                                // Spec rev 42 §3: capped to the ring's opening (about 0.6 of its side this low) on one
+                                // line; a long Next ("Next: 88 · 112.5 lb", a wide locale, a big font scale) shrinks to fit.
+                                val titleMedium = MaterialTheme.typography.titleMedium
+                                BasicText(
+                                    nextText.resolve(),
+                                    style = titleMedium.copy(color = tc.text.copy(alpha = 0.7f)),
+                                    maxLines = 1,
+                                    autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = titleMedium.fontSize),
+                                    modifier = Modifier.widthIn(max = maxWidth * 0.6f).testTag("next_text"),
+                                )
+                            }
+                        } else if (ui.countdownText.isEmpty()) {
+                            null
+                        } else {
+                            {
+                                Text(
+                                    ui.countdownText,
+                                    color = tc.text,
+                                    style = MaterialTheme.typography.displaySmall,
+                                    modifier = Modifier.testTag("countdown"),
+                                )
+                            }
+                        },
+                    )
+                }
             }
-            Spacer(Modifier.weight(1f))
             if (!ui.done) {
                 // Skip back and forward sit either side of Pause (spec revision 10 §5); both work while
                 // paused. Spec revision 22: 56 dp apart, so they're harder to hit by mistake.
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(56.dp)) {
-                    IconButton(onClick = onSkipBack, modifier = Modifier.size(48.dp).testTag("skip_back")) {
-                        Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = tc.text)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(onClick = onSkipBack, modifier = Modifier.size(48.dp).testTag("skip_back")) {
+                            Icon(painterResource(R.drawable.ic_skip_back), contentDescription = stringResource(R.string.skip_back), tint = tc.text)
+                        }
+                        ControlCaption(stringResource(R.string.skip_back), tc.text)
                     }
-                    FilledIconButton(
-                        onClick = onTogglePause,
-                        modifier = Modifier.size(72.dp).testTag("pause"),
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = color),
-                    ) {
-                        Icon(
-                            painterResource(if (ui.paused) R.drawable.ic_play else R.drawable.ic_pause),
-                            contentDescription = stringResource(if (ui.paused) R.string.resume else R.string.pause),
-                            tint = Color.Black,
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledIconButton(
+                            onClick = onTogglePause,
+                            modifier = Modifier.size(72.dp).testTag("pause"),
+                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = color),
+                        ) {
+                            Icon(
+                                painterResource(if (ui.paused) R.drawable.ic_play else R.drawable.ic_pause),
+                                contentDescription = stringResource(if (ui.paused) R.string.resume else R.string.pause),
+                                tint = Color.Black,
+                            )
+                        }
+                        ControlCaption(stringResource(if (ui.paused) R.string.resume else R.string.pause), tc.text)
                     }
-                    IconButton(onClick = onSkipForward, modifier = Modifier.size(48.dp).testTag("skip_forward")) {
-                        Icon(painterResource(R.drawable.ic_skip_forward), contentDescription = stringResource(R.string.skip_forward), tint = tc.text)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(onClick = onSkipForward, modifier = Modifier.size(48.dp).testTag("skip_forward")) {
+                            Icon(painterResource(R.drawable.ic_skip_forward), contentDescription = stringResource(R.string.skip_forward), tint = tc.text)
+                        }
+                        ControlCaption(stringResource(R.string.skip_label), tc.text)
                     }
                 }
             }
@@ -372,25 +426,48 @@ private fun CueToggleRow(
     onToggleSound: () -> Unit,
     onToggleVibration: () -> Unit,
     onToggleVoice: () -> Unit,
+    captionColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        CueToggleButton(
-            on = cues.sound, icon = R.drawable.ic_cue_sound,
-            onDescription = stringResource(R.string.cue_sound_on), offDescription = stringResource(R.string.cue_sound_off),
-            onClick = onToggleSound, testTag = "cue_sound",
-        )
-        CueToggleButton(
-            on = cues.vibration, icon = R.drawable.ic_cue_vibration,
-            onDescription = stringResource(R.string.cue_vibration_on), offDescription = stringResource(R.string.cue_vibration_off),
-            onClick = onToggleVibration, testTag = "cue_vibration",
-        )
-        CueToggleButton(
-            on = cues.voice, icon = R.drawable.ic_cue_voice,
-            onDescription = stringResource(R.string.cue_voice_on), offDescription = stringResource(R.string.cue_voice_off),
-            onClick = onToggleVoice, testTag = "cue_voice",
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CueToggleButton(
+                on = cues.sound, icon = R.drawable.ic_cue_sound,
+                onDescription = stringResource(R.string.cue_sound_on), offDescription = stringResource(R.string.cue_sound_off),
+                onClick = onToggleSound, testTag = "cue_sound",
+            )
+            ControlCaption(stringResource(R.string.cue_label_sound), captionColor)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CueToggleButton(
+                on = cues.vibration, icon = R.drawable.ic_cue_vibration,
+                onDescription = stringResource(R.string.cue_vibration_on), offDescription = stringResource(R.string.cue_vibration_off),
+                onClick = onToggleVibration, testTag = "cue_vibration",
+            )
+            ControlCaption(stringResource(R.string.cue_label_vibration), captionColor)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CueToggleButton(
+                on = cues.voice, icon = R.drawable.ic_cue_voice,
+                onDescription = stringResource(R.string.cue_voice_on), offDescription = stringResource(R.string.cue_voice_off),
+                onClick = onToggleVoice, testTag = "cue_voice",
+            )
+            ControlCaption(stringResource(R.string.cue_label_voice), captionColor)
+        }
     }
+}
+
+/** Spec rev 42 §2: a visible caption under a timer control; screen readers skip it (the control says its state). */
+@Composable
+private fun ControlCaption(text: String, color: Color) {
+    Text(
+        text,
+        color = color.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 4.dp).semantics { hideFromAccessibility() },
+    )
 }
 
 /**

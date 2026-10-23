@@ -54,6 +54,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -259,9 +260,24 @@ private fun CentreRow(state: EntryUiState, range: HistoryRange, highlight: Highl
             PrescriptionCard(load, state.reps.size, state.unit, highlight, onHighlightShown)
         }
     } else {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Spec rev 42 §4: bottom-aligned, so the chart drops by the heading's height and its rows stay level with the column.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
             ChartArea(state, range, view, shown, Modifier.weight(1f))
-            if (state.type == EntryType.WORKOUT) RepsColumn(state.reps, highlight, onHighlightShown)
+            if (state.type == EntryType.WORKOUT) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Hidden from TalkBack: the column's own description already says "Reps per set".
+                    Text(
+                        stringResource(R.string.reps_heading),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.width(REPS_COLUMN_WIDTH).padding(bottom = 4.dp)
+                            .semantics { hideFromAccessibility() }.testTag("reps_heading"),
+                        textAlign = TextAlign.Center,
+                    )
+                    RepsColumn(state.reps, highlight, onHighlightShown)
+                }
+            }
         }
     }
 }

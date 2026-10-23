@@ -20,6 +20,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -455,6 +456,16 @@ class EntryListScreenTest {
         assertEquals(listOf("Move up", "Move down"), customActionLabels(1))
         // Row 2 (Lunges) took the top spot: only Move down.
         assertEquals(listOf("Move down"), customActionLabels(2))
+    }
+
+    @Test @Config(sdk = [34], qualifiers = "es")
+    fun `the type buttons stay one line in Spanish`() {
+        show(EntryListUiState.Items(rows))
+        compose.onNodeWithTag("add").performClick()
+        val counter = compose.onNodeWithTag("type_WORKOUT").getBoundsInRoot()
+        val timer = compose.onNodeWithTag("type_CHECK_IN").getBoundsInRoot()
+        assertEquals((counter.bottom - counter.top).value, (timer.bottom - timer.top).value, 0.5f)
+        compose.onNodeWithText("Temporizador", useUnmergedTree = true).assertExists()
     }
 
     @Test
