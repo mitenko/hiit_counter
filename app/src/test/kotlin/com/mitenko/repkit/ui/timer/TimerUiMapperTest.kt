@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.res.Configuration
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.model.Phase
 import com.mitenko.repkit.domain.model.SetWeight
 import com.mitenko.repkit.domain.model.TimerState
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.common.UiText
+import com.mitenko.repkit.ui.common.weightText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -80,8 +82,8 @@ class TimerUiMapperTest {
     fun `prepare cooldown and done`() {
         val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10, reps = 9), "Burpees")
         assertEquals("GET READY", prep.label.en())
-        assertEquals(9, prep.centerNumber)
-        assertTrue(prep.centerDimmed)
+        assertNull(prep.centerNumber)
+        assertEquals("10", prep.centerCountdown)
         assertEquals(0f, prep.outerProgress, 1e-6f)
 
         val cool = TimerUiMapper.map(state(Phase.COOLDOWN, set = 8, left = 5, duration = 30, reps = 0), "Burpees")
@@ -118,7 +120,7 @@ class TimerUiMapperTest {
         assertEquals("Rest, next set 5 to go", rest.description.en())
 
         val prepare = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10), "Stretch", countsReps = false)
-        assertEquals(8, prepare.centerNumber)
+        assertNull(prepare.centerNumber)
         assertEquals("Get ready, 8 sets", prepare.description.en())
     }
 
@@ -170,12 +172,56 @@ class TimerUiMapperTest {
     }
 
     @Test
-    fun `get ready, cooldown and done show no weight`() {
-        listOf(Phase.PREPARE, Phase.COOLDOWN, Phase.DONE).forEach { phase ->
+    fun `cooldown, done and get ready show no weight beside the label`() {
+        // Spec rev 42 §3: in PREPARE the weight moves to the Next line, so GET READY stays short enough for the ring.
+        listOf(Phase.COOLDOWN, Phase.DONE, Phase.PREPARE).forEach { phase ->
             assertNull("$phase", TimerUiMapper.map(state(phase, set = 1, left = 10, duration = 10), "Curls", weight = kg16).weight)
         }
         val prep = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10), "Curls", weight = kg16)
-        assertEquals("Get ready, first set 8 reps", prep.description.en())
+        assertEquals("Get ready, first set 8 reps, 16 kilograms", prep.description.en())
+    }
+
+    @Test
+    fun `prepare puts the countdown in the centre and the first set's reps under it`() {
+        val ui = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 7, duration = 10, reps = 42), "Push-ups")
+        assertEquals("7", ui.centerCountdown)
+        assertNull(ui.centerNumber)
+        assertEquals("", ui.countdownText)
+        assertEquals(UiText.Plural(R.plurals.timer_next_reps, 42, listOf(42)), ui.nextText)
+        assertEquals(UiText.Res(R.string.timer_label_get_ready), ui.label)
+    }
+
+    @Test
+    fun `Timer Only prepare says the sets to go`() {
+        val ui = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 90, duration = 90), "Plank", countsReps = false)
+        assertEquals("1:30", ui.centerCountdown)
+        assertEquals(UiText.Plural(R.plurals.timer_next_sets, 8, listOf(8)), ui.nextText)
+    }
+
+    @Test
+    fun `a weight run's prepare puts the weight on the Next line`() {
+        val ui = TimerUiMapper.map(state(Phase.PREPARE, set = 1, left = 10, duration = 10, reps = 10), "Squat", weight = kg16)
+        assertNull(ui.weight)
+        assertEquals(UiText.Res(R.string.timer_label_get_ready), ui.label)
+        assertEquals(
+            UiText.Res(R.string.notification_with_weight, listOf(UiText.Plural(R.plurals.timer_next_reps, 10, listOf(10)), weightText(1600, WeightUnit.KG))),
+            ui.nextText,
+        )
+        assertEquals("Next: 10 · 16 kg", ui.nextText.en())
+        // WORK and REST keep the weight beside their labels and have no Next line.
+        listOf(Phase.WORK, Phase.REST).forEach { phase ->
+            val other = TimerUiMapper.map(state(phase, set = 1, left = 10, duration = 10, reps = 10), "Squat", weight = kg16)
+            assertEquals("$phase", "16 kg", other.weight.en())
+            assertNull("$phase", other.nextText)
+        }
+    }
+
+    @Test
+    fun `work keeps the rep number and no centre countdown`() {
+        val ui = TimerUiMapper.map(state(Phase.WORK, set = 1, left = 15, duration = 20, reps = 42), "Push-ups")
+        assertEquals(42, ui.centerNumber)
+        assertNull(ui.centerCountdown)
+        assertNull(ui.nextText)
     }
 
     @Test

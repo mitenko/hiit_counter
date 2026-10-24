@@ -643,7 +643,7 @@ private fun EntryTypeChoice(selected: EntryType, onSelect: (EntryType) -> Unit) 
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = types.size),
                 modifier = Modifier.testTag("type_${type.name}"),
             ) {
-                Text(stringResource(type.label))
+                Text(stringResource(type.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

@@ -103,17 +103,32 @@
     <string name="checked_in">Registrado ✓</string>
     <string name="type">Tipo</string>
     <string name="type_workout">Contador</string>
-    <string name="type_check_in">Solo temporizador</string>
+    <string name="type_check_in">Temporizador</string>
     <string name="voice">Voz</string>
     <string name="voice_unavailable">Los avisos de voz no están disponibles en este dispositivo</string>
-    <string name="info_type">Los entrenamientos de Contador registran repeticiones y aumentan tu objetivo al registrarte. Los de Solo temporizador usan el mismo temporizador sin contar repeticiones. Registrarte sigue manteniendo tu racha. Puedes cambiar entre los dos sin perder tus ajustes ni tu historial.</string>
-    <string name="info_voice">Al inicio de cada serie de trabajo, dice cuántas repeticiones hacer. En los entrenamientos de Solo temporizador, dice el número de serie.</string>
+    <string name="info_type">Los entrenamientos de Contador registran repeticiones y aumentan tu objetivo al registrarte. Los de Temporizador usan el mismo temporizador sin contar repeticiones. Registrarte sigue manteniendo tu racha. Puedes cambiar entre los dos sin perder tus ajustes ni tu historial.</string>
+    <string name="info_voice">Al inicio de cada serie de trabajo, dice cuántas repeticiones hacer. En los entrenamientos de Temporizador, dice el número de serie.</string>
     <string name="cue_sound_on">Sonido activado</string>
     <string name="cue_sound_off">Sonido desactivado</string>
     <string name="cue_vibration_on">Vibración activada</string>
     <string name="cue_vibration_off">Vibración desactivada</string>
     <string name="cue_voice_on">Voz activada</string>
     <string name="cue_voice_off">Voz desactivada</string>
+    <string name="cue_label_sound">Sonido</string>
+    <string name="cue_label_vibration">Vibrar</string>
+    <string name="cue_label_voice">Voz</string>
+    <string name="skip_label">Saltar</string>
+    <plurals name="timer_next_reps">
+        <item quantity="one">Siguiente: %1$d</item>
+        <item quantity="other">Siguiente: %1$d</item>
+        <item quantity="many">Siguiente: %1$d</item>
+    </plurals>
+    <plurals name="timer_next_sets">
+        <item quantity="one">Siguiente: %1$d serie</item>
+        <item quantity="other">Siguiente: %1$d series</item>
+        <item quantity="many">Siguiente: %1$d series</item>
+    </plurals>
+    <string name="reps_heading">Reps</string>
     <string name="appearance">Apariencia</string>
     <string name="theme_system">Predeterminado del sistema</string>
     <string name="theme_light">Claro</string>

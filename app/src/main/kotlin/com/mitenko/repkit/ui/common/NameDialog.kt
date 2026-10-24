@@ -32,9 +32,9 @@ import com.mitenko.repkit.domain.NameCheck
 
 /**
  * Create and rename dialog (spec §8.3). OK is enabled only when [EntryNames.validate] passes and
- * an inline message says why otherwise. A rename passes the current name as [initial]; the text
- * lives in rememberSaveable, so it survives rotation. [extra] goes under the field (the create
- * dialog's type choice, spec R4 §4.4).
+ * an inline message says why otherwise, once the name has been edited (spec rev 42 §1). A rename
+ * passes the current name as [initial]; the text lives in rememberSaveable, so it survives
+ * rotation. [extra] goes under the field (the create dialog's type choice, spec R4 §4.4).
  */
 @Composable
 fun NameDialog(
@@ -47,8 +47,10 @@ fun NameDialog(
     var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initial, selection = TextRange(0, initial.length)))
     }
+    // Spec rev 42 §1: no error until the first edit (typing, paste or an IME commit), so a new dialog opens calm.
+    var touched by rememberSaveable { mutableStateOf(false) }
     val check = EntryNames.validate(text.text)
-    val error = check.uiText()?.resolve()
+    val error = check.uiText()?.resolve()?.takeIf { touched }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -57,7 +59,8 @@ fun NameDialog(
             Column {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    // A tap or cursor move is not an edit; paste and IME commits change the text.
+                    onValueChange = { if (it.text != text.text) touched = true; text = it },
                     label = { Text(stringResource(R.string.name_label)) },
                     singleLine = true,
                     isError = error != null,

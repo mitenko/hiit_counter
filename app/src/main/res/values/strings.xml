@@ -152,6 +152,22 @@
     <string name="cue_vibration_off">Vibration off</string>
     <string name="cue_voice_on">Voice on</string>
     <string name="cue_voice_off">Voice off</string>
+    <!-- Spec rev 42 §2: captions under the timer controls (screen readers skip them; the controls say their state) -->
+    <string name="cue_label_sound">Sound</string>
+    <string name="cue_label_vibration">Vibrate</string>
+    <string name="cue_label_voice">Voice</string>
+    <string name="skip_label">Skip</string>
+    <!-- Spec rev 42 §3: under the prepare countdown -->
+    <plurals name="timer_next_reps">
+        <item quantity="one">Next: %1$d</item>
+        <item quantity="other">Next: %1$d</item>
+    </plurals>
+    <plurals name="timer_next_sets">
+        <item quantity="one">Next: %1$d set</item>
+        <item quantity="other">Next: %1$d sets</item>
+    </plurals>
+    <!-- Spec rev 42 §4: over the entry screen's reps column -->
+    <string name="reps_heading">Reps</string>
 
     <!-- Appearance -->
     <string name="appearance">Appearance</string>

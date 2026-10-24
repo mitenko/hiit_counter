@@ -4,11 +4,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -61,15 +64,40 @@ class TimerScreenTest {
         onToggleSound: () -> Unit = {},
         onToggleVibration: () -> Unit = {},
         onToggleVoice: () -> Unit = {},
+        paused: Boolean = false,
     ) {
         compose.setContent {
             HiitTheme {
                 TimerScreen(
-                    ui(phase), cues,
+                    ui(phase).copy(paused = paused), cues,
                     onTogglePause = onTogglePause, onSkipBack = onSkipBack, onSkipForward = onSkipForward, onClose = onClose,
                     onToggleSound = onToggleSound, onToggleVibration = onToggleVibration, onToggleVoice = onToggleVoice,
                 )
             }
+        }
+    }
+
+    @Test
+    fun `the controls have visible captions`() {
+        setScreen(Phase.WORK)
+        listOf("Sound", "Vibrate", "Voice", "Back", "Pause", "Skip").forEach {
+            compose.onNodeWithText(it, useUnmergedTree = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `the pause caption follows the state`() {
+        setScreen(Phase.WORK, paused = true)
+        compose.onNodeWithText("Resume", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `captions are not in the accessibility tree`() {
+        setScreen(Phase.WORK)
+        compose.onNodeWithContentDescription("Sound on").assertExists()
+        listOf("Sound", "Vibrate", "Voice", "Back", "Pause", "Skip").forEach {
+            compose.onNodeWithText(it, useUnmergedTree = true)
+                .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
         }
     }
 
@@ -80,6 +108,15 @@ class TimerScreenTest {
         compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("WORK")
         assertTrue(bounds("phase_label").bottom <= bounds("center_number").top)
         compose.onNodeWithTag("countdown", useUnmergedTree = true).assertTextEquals("00:15")
+    }
+
+    @Test
+    fun `prepare shows the countdown big and Next under it`() {
+        setScreen(Phase.PREPARE)
+        compose.onNodeWithTag("center_countdown", useUnmergedTree = true).assertTextEquals("15")
+        compose.onNodeWithTag("next_text", useUnmergedTree = true).assertTextEquals("Next: 8")
+        compose.onNodeWithTag("center_number", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("countdown", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -337,12 +374,44 @@ class TimerScreenTest {
     @Config(sdk = [34], qualifiers = "w320dp-h640dp")
     fun `the controls stay on screen under the band and ring at 320dp`() {
         setScreen(Phase.REST)
+        compose.onNodeWithText("Skip", useUnmergedTree = true).assertIsDisplayed()
         val ring = bounds("ring")
         val pause = bounds("pause")
         assertTrue(ring.top >= bounds("stat_sets").bottom)
         assertTrue(pause.top >= ring.bottom)
         assertTrue("pause bottom ${pause.bottom}", pause.bottom <= 640.dp)
     }
+
+    private fun assertControlsFitAt640(fontScale: Float) {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
+                HiitTheme {
+                    TimerScreen(
+                        ui(Phase.REST), CueConfig(),
+                        onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                        onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                    )
+                }
+            }
+        }
+        val pause = bounds("pause")
+        assertEquals("pause height", 72f, (pause.bottom - pause.top).value, 0.5f)
+        val skip = compose.onNodeWithText("Skip", useUnmergedTree = true).getBoundsInRoot()
+        assertTrue("skip caption bottom ${skip.bottom}", skip.bottom <= 640.dp)
+        assertTrue("skip caption has height", (skip.bottom - skip.top) > 4.dp)
+        compose.onNodeWithTag("cue_toggle_row").assertIsDisplayed()
+        compose.onNodeWithTag("entry_name").assertIsDisplayed()
+        assertTrue(bounds("ring").bottom <= pause.top)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `the ring yields height so the controls keep their size at 320dp`() = assertControlsFitAt640(1f)
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `the ring yields height so the controls keep their size at 320dp and 130 percent font`() = assertControlsFitAt640(1.3f)
 
     @Test
     fun `the stats have no visible labels and read their values to TalkBack`() {
@@ -514,6 +583,40 @@ class TimerScreenTest {
         assertTrue(label.bottom <= number.top && weight.bottom <= number.top)
         assertTrue(number.bottom <= countdown.top)
         assertInsideRing(bounds("ring"), label, weight, number, countdown)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `a weight run's prepare puts the weight on a Next line capped to the ring's opening at 320dp`() = assertPrepareWeightFits(1f)
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w320dp-h640dp")
+    fun `a weight run's prepare Next line stays capped at 130 percent font scale at 320dp`() = assertPrepareWeightFits(1.3f)
+
+    /**
+     * Spec rev 42 §3: GET READY stands alone on the label line and the weight joins the Next line, which is
+     * capped to 0.6 of the ring's side (its open chord there) on one line. A constraint check, so it holds
+     * whatever Robolectric's font metrics are.
+     */
+    private fun assertPrepareWeightFits(fontScale: Float) {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
+                HiitTheme {
+                    TimerScreen(
+                        weightUi(Phase.PREPARE), CueConfig(),
+                        onTogglePause = {}, onSkipBack = {}, onSkipForward = {}, onClose = {},
+                        onToggleSound = {}, onToggleVibration = {}, onToggleVoice = {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag("phase_label", useUnmergedTree = true).assertTextEquals("GET READY")
+        compose.onNodeWithTag("center_weight", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("next_text", useUnmergedTree = true).assertTextEquals("Next: 88 · 112.5 lb")
+        val ring = bounds("ring")
+        val next = bounds("next_text")
+        assertTrue("next ${next.width} > 0.6 × ring ${ring.width}", next.width.value <= ring.width.value * 0.6f + 0.5f)
     }
 
     @Test
