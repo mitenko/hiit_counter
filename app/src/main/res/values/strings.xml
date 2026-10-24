@@ -179,6 +179,7 @@
     <string name="theme_grove" translatable="false">Grove</string>
     <string name="theme_foundry" translatable="false">Foundry</string>
     <string name="crash_reports">Share crash reports and usage</string>
+    <string name="ad_privacy">Ad privacy choices</string>
     <string name="info_crash_reports">Sends anonymous crash reports and basic usage statistics to the developer, to help fix bugs and improve REPKIT. No workout data is included.</string>
 
     <!-- History -->

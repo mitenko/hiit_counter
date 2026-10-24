@@ -13,6 +13,7 @@ import com.mitenko.repkit.domain.model.ProgressionConfig
 import com.mitenko.repkit.domain.model.WeightConfig
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.model.WeightsKind
+import com.mitenko.repkit.testutil.FakeAdPrivacy
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
 import com.mitenko.repkit.testutil.FakeProStore
@@ -58,18 +59,29 @@ class EntryListViewModelTest {
 
     private val proUpgrade = FakeProUpgrade()
     private val proStore = FakeProStore()
+    private val adPrivacy = FakeAdPrivacy()
 
     private fun TestScope.vm(
         repo: FakeEntryRepository,
         preferences: AppPreferences = preferences(),
         tier: Tier = Tier.PRO,
     ) =
-        EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade, proStore).also { vm ->
+        EntryListViewModel(repo, clock, preferences, FakeEntitlements(tier), FreeLimits(), proUpgrade, proStore, adPrivacy).also { vm ->
             backgroundScope.launch { vm.uiState.collect {} }
             backgroundScope.launch { vm.themeMode.collect {} }
             backgroundScope.launch { vm.crashReportsEnabled.collect {} }
             runCurrent()
         }
+
+    @Test
+    fun `adPrivacy mirrors the gateway and openAdPrivacy opens the form`() = runTest {
+        val vm = vm(FakeEntryRepository())
+        assertFalse(vm.adPrivacy.value)
+        adPrivacy.required.value = true
+        assertTrue(vm.adPrivacy.value)
+        vm.openAdPrivacy()
+        assertEquals(1, adPrivacy.opens)
+    }
 
     @Test
     fun `loading until migration readiness, then empty`() = runTest {

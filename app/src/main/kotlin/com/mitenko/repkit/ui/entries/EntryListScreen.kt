@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -105,6 +106,7 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
     val proPending by vm.proPending.collectAsStateWithLifecycle()
     val proPrice by vm.proPrice.collectAsStateWithLifecycle()
     val proDialog by vm.proDialog.collectAsStateWithLifecycle()
+    val adPrivacy by vm.adPrivacy.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
@@ -132,6 +134,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         proDialog = proDialog,
         onDismissPro = vm::dismissPro,
         onLockedTheme = vm::lockedTheme,
+        adPrivacy = adPrivacy,
+        onAdPrivacy = vm::openAdPrivacy,
     )
 }
 
@@ -164,6 +168,8 @@ fun EntryListScreen(
     proDialog: Boolean = false,
     onDismissPro: () -> Unit = {},
     onLockedTheme: () -> Unit = {},
+    adPrivacy: Boolean = false,
+    onAdPrivacy: () -> Unit = {},
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
     val requestAdd = { if (onRequestAdd()) naming = true }
@@ -251,6 +257,11 @@ fun EntryListScreen(
             },
             crashReports = crashReportsEnabled,
             onCrashReportsChange = onSetCrashReportsEnabled,
+            adPrivacy = adPrivacy,
+            onAdPrivacy = {
+                showSettings = false
+                onAdPrivacy()
+            },
             unit = weightUnit,
             onSelectUnit = { unit ->
                 showSettings = false
@@ -279,6 +290,8 @@ private fun SettingsDialog(
     onSelect: (ThemeMode) -> Unit,
     crashReports: Boolean,
     onCrashReportsChange: (Boolean) -> Unit,
+    adPrivacy: Boolean,
+    onAdPrivacy: () -> Unit,
     unit: WeightUnit,
     onSelectUnit: (WeightUnit) -> Unit,
     onDismiss: () -> Unit,
@@ -320,6 +333,19 @@ private fun SettingsDialog(
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 CrashReportsRow(crashReports, onCrashReportsChange)
+                // Spec rev 41 §2.2: reopens the UMP privacy options form, only where consent requires it.
+                if (adPrivacy) {
+                    Text(
+                        stringResource(R.string.ad_privacy),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(role = Role.Button, onClick = onAdPrivacy)
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .testTag("ad_privacy"),
+                    )
+                }
             }
         },
         confirmButton = {},
