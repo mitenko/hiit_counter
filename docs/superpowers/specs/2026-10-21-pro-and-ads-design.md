@@ -1,7 +1,7 @@
 # REPKIT — Pro purchase and ads (spec revision 41)
 
 **Date:** 2026-10-21
-**Status:** approved by the user, 2026-10-21 ("go"); PR 1 (Pro) implemented.
+**Status:** approved by the user, 2026-10-21 ("go"); PR 1 and PR 2 implemented.
 **Builds on:** revision 18 (monetisation seams). Amends revision 36 §8 and revision 39 §10 (which themes are Pro).
 
 ## 0. What the user decided (2026-10-21)
@@ -107,11 +107,22 @@ fun isPending(query: PurchaseQuery): Boolean
 - **The renderer:** `ads/AdMobRenderer` implements `AdRenderer` and replaces `NoAdRenderer`.
   - Each placement has its own ad unit ID.
   - Until an ad loads, and when one fails, the slot stays zero-height, so nothing jumps or leaves a blank bar.
+  - A failed refresh never collapses a banner that has already shown: it stays at its height.
+  - Once a placement has shown a banner in this process, later visits reserve that height at once (blank until the
+    new banner loads), so the content doesn't jump. A placement that has never shown one still starts at zero.
+  - The banner is sized to the slot's own width (a standard-height anchored adaptive banner, not a "large" one).
   - The `AdView` is created per screen and destroyed with it.
 - **IDs:**
   - The AdMob app ID goes in the manifest through a `manifestPlaceholders` value.
   - Debug builds always use Google's published **test** app ID and test ad unit IDs.
   - Release builds use the real IDs, held as `buildConfigField`s. They aren't secrets.
+  - Release reads `-Prepkit.admobAppId`, `-Prepkit.adUnitList` and `-Prepkit.adUnitEntry`: gradle properties in
+    `~/.gradle/gradle.properties` on the PC, or `-P` arguments on a build worker. Any that is missing falls back to
+    the test ID.
+  - `bundleRelease` (the Play upload) fails when any falls back, naming which (never the values), unless built
+    with `-Prepkit.allowTestAds=true`. `assembleRelease` (R8 smoke builds) only warns.
+  - Debug only: `-Prepkit.consentEea=true` shows the EEA consent form, and `-Prepkit.consentTestDevice=<hashed id>`
+    names the test device.
 - **Initialisation:** `MobileAds.initialize` runs off the main thread after consent (§2.2), and only when the tier
   is FREE. A Pro user never loads the ads SDK's network stack.
 

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mitenko.repkit.ads.AdsController
 import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.domain.Entitlements
 import com.mitenko.repkit.domain.TimerController
@@ -42,6 +43,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var entitlements: Entitlements
     @Inject lateinit var adRenderer: AdRenderer
     @Inject lateinit var proStore: ProStore
+    @Inject lateinit var adsController: AdsController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,5 +80,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Spec rev 41 §1.4: ask Play again on every return to the foreground (a refund or a restore elsewhere).
         proStore.refresh()
+        // Spec rev 41 §2.2: (re)run consent and the SDK start on FREE; PRO does nothing.
+        adsController.onForeground()
     }
 }

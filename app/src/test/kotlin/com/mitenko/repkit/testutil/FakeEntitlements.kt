@@ -1,5 +1,6 @@
 package com.mitenko.repkit.testutil
 
+import com.mitenko.repkit.ads.AdPrivacy
 import com.mitenko.repkit.monetisation.ProEvent
 import com.mitenko.repkit.monetisation.ProStore
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +13,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /** A settable [Entitlements]; PRO by default, matching the v1 binding. */
 class FakeEntitlements(tier: Tier = Tier.PRO) : Entitlements {
     override val tier = MutableStateFlow(tier)
+}
+
+/** A settable [AdPrivacy]; [opens] counts [open] calls. */
+class FakeAdPrivacy(required: Boolean = false) : AdPrivacy {
+    override val required = MutableStateFlow(required)
+    var opens = 0
+    override fun open() {
+        opens++
+    }
 }
 
 /** Counts [start] calls. */

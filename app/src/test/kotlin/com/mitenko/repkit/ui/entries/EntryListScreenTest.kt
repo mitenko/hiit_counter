@@ -80,6 +80,8 @@ class EntryListScreenTest {
         proDialog: Boolean = false,
         onDismissPro: () -> Unit = {},
         onLockedTheme: () -> Unit = {},
+        adPrivacy: Boolean = false,
+        onAdPrivacy: () -> Unit = {},
     ) {
         compose.setContent {
             CompositionLocalProvider(LocalTier provides tier) {
@@ -93,6 +95,7 @@ class EntryListScreenTest {
                     onGoPro = onGoPro, onDismissLimit = onDismissLimit,
                     tier = tier, proPending = proPending, proPrice = proPrice, onRestore = onRestore,
                     proDialog = proDialog, onDismissPro = onDismissPro, onLockedTheme = onLockedTheme,
+                    adPrivacy = adPrivacy, onAdPrivacy = onAdPrivacy,
                 )
             }
             }
@@ -166,6 +169,21 @@ class EntryListScreenTest {
         compose.onNodeWithText("Blossom, Grove and Foundry come with Pro, along with unlimited workouts and no ads.").assertExists()
         compose.onNodeWithText("Go Pro").performClick()
         assertEquals(1, goPro)
+    }
+
+    @Test fun `Ad privacy choices shows when required and opens the form`() {
+        var opened = 0
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, adPrivacy = true, onAdPrivacy = { opened++ })
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("ad_privacy").performScrollTo().performClick()
+        assertEquals(1, opened)
+        compose.onNodeWithTag("settings_title").assertDoesNotExist()
+    }
+
+    @Test fun `no Ad privacy row when not required`() {
+        show(EntryListUiState.Items(rows), tier = Tier.FREE, adPrivacy = false)
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("ad_privacy").assertDoesNotExist()
     }
 
     @Test fun `a stored Pro theme on FREE stays selected, with its lock`() {

@@ -1,6 +1,13 @@
 package com.mitenko.repkit.di
 
 import com.mitenko.repkit.BuildConfig
+import com.mitenko.repkit.ads.AdMobRenderer
+import com.mitenko.repkit.ads.AdPrivacy
+import com.mitenko.repkit.ads.AdsController
+import com.mitenko.repkit.ads.AdsSdk
+import com.mitenko.repkit.ads.ConsentGateway
+import com.mitenko.repkit.ads.MobileAdsSdk
+import com.mitenko.repkit.ads.UmpConsentGateway
 import com.mitenko.repkit.domain.Entitlements
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.ProUpgrade
@@ -13,7 +20,6 @@ import com.mitenko.repkit.platform.CurrentActivity
 import com.mitenko.repkit.platform.billing.BillingGateway
 import com.mitenko.repkit.platform.billing.PlayBillingGateway
 import com.mitenko.repkit.ui.ads.AdRenderer
-import com.mitenko.repkit.ui.ads.NoAdRenderer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,7 +63,17 @@ object MonetisationModule {
     @Provides
     fun freeLimits(): FreeLimits = FreeLimits()
 
-    /** Draws nothing (spec revision 18 §4); PR 2 binds the AdMob renderer here. */
-    @Provides
-    fun adRenderer(): AdRenderer = NoAdRenderer
+    @Provides @Singleton
+    fun consentGateway(impl: UmpConsentGateway): ConsentGateway = impl
+
+    @Provides @Singleton
+    fun adsSdk(impl: MobileAdsSdk): AdsSdk = impl
+
+    /** Spec rev 41 §2.2: Settings' "Ad privacy choices" row talks to the controller through this. */
+    @Provides @Singleton
+    fun adPrivacy(controller: AdsController): AdPrivacy = controller
+
+    /** Spec rev 41 §2.1: the AdMob renderer; it draws nothing until consent and initialize are done. */
+    @Provides @Singleton
+    fun adRenderer(controller: AdsController): AdRenderer = AdMobRenderer(controller.ready)
 }

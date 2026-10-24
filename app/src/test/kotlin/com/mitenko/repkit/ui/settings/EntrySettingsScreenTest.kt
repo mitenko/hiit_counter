@@ -27,6 +27,7 @@ import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.testutil.FakeClock
 import com.mitenko.repkit.testutil.FakeEntitlements
+import com.mitenko.repkit.testutil.FakeAdPrivacy
 import com.mitenko.repkit.testutil.FakeProStore
 import com.mitenko.repkit.testutil.FakeProUpgrade
 import com.mitenko.repkit.testutil.FakeEntryRepository
@@ -117,7 +118,7 @@ class EntrySettingsScreenTest {
         val preferences = AppPreferences(
             PreferenceDataStoreFactory.create(scope = MainScope(), produceFile = { File(tmp.root, "app.preferences_pb") }),
         )
-        val listVm = EntryListViewModel(repo, FakeClock(), preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade(), FakeProStore())
+        val listVm = EntryListViewModel(repo, FakeClock(), preferences, FakeEntitlements(), FreeLimits(), FakeProUpgrade(), FakeProStore(), FakeAdPrivacy())
         var copied by mutableStateOf(false)
         compose.setContent {
             HiitTheme {

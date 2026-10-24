@@ -32,6 +32,11 @@
             android:name="firebase_analytics_collection_enabled"
             android:value="false" />
 
+        <!-- Spec rev 41 §2.1: AdMob app ID (test ID in debug). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

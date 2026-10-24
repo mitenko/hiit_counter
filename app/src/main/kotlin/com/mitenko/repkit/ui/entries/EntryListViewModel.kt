@@ -3,6 +3,7 @@ package com.mitenko.repkit.ui.entries
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mitenko.repkit.ads.AdPrivacy
 import com.mitenko.repkit.data.AppPreferences
 import com.mitenko.repkit.data.EntryRepository
 import com.mitenko.repkit.domain.Clock
@@ -71,6 +72,7 @@ class EntryListViewModel @Inject constructor(
     private val limits: FreeLimits,
     private val proUpgrade: ProUpgrade,
     private val proStore: ProStore,
+    private val adPrivacyGateway: AdPrivacy,
 ) : ViewModel() {
     private val refresh = MutableStateFlow(0)
 
@@ -92,6 +94,12 @@ class EntryListViewModel @Inject constructor(
     fun dismissPro() {
         _proDialog.value = false
     }
+
+    /** Spec rev 41 §2.2: whether Settings shows "Ad privacy choices" (false on Pro and where no form is required). */
+    val adPrivacy: StateFlow<Boolean> = adPrivacyGateway.required
+
+    /** Opens the UMP privacy options form. */
+    fun openAdPrivacy() = adPrivacyGateway.open()
 
     /** ⚙ › Restore purchase; the outcome shows in MainActivity's ProMessageHost. */
     fun restore() = proStore.restore()
