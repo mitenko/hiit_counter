@@ -69,6 +69,22 @@ class AppPreferences(
         store.edit { it[THEME_MODE] = mode.name }
     }
 
+    /** Spec rev 43: the welcome dialog has been dismissed once; false when absent, so existing installs see it too. */
+    val welcomeSeen: Flow<Boolean> = store.data
+        .catch { e ->
+            if (e is IOException) {
+                Log.e(TAG, "App preferences read failed", e)
+                emit(emptyPreferences())
+            } else {
+                throw e
+            }
+        }
+        .map { it[WELCOME_SEEN] ?: false }
+
+    suspend fun markWelcomeSeen() {
+        store.edit { it[WELCOME_SEEN] = true }
+    }
+
     /** Spec rev 30 §3: the "Share crash reports and usage" switch; on when absent. */
     val crashReportsEnabled: Flow<Boolean> = store.data
         .catch { e ->
@@ -132,6 +148,7 @@ class AppPreferences(
         val CRASH_REPORTS_ENABLED = booleanPreferencesKey("crash_reports_enabled")
         val WEIGHT_UNIT_DEFAULT = stringPreferencesKey("weight_unit_default")
         val PRO_CACHED = stringPreferencesKey("pro_cached")
+        val WELCOME_SEEN = booleanPreferencesKey("welcome_seen")
         private const val TAG = "AppPreferences"
     }
 }

@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -111,6 +112,14 @@ class EntryListViewModel @Inject constructor(
 
     /** The free tier's entry limit, for the dialog's text. */
     val maxEntries: Int get() = limits.maxEntries
+
+    /** Spec rev 43: the welcome dialog, until it is first dismissed. False until the flag loads, so it never flashes. */
+    val showWelcome: StateFlow<Boolean> =
+        preferences.welcomeSeen.map { !it }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun dismissWelcome() {
+        viewModelScope.launch { preferences.markWelcomeSeen() }
+    }
 
     /** The Appearance choice (spec rev 14 §5), for the ⚙ dialog in the top bar. */
     val themeMode: StateFlow<ThemeMode> =

@@ -96,6 +96,14 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun `welcomeSeen defaults to false and markWelcomeSeen sets it`() = runTest {
+        val prefs = AppPreferences(store())
+        assertFalse(prefs.welcomeSeen.first())
+        prefs.markWelcomeSeen()
+        assertTrue(prefs.welcomeSeen.first())
+    }
+
+    @Test
     fun `crashReportsEnabled defaults to true when absent`() = runTest {
         assertTrue(AppPreferences(store()).crashReportsEnabled.first())
     }

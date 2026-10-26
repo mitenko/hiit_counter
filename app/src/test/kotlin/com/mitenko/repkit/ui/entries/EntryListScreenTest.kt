@@ -82,6 +82,8 @@ class EntryListScreenTest {
         onLockedTheme: () -> Unit = {},
         adPrivacy: Boolean = false,
         onAdPrivacy: () -> Unit = {},
+        welcome: Boolean = false,
+        onDismissWelcome: () -> Unit = {},
     ) {
         compose.setContent {
             CompositionLocalProvider(LocalTier provides tier) {
@@ -96,6 +98,7 @@ class EntryListScreenTest {
                     tier = tier, proPending = proPending, proPrice = proPrice, onRestore = onRestore,
                     proDialog = proDialog, onDismissPro = onDismissPro, onLockedTheme = onLockedTheme,
                     adPrivacy = adPrivacy, onAdPrivacy = onAdPrivacy,
+                    welcome = welcome, onDismissWelcome = onDismissWelcome,
                 )
             }
             }
@@ -205,6 +208,35 @@ class EntryListScreenTest {
             .config[SemanticsActions.CustomActions]
             .first { it.label == label }
             .action()
+    }
+
+    // Spec rev 43: the welcome dialog.
+
+    @Test
+    fun `the welcome dialog shows on a first launch and OK dismisses it`() {
+        var dismissed = 0
+        show(EntryListUiState.Empty, welcome = true, onDismissWelcome = { dismissed++ })
+        compose.onNodeWithTag("welcome_title").assertTextEquals("Welcome to REPKIT")
+        compose.onNodeWithTag("welcome_text").assertTextContains("Timer Only", substring = true)
+        compose.onNodeWithTag("welcome_ok").performClick()
+        assertEquals(1, dismissed)
+    }
+
+    @Test
+    fun `no welcome dialog once it has been seen`() {
+        show(EntryListUiState.Empty)
+        compose.onNodeWithTag("welcome_title").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the About tag reopens the welcome and OK closes it without dismissing the first-run one`() {
+        var dismissed = 0
+        show(EntryListUiState.Items(rows), onDismissWelcome = { dismissed++ })
+        compose.onNodeWithContentDescription("About REPKIT").performClick()
+        compose.onNodeWithTag("welcome_title").assertExists()
+        compose.onNodeWithTag("welcome_ok").performClick()
+        compose.onNodeWithTag("welcome_title").assertDoesNotExist()
+        assertEquals(0, dismissed)
     }
 
     @Test

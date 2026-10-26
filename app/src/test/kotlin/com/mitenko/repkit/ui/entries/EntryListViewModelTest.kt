@@ -73,6 +73,30 @@ class EntryListViewModelTest {
             runCurrent()
         }
 
+    // Spec rev 43: the welcome dialog shows once, until it is dismissed.
+
+    @Test
+    fun `showWelcome is true on a first launch and dismissWelcome clears it for good`() = runTest {
+        val preferences = preferences()
+        val vm = vm(FakeEntryRepository(), preferences)
+        backgroundScope.launch { vm.showWelcome.collect {} }
+        runCurrent()
+        assertTrue(vm.showWelcome.value)
+        vm.dismissWelcome()
+        runCurrent()
+        assertFalse(vm.showWelcome.value)
+        assertTrue(preferences.welcomeSeen.first())
+    }
+
+    @Test
+    fun `showWelcome stays false once the welcome has been seen`() = runTest {
+        val preferences = preferences().apply { markWelcomeSeen() }
+        val vm = vm(FakeEntryRepository(), preferences)
+        backgroundScope.launch { vm.showWelcome.collect {} }
+        runCurrent()
+        assertFalse(vm.showWelcome.value)
+    }
+
     @Test
     fun `adPrivacy mirrors the gateway and openAdPrivacy opens the form`() = runTest {
         val vm = vm(FakeEntryRepository())
