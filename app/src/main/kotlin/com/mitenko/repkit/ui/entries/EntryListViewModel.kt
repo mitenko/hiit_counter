@@ -17,6 +17,7 @@ import com.mitenko.repkit.domain.nextWorkoutReps
 import com.mitenko.repkit.domain.model.CheckInPoint
 import com.mitenko.repkit.domain.model.EntryNotFound
 import com.mitenko.repkit.domain.model.EntryType
+import com.mitenko.repkit.domain.model.ProgressMode
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.domain.tileWindowStart
 import com.mitenko.repkit.domain.weekCount
@@ -215,7 +216,8 @@ class EntryListViewModel @Inject constructor(
      * Creates with defaults and the chosen [type] (spec R4 §4.4) and reports the new id for
      * navigation (spec §7.3). The name dialog already blocks invalid names.
      */
-    fun create(name: String, type: EntryType = EntryType.WORKOUT, onCreated: (Long) -> Unit) {
+    /** Spec rev 44: a Weights workout is switched to its mode, in the default unit, before [onCreated] runs. */
+    fun create(name: String, kind: NewWorkoutKind = NewWorkoutKind.REPS, onCreated: (Long) -> Unit) {
         // A double submit is ignored while a create is in flight, so two calls can't both pass the
         // limit check before either has written (spec revision 18 §3).
         if (creating) return
@@ -225,10 +227,15 @@ class EntryListViewModel @Inject constructor(
                 // Spec revision 18 §3: at the free limit nothing is created; the limit dialog shows instead.
                 if (!allowAdd(repo.entries.first().size)) return@launch
                 val id = try {
-                    repo.create(name, type)
+                    repo.create(name, kind.type)
                 } catch (e: IllegalArgumentException) {
                     Log.w(TAG, "Create rejected: ${e.message}")
                     return@launch
+                }
+                if (kind.mode != ProgressMode.REPS) {
+                    // A failed switch leaves a plain Reps workout, which Settings can still switch.
+                    runCatching { repo.switchMode(id, kind.mode, preferences.weightUnitDefault.first()) }
+                        .onFailure { Log.w(TAG, "Mode switch after create failed", it) }
                 }
                 onCreated(id)
             } finally {

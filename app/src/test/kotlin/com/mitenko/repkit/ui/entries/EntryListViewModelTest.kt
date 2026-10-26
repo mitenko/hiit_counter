@@ -231,10 +231,26 @@ class EntryListViewModelTest {
     fun `create passes the chosen type`() = runTest {
         val repo = FakeEntryRepository()
         val vm = vm(repo)
-        vm.create("Stretch", EntryType.CHECK_IN) {}
+        vm.create("Stretch", NewWorkoutKind.TIMER) {}
         vm.create("Burpees") {}
         runCurrent()
         assertEquals(listOf(EntryType.CHECK_IN, EntryType.WORKOUT), repo.state.value.map { it.type })
+        assertTrue(repo.modeSwitches.isEmpty())
+    }
+
+    @Test
+    fun `Weights creates a Counter in reps-then-weight mode in the default unit before reporting it`() = runTest {
+        val repo = FakeEntryRepository()
+        val preferences = preferences().apply { setWeightUnitDefault(WeightUnit.LB) }
+        val vm = vm(repo, preferences)
+        var modeWhenReported: ProgressMode? = null
+        vm.create("Bench press", NewWorkoutKind.WEIGHTS) { id -> modeWhenReported = repo.state.value.single { it.id == id }.progression.mode }
+        runCurrent()
+        val entry = repo.state.value.single()
+        assertEquals(EntryType.WORKOUT, entry.type)
+        assertEquals(ProgressMode.REPS_THEN_WEIGHT, entry.progression.mode)
+        assertEquals(WeightUnit.LB, entry.progression.weight.unit)
+        assertEquals(ProgressMode.REPS_THEN_WEIGHT, modeWhenReported)
     }
 
     // The class clock is Thu 24 Sep 08:00 PDT: the week starts Mon 21 Sep 00:00 PDT, the tile window Fri 28 Aug.

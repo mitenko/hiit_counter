@@ -75,7 +75,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mitenko.repkit.R
 import com.mitenko.repkit.domain.FreeLimits
 import com.mitenko.repkit.domain.Tier
-import com.mitenko.repkit.domain.model.EntryType
 import com.mitenko.repkit.domain.model.WeightUnit
 import com.mitenko.repkit.ui.ads.AdPlacement
 import com.mitenko.repkit.ui.ads.AdSlot
@@ -97,7 +96,7 @@ import com.mitenko.repkit.ui.theme.panelShape
 import com.mitenko.repkit.ui.theme.panelColor
 
 @Composable
-fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
+fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long, NewWorkoutKind) -> Unit, vm: EntryListViewModel = hiltViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val crashReports by vm.crashReportsEnabled.collectAsStateWithLifecycle()
@@ -117,7 +116,7 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         state = state,
         onOpenEntry = onOpenEntry,
         onMove = vm::move,
-        onCreate = { name, type -> vm.create(name, type, onCreated) },
+        onCreate = { name, kind -> vm.create(name, kind) { id -> onCreated(id, kind) } },
         themeMode = themeMode,
         onSetThemeMode = vm::setThemeMode,
         crashReportsEnabled = crashReports,
@@ -153,7 +152,7 @@ fun EntryListScreen(
     state: EntryListUiState,
     onOpenEntry: (Long) -> Unit,
     onMove: (Long, Int) -> Unit,
-    onCreate: (String, EntryType) -> Unit,
+    onCreate: (String, NewWorkoutKind) -> Unit,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onSetThemeMode: (ThemeMode) -> Unit = {},
     crashReportsEnabled: Boolean = true,
@@ -231,17 +230,17 @@ fun EntryListScreen(
         }
     }
     if (naming) {
-        // Spec R4 §4.4: Workout by default, every time the dialog opens; kept across rotation.
-        var type by rememberSaveable { mutableStateOf(EntryType.WORKOUT) }
+        // Spec rev 44: Reps by default, every time the dialog opens; kept across rotation.
+        var kind by rememberSaveable { mutableStateOf(NewWorkoutKind.REPS) }
         NameDialog(
             title = stringResource(R.string.new_workout),
             initial = "",
             onConfirm = { name ->
                 naming = false
-                onCreate(name, type)
+                onCreate(name, kind)
             },
             onDismiss = { naming = false },
-            extra = { EntryTypeChoice(type, onSelect = { type = it }) },
+            extra = { NewWorkoutKindChoice(kind, onSelect = { kind = it }) },
         )
     }
     if (welcome || showAbout) {
@@ -680,20 +679,20 @@ private fun EntryRowItem(
 
 private val TileShape = RoundedCornerShape(16.dp)
 
-/** Workout | Timer only (spec R4 §4.4). Each segment is tagged `type_<TYPE>`. */
+/** Reps | Weights | Timer Only (spec rev 44, amends R4 §4.4). Each segment is tagged `kind_<KIND>`. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EntryTypeChoice(selected: EntryType, onSelect: (EntryType) -> Unit) {
-    val types = EntryType.entries
+private fun NewWorkoutKindChoice(selected: NewWorkoutKind, onSelect: (NewWorkoutKind) -> Unit) {
+    val kinds = NewWorkoutKind.entries
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        types.forEachIndexed { index, type ->
+        kinds.forEachIndexed { index, kind ->
             SegmentedButton(
-                selected = selected == type,
-                onClick = { onSelect(type) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = types.size),
-                modifier = Modifier.testTag("type_${type.name}"),
+                selected = selected == kind,
+                onClick = { onSelect(kind) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = kinds.size),
+                modifier = Modifier.testTag("kind_${kind.name}"),
             ) {
-                Text(stringResource(type.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(kind.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

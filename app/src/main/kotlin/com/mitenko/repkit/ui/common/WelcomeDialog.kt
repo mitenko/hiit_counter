@@ -2,6 +2,7 @@ package com.mitenko.repkit.ui.common
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -17,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 
 /**
- * The welcome dialog (spec rev 43): what REPKIT is and the two kinds of workout, in the ⓘ dialogs'
- * style. The entry list shows it once on a first launch and reopens it from the ⓘ in its top bar.
- * The type headings reuse `type_workout` / `type_check_in`, so they always match the New dialog.
+ * The welcome dialog (spec rev 43): what REPKIT is and its three uses (Reps, Weights, Timer Only) as
+ * headings, in the ⓘ dialogs' style. The entry list shows it once on a first launch and reopens it from
+ * the ⓘ in its top bar. The headings reuse the New dialog's `new_kind_*` labels (rev 44), so they always match.
  */
 @Composable
 fun WelcomeDialog(onDismiss: () -> Unit) {
@@ -35,9 +36,11 @@ fun WelcomeDialog(onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(stringResource(R.string.welcome_intro))
-                Text(stringResource(R.string.type_workout), style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(R.string.welcome_counter))
-                Text(stringResource(R.string.type_check_in), style = MaterialTheme.typography.titleSmall)
+                Heading(stringResource(R.string.new_kind_reps))
+                Text(stringResource(R.string.welcome_reps))
+                Heading(stringResource(R.string.new_kind_weights))
+                Text(stringResource(R.string.welcome_weights))
+                Heading(stringResource(R.string.new_kind_timer))
                 Text(stringResource(R.string.welcome_timer))
                 Text(stringResource(R.string.welcome_start))
             }
@@ -47,5 +50,16 @@ fun WelcomeDialog(onDismiss: () -> Unit) {
                 Text(stringResource(R.string.ok))
             }
         },
+    )
+}
+
+/** One of the three ways to use REPKIT, in the primary colour so it stands out from the body text. */
+@Composable
+private fun Heading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 4.dp).testTag("welcome_heading_$text"),
     )
 }

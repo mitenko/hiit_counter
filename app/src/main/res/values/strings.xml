@@ -140,10 +140,15 @@
     <string name="type_check_in">Timer Only</string>
     <!-- Spec rev 43: the welcome dialog, shown once and reopened from the entry list's ⓘ. -->
     <string name="welcome_title">Welcome to REPKIT</string>
-    <string name="welcome_intro">REPKIT is an interval timer that builds up your reps over time.</string>
-    <string name="welcome_counter">For exercises you count, like push-ups or squats. The timer runs your sets of work and rest and shows how many reps to do in each set. Check in each day you work out and your reps go up a little. Holds keep you at a number for a few days, and missed days take some back.</string>
-    <string name="welcome_timer">For exercises you time, like planks or skipping. The timer runs the same way, but nothing is counted. Checking in keeps your streak.</string>
-    <string name="welcome_start">Tap + to make a workout and ⚙ to change it. Every setting has an ⓘ that explains it.</string>
+    <!-- Spec rev 44: the New workout dialog's three choices, short enough for one line in every language. -->
+    <string name="new_kind_reps">Reps</string>
+    <string name="new_kind_weights">Weights</string>
+    <string name="new_kind_timer">Timer</string>
+    <string name="welcome_intro">An interval timer that tracks your progress. Use it one of three ways:</string>
+    <string name="welcome_reps">For exercises you count, like push-ups or squats. Check in each day you work out and your reps go up a little. Holds keep you at a number for a few days, and missed days take some back.</string>
+    <string name="welcome_weights">Pick your weights and reps, and as you check in REPKIT moves you up to the next weight, or adds reps first and then weight.</string>
+    <string name="welcome_timer">Nothing is counted, and checking in keeps your streak.</string>
+    <string name="welcome_start">Tap + to make a workout and choose Reps, Weights or Timer. Open it and tap ⚙ to change it.</string>
     <string name="voice">Voice</string>
     <string name="voice_unavailable">Voice cues aren\'t available on this device</string>
 
