@@ -123,7 +123,7 @@ class EntrySettingsScreenTest {
         compose.setContent {
             HiitTheme {
                 if (copied) {
-                    EntryListRoute(onOpenEntry = {}, onCreated = {}, vm = listVm)
+                    EntryListRoute(onOpenEntry = {}, onCreated = { _, _ -> }, vm = listVm)
                 } else {
                     EntrySettingsRoute(
                         onBack = {}, onOpen = {}, onDuplicated = { copied = true }, onDeleted = {}, onEntryGone = {},

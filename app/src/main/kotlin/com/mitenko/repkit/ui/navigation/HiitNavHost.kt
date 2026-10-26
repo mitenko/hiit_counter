@@ -15,6 +15,7 @@ import com.mitenko.repkit.domain.RunStatus
 import com.mitenko.repkit.domain.TimerController
 import com.mitenko.repkit.ui.common.ENTRY_ID_ARG
 import com.mitenko.repkit.ui.entries.EntryListRoute
+import com.mitenko.repkit.ui.entries.NewWorkoutKind
 import com.mitenko.repkit.ui.entry.EntryRoute
 import com.mitenko.repkit.ui.settings.EntrySettingsRoute
 import com.mitenko.repkit.ui.settings.SettingsPage
@@ -33,8 +34,12 @@ fun HiitNavHost(controller: TimerController) {
             val openEntry = dropUnlessResumedWith<Long> { id -> nav.navigate(Routes.entry(id)) { launchSingleTop = true } }
             EntryListRoute(
                 onOpenEntry = openEntry,
-                // Spec §7.3: the new entry opens with the list beneath it.
-                onCreated = { id -> nav.openEntryOverList(id) },
+                // Spec §7.3: the new entry opens with the list beneath it. Spec rev 44: a Weights workout
+                // then opens its Progression page, so Back from there lands on the entry.
+                onCreated = { id, kind ->
+                    nav.openEntryOverList(id)
+                    if (kind == NewWorkoutKind.WEIGHTS) nav.navigate(Routes.settingsPage(id, SettingsPage.PROGRESSION)) { launchSingleTop = true }
+                },
             )
         }
         composable(Routes.ENTRY, arguments = idArg) { entry ->

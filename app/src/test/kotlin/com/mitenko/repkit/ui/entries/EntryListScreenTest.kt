@@ -62,7 +62,7 @@ class EntryListScreenTest {
         state: EntryListUiState,
         onOpen: (Long) -> Unit = {},
         onMove: (Long, Int) -> Unit = { _, _ -> },
-        onCreate: (String, EntryType) -> Unit = { _, _ -> },
+        onCreate: (String, NewWorkoutKind) -> Unit = { _, _ -> },
         themeMode: ThemeMode = ThemeMode.SYSTEM,
         onSetThemeMode: (ThemeMode) -> Unit = {},
         crashReports: Boolean = true,
@@ -217,9 +217,17 @@ class EntryListScreenTest {
         var dismissed = 0
         show(EntryListUiState.Empty, welcome = true, onDismissWelcome = { dismissed++ })
         compose.onNodeWithTag("welcome_title").assertTextEquals("Welcome to REPKIT")
-        compose.onNodeWithTag("welcome_text").assertTextContains("Timer Only", substring = true)
+        compose.onNodeWithTag("welcome_text").assertTextContains("Weights", substring = true)
         compose.onNodeWithTag("welcome_ok").performClick()
         assertEquals(1, dismissed)
+    }
+
+    @Test
+    fun `the welcome names the three ways to use REPKIT as headings`() {
+        show(EntryListUiState.Empty, welcome = true)
+        for (heading in listOf("Reps", "Weights", "Timer")) {
+            compose.onNodeWithTag("welcome_heading_$heading", useUnmergedTree = true).assertTextEquals(heading)
+        }
     }
 
     @Test
@@ -509,13 +517,15 @@ class EntryListScreenTest {
     }
 
     @Test @Config(sdk = [34], qualifiers = "es")
-    fun `the type buttons stay one line in Spanish`() {
+    fun `the kind buttons stay one line in Spanish`() {
         show(EntryListUiState.Items(rows))
         compose.onNodeWithTag("add").performClick()
-        val counter = compose.onNodeWithTag("type_WORKOUT").getBoundsInRoot()
-        val timer = compose.onNodeWithTag("type_CHECK_IN").getBoundsInRoot()
-        assertEquals((counter.bottom - counter.top).value, (timer.bottom - timer.top).value, 0.5f)
-        compose.onNodeWithText("Temporizador", useUnmergedTree = true).assertExists()
+        val heights = NewWorkoutKind.entries.map { kind ->
+            compose.onNodeWithTag("kind_${kind.name}").getBoundsInRoot().let { (it.bottom - it.top).value }
+        }
+        heights.forEach { assertEquals(heights.first(), it, 0.5f) }
+        compose.onNodeWithText("Pesas", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Tiempo", useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -538,16 +548,21 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `the create dialog offers Workout or Timer only, defaulting to Workout`() {
-        val created = mutableListOf<Pair<String, EntryType>>()
-        show(EntryListUiState.Items(rows), onCreate = { name, type -> created += name to type })
+    fun `the create dialog offers Reps, Weights or Timer Only, defaulting to Reps`() {
+        val created = mutableListOf<Pair<String, NewWorkoutKind>>()
+        show(EntryListUiState.Items(rows), onCreate = { name, kind -> created += name to kind })
         compose.onNodeWithTag("add").performClick()
-        compose.onNodeWithTag("type_WORKOUT").assertIsSelected()
-        compose.onNodeWithTag("type_CHECK_IN").performClick()
-        compose.onNodeWithTag("type_CHECK_IN").assertIsSelected()
+        compose.onNodeWithTag("kind_REPS").assertIsSelected().assertTextEquals("Reps")
+        compose.onNodeWithTag("kind_WEIGHTS").assertTextEquals("Weights")
+        compose.onNodeWithTag("kind_TIMER").assertTextEquals("Timer").performClick()
+        compose.onNodeWithTag("kind_TIMER").assertIsSelected()
         compose.onNodeWithTag("name_field").performTextReplacement("Stretch")
         compose.onNodeWithTag("name_ok").performClick()
-        assertEquals(listOf("Stretch" to EntryType.CHECK_IN), created)
+        compose.onNodeWithTag("add").performClick()
+        compose.onNodeWithTag("kind_WEIGHTS").performClick()
+        compose.onNodeWithTag("name_field").performTextReplacement("Bench press")
+        compose.onNodeWithTag("name_ok").performClick()
+        assertEquals(listOf("Stretch" to NewWorkoutKind.TIMER, "Bench press" to NewWorkoutKind.WEIGHTS), created)
     }
 
     @Test
