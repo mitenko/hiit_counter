@@ -104,6 +104,11 @@
     <string name="type">类型</string>
     <string name="type_workout">计数</string>
     <string name="type_check_in">仅计时</string>
+    <string name="welcome_title">欢迎使用 REPKIT</string>
+    <string name="welcome_intro">REPKIT 是一款间歇计时器，会随着时间逐步增加你的次数。</string>
+    <string name="welcome_counter">适合需要计数的动作，比如俯卧撑或深蹲。计时器会带你完成每组训练和休息，并显示每组要做的次数。每次训练后打卡，次数就会增加一点。保持会让你在某个次数停留几天，错过的日子会让次数回落一些。</string>
+    <string name="welcome_timer">适合需要计时的动作，比如平板支撑或跳绳。计时器照常运行，但不计次数。打卡会保持你的连续记录。</string>
+    <string name="welcome_start">点 + 新建训练，点 ⚙ 修改训练。每项设置都有 ⓘ 说明。</string>
     <string name="voice">语音</string>
     <string name="voice_unavailable">此设备不支持语音提示</string>
     <string name="info_type">计数训练会记录次数，并在你打卡时提高目标。仅计时训练使用相同的计时器，但不计次数。打卡仍会保持你的连续记录。两者可以随时切换，不会丢失设置或历史。</string>

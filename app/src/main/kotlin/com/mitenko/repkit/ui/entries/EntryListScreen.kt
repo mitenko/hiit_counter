@@ -83,6 +83,7 @@ import com.mitenko.repkit.ui.common.EntryLimitDialog
 import com.mitenko.repkit.ui.common.InfoTag
 import com.mitenko.repkit.ui.common.NameDialog
 import com.mitenko.repkit.ui.common.ProDialog
+import com.mitenko.repkit.ui.common.WelcomeDialog
 import com.mitenko.repkit.ui.common.label
 import com.mitenko.repkit.ui.common.longLabel
 import com.mitenko.repkit.ui.theme.ThemeMode
@@ -107,6 +108,7 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
     val proPrice by vm.proPrice.collectAsStateWithLifecycle()
     val proDialog by vm.proDialog.collectAsStateWithLifecycle()
     val adPrivacy by vm.adPrivacy.collectAsStateWithLifecycle()
+    val welcome by vm.showWelcome.collectAsStateWithLifecycle()
     LifecycleResumeEffect(vm) {
         vm.onResume()
         onPauseOrDispose { }
@@ -136,6 +138,8 @@ fun EntryListRoute(onOpenEntry: (Long) -> Unit, onCreated: (Long) -> Unit, vm: E
         onLockedTheme = vm::lockedTheme,
         adPrivacy = adPrivacy,
         onAdPrivacy = vm::openAdPrivacy,
+        welcome = welcome,
+        onDismissWelcome = vm::dismissWelcome,
     )
 }
 
@@ -170,10 +174,13 @@ fun EntryListScreen(
     onLockedTheme: () -> Unit = {},
     adPrivacy: Boolean = false,
     onAdPrivacy: () -> Unit = {},
+    welcome: Boolean = false,
+    onDismissWelcome: () -> Unit = {},
 ) {
     var naming by rememberSaveable { mutableStateOf(false) }
     val requestAdd = { if (onRequestAdd()) naming = true }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
     val loading = state is EntryListUiState.Loading
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -183,6 +190,16 @@ fun EntryListScreen(
             // exactly centred regardless of the icon.
             Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag("title"))
+                // Spec rev 43: the ⓘ at the left, mirroring the ⚙, reopens the welcome dialog.
+                IconButton(
+                    onClick = { showAbout = true },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(48.dp).testTag("about_app"),
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_info),
+                        contentDescription = stringResource(R.string.about, stringResource(R.string.app_name)),
+                    )
+                }
                 IconButton(
                     onClick = { showSettings = true },
                     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(48.dp).testTag("settings"),
@@ -225,6 +242,13 @@ fun EntryListScreen(
             },
             onDismiss = { naming = false },
             extra = { EntryTypeChoice(type, onSelect = { type = it }) },
+        )
+    }
+    if (welcome || showAbout) {
+        WelcomeDialog(
+            onDismiss = {
+                if (showAbout) showAbout = false else onDismissWelcome()
+            },
         )
     }
     if (limitDialog) {
