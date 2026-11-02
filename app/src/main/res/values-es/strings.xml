@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays RepRhythm (not translated). -->
 <resources>
     <string name="settings">Ajustes</string>
     <string name="start">Iniciar</string>
@@ -96,7 +96,7 @@
     <string name="info_total_reps">Tu total actual de repeticiones, repartido entre las series del entrenamiento. Los cambios se aplican de inmediato.</string>
     <string name="info_best_streak">Tu mayor racha de registros a tiempo. Se actualiza sola a medida que crece tu racha.</string>
     <string name="info_current_streak">Tu racha actual de registros a tiempo, incluido el último. Si te pasas de la ventana, la racha vuelve a 1.</string>
-    <string name="info_last_check_in">La última vez que pulsaste Iniciar. REPKIT lo usa para calcular tu ventana de tiempo y el ajuste por días perdidos. Bórralo para que tu próximo registro sea el primero.</string>
+    <string name="info_last_check_in">La última vez que pulsaste Iniciar. RepRhythm lo usa para calcular tu ventana de tiempo y el ajuste por días perdidos. Bórralo para que tu próximo registro sea el primero.</string>
     <string name="info_sound">Reproduce pitidos de cuenta regresiva y un pitido cada vez que cambia la fase del entrenamiento.</string>
     <string name="info_vibration">Vibra cada vez que cambia la fase del entrenamiento, incluso con la pantalla apagada.</string>
     <string name="check_in">Registrar</string>
@@ -104,13 +104,13 @@
     <string name="type">Tipo</string>
     <string name="type_workout">Contador</string>
     <string name="type_check_in">Temporizador</string>
-    <string name="welcome_title">Te damos la bienvenida a REPKIT</string>
+    <string name="welcome_title">Te damos la bienvenida a RepRhythm</string>
     <string name="new_kind_reps">Reps</string>
     <string name="new_kind_weights">Pesas</string>
     <string name="new_kind_timer">Tiempo</string>
     <string name="welcome_intro">Un temporizador de intervalos que registra tu progreso. Úsalo de una de estas tres formas:</string>
     <string name="welcome_reps">Para ejercicios que cuentas, como flexiones o sentadillas. Regístrate cada día que entrenes y tus repeticiones subirán un poco. Las pausas te mantienen en un número unos días, y los días que faltes te quitan algunas.</string>
-    <string name="welcome_weights">Elige tus pesos y repeticiones, y al registrarte REPKIT te sube al siguiente peso, o primero añade repeticiones y luego peso.</string>
+    <string name="welcome_weights">Elige tus pesos y repeticiones, y al registrarte RepRhythm te sube al siguiente peso, o primero añade repeticiones y luego peso.</string>
     <string name="welcome_timer">No se cuenta nada, y registrarte mantiene tu racha.</string>
     <string name="welcome_start">Toca + para crear un entrenamiento y elige Reps, Pesas o Tiempo. Ábrelo y toca ⚙ para cambiarlo.</string>
     <string name="voice">Voz</string>
@@ -144,7 +144,7 @@
     <string name="theme_dark">Oscuro</string>
     <string name="crash_reports">Compartir informes de errores y uso</string>
     <string name="ad_privacy">Opciones de privacidad de anuncios</string>
-    <string name="info_crash_reports">Envía informes de errores anónimos y estadísticas de uso básicas al desarrollador, para ayudar a corregir errores y mejorar REPKIT. No incluye datos de tus entrenamientos.</string>
+    <string name="info_crash_reports">Envía informes de errores anónimos y estadísticas de uso básicas al desarrollador, para ayudar a corregir errores y mejorar RepRhythm. No incluye datos de tus entrenamientos.</string>
     <string name="week_count">%1$d× esta semana</string>
     <plurals name="tile_desc">
         <item quantity="one">%1$d registro en las últimas 4 semanas</item>
@@ -221,10 +221,10 @@
     </plurals>
     <string name="go_pro">Hazte Pro</string>
     <string name="not_now">Ahora no</string>
-    <string name="pro_title">REPKIT Pro</string>
+    <string name="pro_title">RepRhythm Pro</string>
     <string name="go_pro_price">Hazte Pro · %1$s</string>
     <string name="pro_subtitle_free">Entrenamientos ilimitados, sin anuncios, todos los temas</string>
-    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_active">RepRhythm Pro ✓</string>
     <string name="pro_subtitle_pro">Gracias por tu apoyo</string>
     <string name="purchase_pending">Compra pendiente</string>
     <string name="restore_purchase">Restaurar compra</string>

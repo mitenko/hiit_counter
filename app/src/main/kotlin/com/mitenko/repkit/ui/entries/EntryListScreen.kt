@@ -184,7 +184,7 @@ fun EntryListScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            // Spec rev 9 §2: "REPKIT" centred. Spec rev 14 §5 adds the ⚙ at the right (Settings since rev 30);
+            // Spec rev 9 §2: the app name centred. Spec rev 14 §5 adds the ⚙ at the right (Settings since rev 30);
             // it's overlaid rather than laid out in a Row, so the title (plain Box-centred) stays
             // exactly centred regardless of the icon.
             Box(Modifier.fillMaxWidth().heightIn(min = 56.dp), contentAlignment = Alignment.Center) {

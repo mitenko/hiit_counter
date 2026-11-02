@@ -129,7 +129,7 @@ class EntryListScreenTest {
     @Test fun `PRO shows the thank-you row`() {
         show(EntryListUiState.Items(rows), tier = Tier.PRO)
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithText("REPKIT Pro ✓").assertExists()
+        compose.onNodeWithText("RepRhythm Pro ✓").assertExists()
         compose.onNodeWithText("Thanks for your support").assertExists()
         compose.onNodeWithTag("restore_purchase").assertDoesNotExist()
     }
@@ -168,7 +168,7 @@ class EntryListScreenTest {
     @Test fun `the Pro dialog shows its text and Go Pro`() {
         var goPro = 0
         show(EntryListUiState.Items(rows), tier = Tier.FREE, proDialog = true, onGoPro = { goPro++ })
-        compose.onNodeWithText("REPKIT Pro").assertExists()
+        compose.onNodeWithText("RepRhythm Pro").assertExists()
         compose.onNodeWithText("Blossom, Grove and Foundry come with Pro, along with unlimited workouts and no ads.").assertExists()
         compose.onNodeWithText("Go Pro").performClick()
         assertEquals(1, goPro)
@@ -216,14 +216,14 @@ class EntryListScreenTest {
     fun `the welcome dialog shows on a first launch and OK dismisses it`() {
         var dismissed = 0
         show(EntryListUiState.Empty, welcome = true, onDismissWelcome = { dismissed++ })
-        compose.onNodeWithTag("welcome_title").assertTextEquals("Welcome to REPKIT")
+        compose.onNodeWithTag("welcome_title").assertTextEquals("Welcome to RepRhythm")
         compose.onNodeWithTag("welcome_text").assertTextContains("Weights", substring = true)
         compose.onNodeWithTag("welcome_ok").performClick()
         assertEquals(1, dismissed)
     }
 
     @Test
-    fun `the welcome names the three ways to use REPKIT as headings`() {
+    fun `the welcome names the three ways to use RepRhythm as headings`() {
         show(EntryListUiState.Empty, welcome = true)
         for (heading in listOf("Reps", "Weights", "Timer")) {
             compose.onNodeWithTag("welcome_heading_$heading", useUnmergedTree = true).assertTextEquals(heading)
@@ -240,7 +240,7 @@ class EntryListScreenTest {
     fun `the About tag reopens the welcome and OK closes it without dismissing the first-run one`() {
         var dismissed = 0
         show(EntryListUiState.Items(rows), onDismissWelcome = { dismissed++ })
-        compose.onNodeWithContentDescription("About REPKIT").performClick()
+        compose.onNodeWithContentDescription("About RepRhythm").performClick()
         compose.onNodeWithTag("welcome_title").assertExists()
         compose.onNodeWithTag("welcome_ok").performClick()
         compose.onNodeWithTag("welcome_title").assertDoesNotExist()
@@ -566,9 +566,9 @@ class EntryListScreenTest {
     }
 
     @Test
-    fun `the title REPKIT is centred in the top bar`() {
+    fun `the title RepRhythm is centred in the top bar`() {
         show(EntryListUiState.Items(rows))
-        compose.onNodeWithTag("title").assertTextEquals("REPKIT")
+        compose.onNodeWithTag("title").assertTextEquals("RepRhythm")
         val title = compose.onNodeWithTag("title").fetchSemanticsNode().boundsInRoot
         val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
         assertEquals(root.center.x, title.center.x, 0.5f)
@@ -672,7 +672,7 @@ class EntryListScreenTest {
         compose.onNodeWithTag("info_title").assertTextEquals("Share crash reports and usage")
         compose.onNodeWithTag("info_text").assertTextEquals(
             "Sends anonymous crash reports and basic usage statistics to the developer, to help fix bugs and " +
-                "improve REPKIT. No workout data is included.",
+                "improve RepRhythm. No workout data is included.",
         )
         compose.onNodeWithTag("info_ok").performClick()
         compose.onNodeWithTag("info_text").assertDoesNotExist()

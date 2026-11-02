@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.mitenko.repkit.R
 
 /**
- * The welcome dialog (spec rev 43): what REPKIT is and its three uses (Reps, Weights, Timer Only) as
+ * The welcome dialog (spec rev 43): what RepRhythm is and its three uses (Reps, Weights, Timer Only) as
  * headings, in the ⓘ dialogs' style. The entry list shows it once on a first launch and reopens it from
  * the ⓘ in its top bar. The headings reuse the New dialog's `new_kind_*` labels (rev 44), so they always match.
  */
@@ -53,7 +53,7 @@ fun WelcomeDialog(onDismiss: () -> Unit) {
     )
 }
 
-/** One of the three ways to use REPKIT, in the primary colour so it stands out from the body text. */
+/** One of the three ways to use RepRhythm, in the primary colour so it stands out from the body text. */
 @Composable
 private fun Heading(text: String) {
     Text(
