@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays RepRhythm (not translated). -->
 <resources>
     <string name="settings">设置</string>
     <string name="start">开始</string>
@@ -96,7 +96,7 @@
     <string name="info_total_reps">你当前的总次数，会分配到训练的各组中。修改立即生效。</string>
     <string name="info_best_streak">你最长的准时打卡连续记录。会随着连续记录增长自动更新。</string>
     <string name="info_current_streak">你当前的准时打卡连续记录，包括最近一次。错过窗口会让连续记录重置为 1。</string>
-    <string name="info_last_check_in">你上次点击“开始”的时间。REPKIT 用它来计算准时窗口和漏打卡调整。清除后，下次打卡将算作第一次。</string>
+    <string name="info_last_check_in">你上次点击“开始”的时间。RepRhythm 用它来计算准时窗口和漏打卡调整。清除后，下次打卡将算作第一次。</string>
     <string name="info_sound">播放倒计时提示音，并在训练阶段切换时发出提示音。</string>
     <string name="info_vibration">训练阶段切换时振动，即使屏幕关闭也会振动。</string>
     <string name="check_in">打卡</string>
@@ -104,13 +104,13 @@
     <string name="type">类型</string>
     <string name="type_workout">计数</string>
     <string name="type_check_in">仅计时</string>
-    <string name="welcome_title">欢迎使用 REPKIT</string>
+    <string name="welcome_title">欢迎使用 RepRhythm</string>
     <string name="new_kind_reps">次数</string>
     <string name="new_kind_weights">重量</string>
     <string name="new_kind_timer">计时</string>
     <string name="welcome_intro">一款记录你进步的间歇计时器。有三种用法：</string>
     <string name="welcome_reps">适合需要计数的动作，比如俯卧撑或深蹲。每次训练后打卡，次数就会增加一点。保持会让你在某个次数停留几天，错过的日子会让次数回落一些。</string>
-    <string name="welcome_weights">选好重量和次数，每次打卡后 REPKIT 会把你升到下一个重量，或者先加次数再加重量。</string>
+    <string name="welcome_weights">选好重量和次数，每次打卡后 RepRhythm 会把你升到下一个重量，或者先加次数再加重量。</string>
     <string name="welcome_timer">不计次数，打卡会保持你的连续记录。</string>
     <string name="welcome_start">点 + 新建训练，选择次数、重量或计时。打开训练，点 ⚙ 即可修改。</string>
     <string name="voice">语音</string>
@@ -140,7 +140,7 @@
     <string name="theme_dark">深色</string>
     <string name="crash_reports">分享崩溃报告和使用情况</string>
     <string name="ad_privacy">广告隐私选项</string>
-    <string name="info_crash_reports">向开发者发送匿名的崩溃报告和基本使用统计，帮助修复问题并改进 REPKIT。不包含任何训练数据。</string>
+    <string name="info_crash_reports">向开发者发送匿名的崩溃报告和基本使用统计，帮助修复问题并改进 RepRhythm。不包含任何训练数据。</string>
     <string name="week_count">本周 %1$d 次</string>
     <plurals name="tile_desc">
         <item quantity="other">最近 4 周打卡 %1$d 次</item>
@@ -203,10 +203,10 @@
     </plurals>
     <string name="go_pro">升级 Pro</string>
     <string name="not_now">以后再说</string>
-    <string name="pro_title">REPKIT Pro</string>
+    <string name="pro_title">RepRhythm Pro</string>
     <string name="go_pro_price">升级 Pro · %1$s</string>
     <string name="pro_subtitle_free">无限训练、无广告、全部主题</string>
-    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_active">RepRhythm Pro ✓</string>
     <string name="pro_subtitle_pro">感谢你的支持</string>
     <string name="purchase_pending">购买处理中</string>
     <string name="restore_purchase">恢复购买</string>

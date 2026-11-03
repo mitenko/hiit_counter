@@ -70,11 +70,11 @@ android {
                         val names = testOnes.joinToString()
                         if (bundle && project.findProperty("repkit.allowTestAds") != "true") {
                             throw GradleException(
-                                "REPKIT bundleRelease would ship AdMob TEST ids for: $names. Pass the real ids as " +
+                                "RepRhythm bundleRelease would ship AdMob TEST ids for: $names. Pass the real ids as " +
                                     "-P<name>=... (or put them in ~/.gradle/gradle.properties), or add -Prepkit.allowTestAds=true.",
                             )
                         }
-                        logger.warn("REPKIT release build is using AdMob TEST ids for: $names")
+                        logger.warn("RepRhythm release build is using AdMob TEST ids for: $names")
                     }
                 }
             }

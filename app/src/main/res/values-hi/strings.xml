@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays REPKIT (not translated). -->
+<!-- Generated from the translation sheet; edit the sheet, not this file. app_name stays RepRhythm (not translated). -->
 <resources>
     <string name="settings">सेटिंग्स</string>
     <string name="start">शुरू करें</string>
@@ -96,7 +96,7 @@
     <string name="info_total_reps">आपके वर्तमान कुल रेप्स, जो वर्कआउट के सेटों में बँटे होते हैं। बदलाव तुरंत लागू होते हैं।</string>
     <string name="info_best_streak">समय पर चेक-इन की आपकी सबसे लंबी स्ट्रीक। आपकी स्ट्रीक बढ़ने पर यह अपने आप अपडेट होती है।</string>
     <string name="info_current_streak">समय पर चेक-इन की आपकी वर्तमान स्ट्रीक, आख़िरी चेक-इन सहित। सीमा चूकने पर स्ट्रीक फिर से 1 हो जाती है।</string>
-    <string name="info_last_check_in">पिछली बार जब आपने शुरू करें दबाया था। REPKIT इसी से समय पर चेक-इन की सीमा और छूटे चेक-इन का समायोजन गिनता है। अगले चेक-इन को पहला बनाने के लिए इसे साफ़ करें।</string>
+    <string name="info_last_check_in">पिछली बार जब आपने शुरू करें दबाया था। RepRhythm इसी से समय पर चेक-इन की सीमा और छूटे चेक-इन का समायोजन गिनता है। अगले चेक-इन को पहला बनाने के लिए इसे साफ़ करें।</string>
     <string name="info_sound">उलटी गिनती की बीप बजाता है, और हर बार वर्कआउट का चरण बदलने पर बीप करता है।</string>
     <string name="info_vibration">हर बार वर्कआउट का चरण बदलने पर कंपन करता है, स्क्रीन बंद होने पर भी।</string>
     <string name="check_in">चेक-इन करें</string>
@@ -104,13 +104,13 @@
     <string name="type">प्रकार</string>
     <string name="type_workout">काउंटर</string>
     <string name="type_check_in">सिर्फ़ टाइमर</string>
-    <string name="welcome_title">REPKIT में आपका स्वागत है</string>
+    <string name="welcome_title">RepRhythm में आपका स्वागत है</string>
     <string name="new_kind_reps">रेप्स</string>
     <string name="new_kind_weights">वज़न</string>
     <string name="new_kind_timer">टाइमर</string>
     <string name="welcome_intro">एक इंटरवल टाइमर जो आपकी प्रगति दर्ज करता है। इसे तीन में से किसी एक तरीके से इस्तेमाल करें:</string>
     <string name="welcome_reps">उन व्यायामों के लिए जिन्हें आप गिनते हैं, जैसे पुश-अप या स्क्वॉट। जिस दिन भी वर्कआउट करें, चेक इन करें और आपके रेप्स थोड़े बढ़ जाएँगे। होल्ड आपको कुछ दिनों तक एक संख्या पर रखते हैं, और छूटे हुए दिन कुछ रेप्स कम कर देते हैं।</string>
-    <string name="welcome_weights">अपने वज़न और रेप्स चुनें, और हर चेक-इन पर REPKIT आपको अगले वज़न पर ले जाता है, या पहले रेप्स और फिर वज़न बढ़ाता है।</string>
+    <string name="welcome_weights">अपने वज़न और रेप्स चुनें, और हर चेक-इन पर RepRhythm आपको अगले वज़न पर ले जाता है, या पहले रेप्स और फिर वज़न बढ़ाता है।</string>
     <string name="welcome_timer">कुछ गिना नहीं जाता, और चेक इन करने से आपकी स्ट्रीक बनी रहती है।</string>
     <string name="welcome_start">वर्कआउट बनाने के लिए + पर टैप करें और रेप्स, वज़न या टाइमर चुनें। उसे खोलें और बदलने के लिए ⚙ पर टैप करें।</string>
     <string name="voice">आवाज़ संकेत</string>
@@ -142,7 +142,7 @@
     <string name="theme_dark">डार्क</string>
     <string name="crash_reports">क्रैश रिपोर्ट और उपयोग की जानकारी साझा करें</string>
     <string name="ad_privacy">विज्ञापन गोपनीयता विकल्प</string>
-    <string name="info_crash_reports">डेवलपर को गुमनाम क्रैश रिपोर्ट और बुनियादी उपयोग आँकड़े भेजता है, ताकि गड़बड़ियाँ ठीक हों और REPKIT बेहतर बने। इसमें आपका वर्कआउट डेटा शामिल नहीं होता।</string>
+    <string name="info_crash_reports">डेवलपर को गुमनाम क्रैश रिपोर्ट और बुनियादी उपयोग आँकड़े भेजता है, ताकि गड़बड़ियाँ ठीक हों और RepRhythm बेहतर बने। इसमें आपका वर्कआउट डेटा शामिल नहीं होता।</string>
     <string name="week_count">इस हफ़्ते %1$d बार</string>
     <plurals name="tile_desc">
         <item quantity="one">पिछले 4 हफ़्तों में %1$d चेक-इन</item>
@@ -212,10 +212,10 @@
     </plurals>
     <string name="go_pro">Pro लें</string>
     <string name="not_now">अभी नहीं</string>
-    <string name="pro_title">REPKIT Pro</string>
+    <string name="pro_title">RepRhythm Pro</string>
     <string name="go_pro_price">Pro लें · %1$s</string>
     <string name="pro_subtitle_free">असीमित वर्कआउट, कोई विज्ञापन नहीं, सभी थीम</string>
-    <string name="pro_active">REPKIT Pro ✓</string>
+    <string name="pro_active">RepRhythm Pro ✓</string>
     <string name="pro_subtitle_pro">आपके सहयोग के लिए धन्यवाद</string>
     <string name="purchase_pending">खरीदारी लंबित है</string>
     <string name="restore_purchase">खरीदारी बहाल करें</string>
