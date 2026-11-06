@@ -22,8 +22,8 @@ android {
         applicationId = "com.mitenko.repkit"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Spec rev 30 §2: debug builds send no crash reports or analytics unless built with -PcrashlyticsInDebug=true.
         buildConfigField("boolean", "CRASHLYTICS_IN_DEBUG", (project.findProperty("crashlyticsInDebug") == "true").toString())
